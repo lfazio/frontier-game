@@ -81,8 +81,11 @@ async def test_every_stage_is_checkpointed(sessions, clean):
         )
     assert stages == [
         "build_digests",
+        "chronicle",
         "economy",
+        "event_promotion",
         "grant_action_points",
+        "missions",
         "npc_population",
         "resolve_encounters",
         "settle_travel",
