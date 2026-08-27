@@ -204,22 +204,25 @@ Each context owns its tables, exposes a Python-level façade, and communicates o
 | --- | --- | --- | --- | --- | --- |
 | 1 | Identity | `frontier.identity` | accounts, sessions, credentials | `ACCOUNT_*` | — |
 | 2 | Cartography | `frontier.world` | location tree, hex algebra, bodies, stations | `DISCOVERY` | §2 |
-| 3 | Fleet | `frontier.fleet` | ships, modules, cargo, fuel, docking | `SHIP_*`, `PLAYER_ENTERED` | §4.2, §5.1 |
+| 3 | Fleet | `frontier.fleet` | ships, modules, cargo, fuel, docking | `SHIP_*`, `SHIP_ENTERED` | §4.2, §5.1 |
 | 4 | Turn | `frontier.turn` | AP ledger, daily grant, standing orders | `TURN_*` | §3.2, §3.5 |
 | 5 | Economy | `frontier.economy` | commodities, station markets, price model | `TRADE_EVENT`, `SHORTAGE` | §5.3 |
 | 6 | Encounter | `frontier.encounter` | combat resolution, boarding, escape | `COMBAT_*`, `SHIP_DESTROYED` | §5.4, §3.5 |
-| 7 | Missions | `frontier.missions` | offers, stages, completion | `MISSION_*` | §5.5 |
-| 8 | Polity | `frontier.polity` | factions, teams, territory, reputation, defection | `TERRITORY_CHANGE`, `FACTION_WAR` | §6 |
-| 9 | Comms | `frontier.comms` | channels, radio range, relays, delay | `MESSAGE` | §7.3–§7.5 |
-| 10 | Event spine | `frontier.events` | event model, audience, outbox, feeds | — (substrate) | §7.6–§7.8 |
-| 11 | Chronicle | `frontier.chronicle` | promoted permanent history, archives | `HISTORICAL_EVENT` | §8.10 |
-| 12 | Psychohistory | `frontier.psychohistory` | aggregate variables, forecasts | `FORECAST_PUBLISHED` | §8.2–§8.5 |
-| 13 | Continuity | `frontier.continuity` | hidden membership, clearance, secret ops | clearance-scoped only | §9 |
-| 14 | Gateway | `frontier.adapters.api`, `.ws` | HTTP/WS surface, projections | — | §10.4 C5 |
+| 7 | Population | `frontier.npc` | NPC agents, aggregate system activity, archetype behaviour | — (acts through shared commands) | §2.7 |
+| 8 | Missions | `frontier.missions` | offers, stages, completion | `MISSION_*` | §5.5 |
+| 9 | Polity | `frontier.polity` | factions, teams, territory, reputation, defection | `TERRITORY_CHANGE`, `FACTION_WAR` | §6 |
+| 10 | Comms | `frontier.comms` | channels, radio range, relays, delay | `MESSAGE` | §7.3–§7.5 |
+| 11 | Event spine | `frontier.events` | event model, audience, outbox, feeds | — (substrate) | §7.6–§7.8 |
+| 12 | Chronicle | `frontier.chronicle` | promoted permanent history, archives | `HISTORICAL_EVENT` | §8.10 |
+| 13 | Psychohistory | `frontier.psychohistory` | aggregate variables, forecasts | `FORECAST_PUBLISHED` | §8.2–§8.5 |
+| 14 | Continuity | `frontier.continuity` | hidden membership, clearance, secret ops | clearance-scoped only | §9 |
+| 15 | Gateway | `frontier.adapters.api`, `.ws` | HTTP/WS surface, projections | — | §10.4 C5 |
 
 Dependency rules between contexts:
 
 - Cartography is a leaf: it depends on nothing and everything may depend on it.
+- Population depends on Economy, Fleet and Encounter but nothing depends on Population: NPCs are simulated
+  through the same commands players use, so no other context needs to know they exist.
 - The event spine is substrate: any context may publish to it; only Gateway, Chronicle and Psychohistory read broadly.
 - **No context imports `frontier.continuity`.** The hidden faction attaches through the same public extension points
   as anything else (event subscriptions, mission providers, intervention hooks). If Economy had to know Continuity
@@ -454,7 +457,7 @@ STAGES: tuple[Stage, ...] = (
     SettleTravel(),          # 1
     ResolveEncounters(),     # 2
     EconomyStep(),           # 3
-    NpcAndFactionAI(),       # 4
+    NpcAndFactionAI(),       # 4  (MVP builds the NPC half only)
     TerritoryRecompute(),    # 5
     MissionLifecycle(),      # 6
     PsychohistoryUpdate(),   # 7
@@ -469,10 +472,10 @@ STAGES: tuple[Stage, ...] = (
 
 | # | Stage | Reads | Writes | Design ref |
 | --- | --- | --- | --- | --- |
-| 1 | Settle travel | in-flight movements | arrivals, fuel, `PLAYER_ENTERED` | §5.1 |
+| 1 | Settle travel | in-flight movements | arrivals, fuel, `SHIP_ENTERED` | §5.1 |
 | 2 | Resolve encounters | queued contacts, standing orders | combat outcomes, wrecks, bounties | §5.4, §3.5 |
 | 3 | Economy step | markets, production, shortages | prices, stock, `TRADE_EVENT`, `SHORTAGE` | §5.3 |
-| 4 | NPC & faction AI | world state, territory | NPC moves, patrols, faction posture | §1.2, §6.6 |
+| 4 | NPC & faction AI | activity aggregates, observed systems | aggregate flows, materialised NPCs, NPC actions | §2.7 |
 | 5 | Territory recompute | presence, influence | territory ownership, `TERRITORY_CHANGE` | §6.6 |
 | 6 | Mission lifecycle | faction needs, events | offers created/expired | §5.5 |
 | 7 | Psychohistory update | **aggregates only** | history variables, forecasts | §8.2, §8.3 |
@@ -936,7 +939,7 @@ what would force a rewrite.
 | **P0 — Skeleton** | Repo, layering with enforced import rules, ruleset loader, migrations, CI, Docker Compose, one end-to-end command (`move`) through the full path of section 8 | Establishes the only pattern every later feature copies |
 | **P1 — World and time** | Location tree, hex algebra, world generator, AP ledger, tick harness with stages 1, 11, 12; daily reset visible in the client | The tick and AP are architectural, not features; everything downstream assumes them |
 | **P2 — Event spine** | Event model, audience/redaction, deliveries, outbox, WebSocket feed, chat as an event type | Every remaining feature publishes here; building it late means retrofitting visibility into finished modules |
-| **P3 — MVP gameplay** | Ships, movement, fuel, scanning, station markets, simplified combat, NPC encounters, teams, the three factions, local/team channels, basic territory (§10.1) | The first playable world |
+| **P3 — MVP gameplay** | Ships, movement, fuel, scanning, station markets, simplified combat, the NPC population (aggregate everywhere, individuals where observed), teams, the three factions, local/team channels, basic territory (§10.1) | The first playable world |
 | **P4 — Depth** | Missions, reputation, defection, relays, digests, chronicle promotion | Makes the world feel persistent |
 | **P5 — History** | Psychohistory aggregates, forecasts, the Historical Institute, knowledge as a tradable resource (§8.8–§8.9) | Requires months of real event data to tune |
 | **P6 — The Continuity** | Hidden faction, clearance, recruitment, secret channels and operations (§9) | Deliberately last: it only means something once players have a history to deviate from, and it needs the anti-leak suite mature |

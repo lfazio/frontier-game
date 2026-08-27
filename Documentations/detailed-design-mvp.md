@@ -38,14 +38,16 @@ scanning and combat, talk to people, log out. Everything else is deferred.
 | Economy | Station markets, buy/sell, cargo, per-cycle price relaxation | Mining, production chains, player stations, smuggling |
 | Exploration | Scan, permanent attributed discovery, per-player map knowledge | Anomalies, archives, deep survey |
 | Combat | NPC encounters resolved live; PvP resolved at the tick from standing orders | Boarding, fleet battles, bounties |
+| Population | Aggregate NPC simulation in every system; haulers, patrols and raiders materialised where observed | Faction strategic AI, named or persistent NPCs |
 | Social | Three factions, teams, team chat, local/system chat, unified feed | Defection, faction chat ranks, relays, comms delay |
 | Events | One event spine, four scopes, per-viewer redaction, live WebSocket feed | Promotion to history, Chronicle, retention jobs |
-| Cycle | Tick stages 1, 2, 3, 5, 11, 12, 13 | Stages 4, 6, 7, 8, 9, 10 |
+| Cycle | Tick stages 1, 2, 3, 4, 5, 11, 12, 13 | Stages 6, 7, 8, 9, 10 |
 | Hidden layers | — | Psychohistory (*GDD §8*) and the Continuity (*GDD §9*) are not built, not stubbed, not referenced |
 
 **Tick stage numbering.** *GDD §3.3* lists twelve player-visible steps; *ARCH §9.2* lists thirteen executable
 stages, because the design's step 12 ("prepares each player's daily overview and digest") splits into
-`RebuildProjections` and `DispatchDigests`. The MVP runs ARCH stages **1, 2, 3, 5, 11, 12, 13**.
+`RebuildProjections` and `DispatchDigests`. The MVP runs ARCH stages **1, 2, 3, 4, 5, 11, 12, 13** — stage 4
+restricted to its NPC half (§6.5); faction strategic AI is deferred.
 
 ## 1.2 Acceptance criteria
 
@@ -66,6 +68,8 @@ test in §14 and is verified in CI, not by inspection.
 | A10 | Re-running a tick for the same world day against a restored snapshot produces byte-identical events. |
 | A11 | The client can render galaxy, region and system views without ever requesting the whole world. |
 | A12 | A full tick over the generated world completes in under 60 seconds on a developer machine. |
+| A13 | A system no player has visited since generation has different market stock after seven cycles — the aggregate population moved goods. |
+| A14 | Entering an unobserved system materialises NPCs deterministically: the same system on the same world day yields identical NPCs however often it is observed. |
 
 ## 1.3 Explicitly not in the MVP
 
@@ -90,7 +94,8 @@ src/frontier/
 │   ├── fleet/{ship,cargo,standing_orders}.py
 │   ├── economy/{market,pricing}.py          §6.4
 │   ├── encounter/{resolution}.py            §6.3
-│   └── polity/{faction,team,territory}.py   §6.5
+│   ├── polity/{faction,team,territory}.py   §6.6
+│   └── npc/{archetype,behaviour,population}.py §6.5, §10
 ├── application/
 │   ├── ports.py                             §5.1
 │   ├── unit_of_work.py                      §5.2
@@ -98,7 +103,8 @@ src/frontier/
 │   └── commands/                            §5.4 — one module per intent
 ├── simulation/
 │   ├── tick.py                              §6.1
-│   └── stages/{settle_travel,resolve_encounters,economy,territory,grant_ap,projections,digests}.py
+│   └── stages/{settle_travel,resolve_encounters,economy,npc_population,
+│              territory,grant_ap,projections,digests}.py
 ├── worldgen/generator.py                    §7
 ├── projections/{map_tiles,feed,dashboard}.py §9
 ├── adapters/
@@ -339,6 +345,28 @@ spread = 0.08                  # buy price = mid × (1+spread); sell = mid × (1
 ```
 
 ```toml
+# data/rulesets/2026.1/npc.toml
+trade_relax = 0.20
+patrol_relax = 0.15
+raider_relax = 0.18
+diffusion = 0.10
+k_trade = 1.2
+k_raider = 0.9
+haul_capacity = 20
+dissolve_after_cycles = 1
+
+[per_flow_unit]
+haulers = 6
+patrols = 4
+raiders = 4
+
+[actions_per_cycle]
+hauler = 4
+patrol = 3
+raider = 3
+```
+
+```toml
 # data/rulesets/2026.1/world.toml
 sensor_range_base = 3
 radio_range_base = 5
@@ -370,7 +398,7 @@ entry in this table, and a case in the feed renderer.
 
 | Type | Emitted by | Scope | Visibility | Payload |
 | --- | --- | --- | --- | --- |
-| `PLAYER_ENTERED` | move, jump arrival | LOCAL | PUBLIC | `ship_id, from, to` |
+| `SHIP_ENTERED` | move, jump arrival | LOCAL | PUBLIC | `ship_id, actor_kind, from, to` |
 | `JOURNEY_COMPLETED` | stage 1 | LOCAL | PARTICIPANTS | `journey_id, arrived_at` |
 | `SCAN_PERFORMED` | scan | LOCAL | PARTICIPANTS | `range, contacts_found` |
 | `DISCOVERY` | scan | SYSTEM | PUBLIC | `location_id, kind, first_by` |
@@ -397,6 +425,11 @@ class CombatResolvedPayload(TypedDict):
 ```
 
 `seed` is present on every stochastic event so that a disputed outcome replays exactly (*GDD* C6).
+
+**NPCs emit the same events as players.** There is no `NPC_*` family: a hauler docking emits `TRADE_EXECUTED`,
+a raider attacking emits `COMBAT_STARTED`, and the `actor_kind` field distinguishes them where a reader needs to know
+(§10.1). This is why the event named `SHIP_ENTERED` is not called `PLAYER_ENTERED`, which is the illustrative name in
+*GDD §7.6*: half the ships in the galaxy are not players.
 
 ---
 
@@ -469,7 +502,7 @@ CREATE INDEX locations_kind ON core.locations (kind) WHERE kind = 'station';
 
 CREATE TABLE core.ships (
     id            uuid PRIMARY KEY,
-    player_id     uuid NOT NULL UNIQUE REFERENCES core.players(id),   -- one active ship, GDD Q3
+    player_id     uuid REFERENCES core.players(id),      -- null for NPCs; one active ship per player, GDD Q3
     hull          int NOT NULL CHECK (hull >= 0),
     hull_max      int NOT NULL,
     shields       int NOT NULL CHECK (shields >= 0),
@@ -484,8 +517,34 @@ CREATE TABLE core.ships (
     docked_at     uuid REFERENCES core.locations(id),
     destroyed_on  int
 );
+CREATE UNIQUE INDEX ships_one_per_player ON core.ships (player_id)
+    WHERE player_id IS NOT NULL AND destroyed_on IS NULL;
 CREATE INDEX ships_position_gist ON core.ships USING gist (position_path);
 CREATE INDEX ships_system ON core.ships (system_id) WHERE destroyed_on IS NULL;
+
+CREATE TABLE core.npc_agents (
+    ship_id       uuid PRIMARY KEY REFERENCES core.ships(id) ON DELETE CASCADE,
+    system_id     uuid NOT NULL REFERENCES core.locations(id),
+    archetype     text NOT NULL,                 -- hauler, patrol, raider
+    slot          smallint NOT NULL,
+    faction_id    smallint REFERENCES core.factions(id),
+    route         jsonb NOT NULL DEFAULT '{}',
+    materialised_on int NOT NULL,
+    last_seen_on  int NOT NULL,
+    UNIQUE (system_id, archetype, slot)
+);
+CREATE INDEX npc_agents_stale ON core.npc_agents (last_seen_on);
+
+CREATE TABLE core.system_activity (
+    system_id            uuid PRIMARY KEY REFERENCES core.locations(id),
+    trade_flow           numeric(6,4) NOT NULL DEFAULT 0,
+    patrol_strength      numeric(6,4) NOT NULL DEFAULT 0,
+    raider_pressure      numeric(6,4) NOT NULL DEFAULT 0,
+    civilian_traffic     numeric(6,4) NOT NULL DEFAULT 0,
+    patrol_losses        numeric(6,4) NOT NULL DEFAULT 0,
+    raider_losses        numeric(6,4) NOT NULL DEFAULT 0,
+    last_simulated_on    int NOT NULL DEFAULT -1
+);
 
 CREATE TABLE core.cargo (
     ship_id      uuid NOT NULL REFERENCES core.ships(id) ON DELETE CASCADE,
@@ -614,6 +673,7 @@ alone:
 | `0005_fleet` | P3 | ships, cargo, standing_orders, journeys |
 | `0006_economy` | P3 | markets |
 | `0007_conflict` | P3 | encounter_queue, territory, player_discoveries |
+| `0008_population` | P3 | npc_agents, system_activity; `ships.player_id` made nullable |
 
 A partition-creation job runs monthly ahead of need; the MVP pre-creates twelve partitions so a forgotten job cannot
 stop the tick.
@@ -719,7 +779,7 @@ listed, so error messages are predictable and testable.
 | 5 | `ap_balance >= ap_cost` | `INSUFFICIENT_AP` |
 | 6 | `fuel >= fuel_cost` | `INSUFFICIENT_FUEL` |
 
-Effects: position updated, fuel debited, AP debited. Events: `PLAYER_ENTERED` (LOCAL, PUBLIC).
+Effects: position updated, fuel debited, AP debited. Events: `SHIP_ENTERED` (LOCAL, PUBLIC).
 
 Multi-hex movement is *n* `move` commands from the client, batched in one HTTP request via
 `POST /v1/commands:batch` (§8.2). The server still evaluates and charges each hop, because a partial journey must
@@ -741,7 +801,7 @@ arrives_on = world_day + ceil(distance_ly / jump_ly_per_cycle)      [BALANCE]
 ```
 
 and the ship is marked in transit (`ships.system_id` unchanged until arrival, `journeys` is the source of truth).
-Events: none at departure beyond the participants' `COMMAND_ACCEPTED`; `JOURNEY_COMPLETED` and `PLAYER_ENTERED` fire
+Events: none at departure beyond the participants' `COMMAND_ACCEPTED`; `JOURNEY_COMPLETED` and `SHIP_ENTERED` fire
 at stage 1 (criterion A4).
 
 ### `scan`
@@ -866,6 +926,7 @@ MVP_STAGES: Final = (
     SettleTravel(),          # ARCH stage 1
     ResolveEncounters(),     # ARCH stage 2
     EconomyStep(),           # ARCH stage 3
+    NpcPopulation(),         # ARCH stage 4, NPC half only
     TerritoryRecompute(),    # ARCH stage 5
     GrantActionPoints(),     # ARCH stage 11
     RebuildProjections(),    # ARCH stage 12
@@ -898,7 +959,7 @@ for journey in journeys where arrives_on <= world_day and not settled:
     ship.position_path := journey.to_path
     journey.settled   := true
     emit JOURNEY_COMPLETED (participants)
-    emit PLAYER_ENTERED    (local, public)
+    emit SHIP_ENTERED    (local, public)
 ```
 
 Idempotent through the `settled` flag. Runs before everything else so that arrivals participate in the same cycle's
@@ -969,7 +1030,117 @@ refinery, trade hub), which is what makes routes profitable in a stable directio
 resulting price moves more than a threshold `[BALANCE]`, a `MARKET_SHIFT` event is emitted at BODY scope so that
 traders in the system learn about it without a scripted news system (*GDD §5.3*).
 
-## 6.5 Stage 5 — Territory
+## 6.5 Stage 4 — The NPC population
+
+Realises *GDD §2.7*. *ARCH* stage 4 is "NPC and faction AI"; the MVP builds the NPC half. Faction-level strategic
+posture stays deferred, and nothing here assumes it.
+
+The stage has two halves with deliberately different cost profiles: **4a** runs over every system in the galaxy,
+**4b** only over systems a player can currently see.
+
+### 6.5.1 Sub-stage 4a — Aggregate flows, every system
+
+One row per system in `core.system_activity`, updated as vectorised arithmetic over arrays loaded in a single query.
+The MVP has 48 systems; the code is written linear in system count so a 5 000-system world runs the same path.
+
+| Variable | Range | Meaning | Driven by |
+| --- | --- | --- | --- |
+| `trade_flow` | 0–1 | Density of hauler traffic | Price gradient against neighbours, connectivity, raider pressure |
+| `patrol_strength` | 0–1 | Armed presence of the controlling faction | Territory influence × faction military baseline, minus losses |
+| `raider_pressure` | 0–1 | Predation on trade | Trade flow, weak patrols, spillover from adjacent systems |
+| `civilian_traffic` | 0–1 | Background population | Body and station count, stability |
+
+```text
+demand_gradient  = Σ over neighbours |price_index(self) − price_index(neighbour)|
+trade_target     = clamp(k_t × demand_gradient × connectivity × (1 − raider_pressure), 0, 1)
+trade_flow      += (trade_target − trade_flow) × trade_relax
+
+patrol_target    = influence[controller] × faction_military[controller]
+patrol_strength += (patrol_target − patrol_strength) × patrol_relax − patrol_losses
+
+spillover        = mean(raider_pressure of adjacent systems) × diffusion
+raider_target    = clamp(k_r × trade_flow × (1 − patrol_strength) + spillover, 0, 1)
+raider_pressure += (raider_target − raider_pressure) × raider_relax − raider_losses
+```
+
+All coefficients are `[BALANCE]`. This is a predator–prey system with a diffusion term, and it produces the chain
+*GDD §5.3* asks for without anybody scripting it:
+
+```text
+shortage → price gradient rises → trade_flow rises → raider_pressure rises →
+patrols take losses → patrol_strength falls → trade_flow falls → shortage deepens
+→ gradient rises further …
+```
+
+Relaxation rates below `0.25` keep the system damped; §14.5 asserts that no variable oscillates with a period under
+ten cycles, because an economy that visibly pulses on a fixed rhythm reads as machinery rather than as a world.
+
+**Unobserved trade moves real goods.** Where `trade_flow > 0` and no haulers were materialised, 4a applies the net
+cargo movement directly:
+
+```text
+moved = round(trade_flow × haul_capacity × cycles_since_simulated)
+stock[surplus_station][commodity] -= moved
+stock[deficit_station][commodity] += moved
+```
+
+A player returning to a system after a week finds the shortage partly resolved — by someone. That is the entire
+point of the aggregate layer, and the reason it is not merely an optimisation.
+
+### 6.5.2 Sub-stage 4b — Individuals, observed systems only
+
+A system is **observed** when it holds at least one non-destroyed player ship, or a player is docked at one of its
+stations. At MVP player counts that is well under half the galaxy.
+
+Materialisation is deterministic and idempotent:
+
+```text
+for system in observed_systems:
+    want = {hauler:  round(trade_flow      × k_h),
+            patrol:  round(patrol_strength × k_p),
+            raider:  round(raider_pressure × k_r)}      # each clamped to an archetype cap
+    for archetype, n in want:
+        for slot in range(n):
+            ensure_npc(system_id, archetype, slot)
+```
+
+`ensure_npc` is keyed `(system_id, archetype, slot)` and seeded `Rng.for_("npc", system_id, archetype, slot)`, so the
+same slot always yields the same callsign, ship class and route. Observing a system twice in a cycle shows the same
+NPCs; so does re-running the tick (criterion A10).
+
+Each materialised NPC then acts, through the **same commands players use** (§5.4), with an `actions_per_cycle`
+budget from its archetype instead of AP. Archetype behaviour is specified in §10.
+
+**Arrival mid-cycle.** A player jumping into an unobserved system triggers the same materialisation inside the
+arriving command's transaction. The unique key makes it a no-op if 4b already ran, so a system is never briefly
+empty and never doubly populated.
+
+**Dissolution.** An NPC whose system has had no observer for `dissolve_after_cycles` (default 1) is removed, and its
+state folds back into the aggregate rather than vanishing:
+
+| NPC state at dissolution | Folded into |
+| --- | --- |
+| Cargo in hold, mid-route | 4a's bulk movement completes the run in aggregate |
+| Kills scored | `raider_losses` / `patrol_losses` for the next cycle |
+| Ship destroyed | Corresponding pressure or strength reduced |
+
+### 6.5.3 NPC-versus-NPC combat
+
+| Situation | Resolution |
+| --- | --- |
+| Unobserved | Statistical attrition inside 4a: `patrol_losses` and `raider_losses` derived from the two variables |
+| Observed | The real resolver (§6.3), with the outcome fed back into the aggregate |
+
+A player can therefore watch a patrol destroy a raider and see raider pressure fall the next cycle. The two tiers
+agree because the observed outcome is written back, not because they were computed the same way.
+
+### 6.5.4 Cost
+
+4a is one query and roughly ten array operations over an *N*-system array. 4b is `O(observed systems × NPCs per
+system)` — at MVP scale about 20 × 8 = 160 NPC turns. Both are noise inside the 60-second tick budget (A12), and
+neither grows with the number of registered players.
+
+## 6.6 Stage 5 — Territory
 
 For each system, influence per faction:
 
@@ -984,7 +1155,7 @@ Decay is what makes territory a consequence of *sustained* presence rather than 
 tick (*GDD §6.6*). A change of controller emits `TERRITORY_CHANGE` at SYSTEM scope and invalidates the affected map
 tiles (§9.1).
 
-## 6.6 Stage 11 — Grant Action Points
+## 6.7 Stage 11 — Grant Action Points
 
 ```text
 for player in active players where last_grant_day < world_day:
@@ -999,13 +1170,13 @@ for player in active players where last_grant_day < world_day:
 The `last_grant_day` guard makes the stage idempotent. It runs after encounters and the economy so that a player
 logging in immediately after the tick acts against a fully simulated world (*GDD §3.3*).
 
-## 6.7 Stages 12–13 — Projections and digests
+## 6.8 Stages 12–13 — Projections and digests
 
 Stage 12 rebuilds map tiles for every path prefix touched by the day's events and bumps their cache version. Stage 13
 composes each player's daily overview from their `event_deliveries` plus scoped events and stores it as the
 `player_dashboard` read model; email delivery is a P4 concern, but the dashboard content is MVP (*GDD §3.4*).
 
-## 6.8 Determinism
+## 6.9 Determinism
 
 | Source of variance | Handling |
 | --- | --- |
@@ -1177,22 +1348,75 @@ monotonic, so the merge is a simple ordered zip with no timestamp comparison.
 
 ---
 
-# 10. NPCs in the MVP
+# 10. NPC archetypes
 
-The world must not feel empty on day one, and combat needs a live opponent. The MVP ships the smallest NPC set that
-achieves both `[D-6]`.
+The population *process* is §6.5; this section is the *content* — what an NPC is, what it does, and how many of them
+there are. Realises *GDD §2.7*.
 
-| NPC | Behaviour | Purpose |
+## 10.1 Representation
+
+NPC ships live in `core.ships` with a null `player_id`: the same table, the same physics, the same combat resolver,
+the same events `[D-6]`. An NPC differs from a player in exactly two ways:
+
+1. It has a `core.npc_agents` row carrying archetype, slot, route and lifecycle timestamps.
+2. It spends an `actions_per_cycle` budget instead of Action Points, because AP is a fairness device for human
+   attention, not a law of the world (*GDD §2.7*).
+
+Everything else is shared. An NPC hauler that cannot afford its cargo is rejected with `INSUFFICIENT_CREDITS` by the
+same `check` a player would hit, and that is the point: a second rule engine for NPCs is a second set of bugs and a
+guaranteed drift between what players see and what the world does.
+
+## 10.2 The three archetypes
+
+| | **Hauler** | **Patrol** | **Raider** |
+| --- | --- | --- | --- |
+| Job (*GDD §2.7*) | Circulation | Territory | Opposition |
+| Actions / cycle `[BALANCE]` | 4 | 3 | 3 |
+| Ship class | Light freighter: high cargo, weak weapon | Corvette: strong shields and weapon, no cargo | Raider: fast, medium weapon, medium cargo |
+| Spawn driver | `trade_flow` | `patrol_strength` | `raider_pressure` |
+| Cap per system `[BALANCE]` | 6 | 4 | 4 |
+| Standing orders equivalent | `EVADE`, retreat at 60 % | `AGGRESSIVE` against raiders and faction-hostiles | `AGGRESSIVE` above a cargo-value threshold, flee at 40 % |
+| Faction | None | Controlling faction | Pirates |
+
+### Hauler
+
+Runs a route between a surplus station and a deficit station, chosen when the NPC is materialised from the largest
+price gradient available in the system. The loop is `dock → buy → launch → fly → dock → sell`, executed as real
+commands against `core.markets`, so a hauler visibly changes prices. A player can undercut one, follow one to find a
+profitable pair, or rob one.
+
+### Patrol
+
+Holds position near the controlling faction's station and sweeps the busiest lane. Engages raiders on sight, and
+players whose faction is hostile to the controller. Patrol presence contributes to territory influence at stage 5,
+which is what makes a border cost something to hold (*GDD §6.6*).
+
+### Raider
+
+Loiters near the lane with the highest traffic, engages ships whose cargo value exceeds a threshold, and flees when
+hurt. Raiders are the reason an unarmed trader is a choice rather than a default.
+
+## 10.3 Legibility
+
+*GDD §2.7* requires NPC behaviour to be predictable: a player who watches a hauler for three cycles should be able
+to anticipate the fourth. Three rules deliver that:
+
+- **Deterministic identity.** A slot's callsign, ship class and route come from `Rng.for_("npc", system_id,
+  archetype, slot)`, so the same NPC is the same NPC across observations and across tick replays.
+- **Published routes.** A hauler's route is derived from visible market data, so a player with the same information
+  can work it out. Nothing about an NPC's decision depends on state the player cannot in principle see.
+- **No rubber-banding.** Raider pressure rises because trade is rich and patrols are thin — never because a player is
+  winning. This is a hard rule, and the soak test asserts no correlation between individual player wealth and local
+  raider pressure (§14.5).
+
+## 10.4 What is deliberately absent
+
+| Absent | Why | Where it attaches |
 | --- | --- | --- |
-| **Hauler** | Flies a fixed loop between two stations, carrying cargo | Makes systems look inhabited; a legitimate pirate target |
-| **Patrol** | Sits in a faction-controlled system, engages pirates on sight | Makes faction territory mean something |
-| **Raider** | Sits in a low-control system, engages ships carrying cargo | Gives traders a reason to fit a weapon |
-
-NPC ships live in `core.ships` with a null `player_id` — the same table, the same combat resolver, the same events.
-NPC movement is not a tick stage in the MVP (stage 4 is deferred); haulers advance one hop per cycle inside stage 1,
-which is a deliberate stopgap noted here so it is removed rather than forgotten when stage 4 arrives.
-
----
+| Faction strategic AI | *ARCH* stage 4's other half; needs faction goals that do not exist yet | Stage 4, second sub-stage |
+| Named, persistent NPCs | Politicians, officers and scientists are the Continuity's instruments (*GDD §9.5*) | `npc_agents` gains a `persistent` flag and survives dissolution |
+| NPC missions and dialogue | Missions are P4 | Mission provider interface (*ARCH §18*) |
+| Civilian ships as objects | `civilian_traffic` is an aggregate only; it colours the system view and feeds density, and materialises nothing | A fourth archetype |
 
 # 11. Configuration and environments
 
@@ -1320,12 +1544,20 @@ That last test is the enforcement of *ARCH §3.2*'s first principle, and it is c
 | Journey landing | A two-cycle jump lands on day *N+2*, not *N+1* or *N+3* (A4) |
 | Offline defence | An offline defender's standing orders drive the outcome, and the result reaches their feed (A6) |
 | Ordering | Cargo destroyed in stage 2 is reflected in stage 3 prices |
+| Aggregate liveliness | Seven cycles with no players change market stock in unvisited systems (A13) |
+| Materialisation | Observing a system twice on one world day yields identical NPCs; re-running stage 4b is a no-op (A14) |
+| Dissolution | An NPC dissolved mid-route hands its cargo to the aggregate; total goods are conserved |
+| Tier agreement | An observed patrol kill lowers `raider_pressure` next cycle by the same amount the statistical path would |
 
 ## 14.5 Simulation soak
 
 A seeded world runs 90 cycles headless with scripted cohorts (30 traders, 10 pirates, 10 explorers). Assertions:
 
 - No faction exceeds 80 % territory before cycle 60.
+- No population variable oscillates with a period under ten cycles — a visibly pulsing economy reads as
+  machinery rather than as a world (§6.5.1).
+- `raider_pressure` shows no correlation with individual player wealth: pressure follows trade and patrols, never
+  player success (§10.3).
 - Commodity price dispersion stays within a configured band — a collapse means the economy has no gradient left and
   trading has stopped being a decision.
 - Total credit supply grows within bounds; unbounded growth means a sink is missing.
@@ -1349,6 +1581,8 @@ drift becomes visible before players find it.
 | A10 | Tick: determinism |
 | A11 | Contract: tile payload contains no undiscovered location |
 | A12 | Simulation soak |
+| A13 | Tick: aggregate liveliness |
+| A14 | Tick: materialisation |
 
 ---
 
@@ -1403,8 +1637,10 @@ Ordered by dependency. "Done" means merged with tests passing and the listed acc
 | 3.5 | Encounter resolver, NPC combat, `attack` (§6.3) | Deterministic replay of a seeded encounter |
 | 3.6 | Standing orders, encounter queue, stage 2 (§3.3, §6.3) | A6 |
 | 3.7 | Teams, factions, membership commands (§5.4) | A1 |
-| 3.8 | Territory, stage 5 (§6.5) | Control changes after sustained presence, not instantly |
-| 3.9 | NPCs: hauler, patrol, raider (§10) | A generated world has visible traffic on day 1 |
+| 3.8 | Territory, stage 5 (§6.6) | Control changes after sustained presence, not instantly |
+| 3.9a | `system_activity`, sub-stage 4a, aggregate goods movement (§6.5.1) | A13; soak shows no oscillation |
+| 3.9b | Materialisation and dissolution, sub-stage 4b, lazy spawn on arrival (§6.5.2) | A14 |
+| 3.9c | Archetype behaviour: hauler, patrol, raider (§10.2) | A generated world has visible traffic on day 1; a hauler visibly moves prices |
 | 3.10 | Map tiles, dashboard, ETags (§9) | A11 |
 | 3.11 | Simulation soak in CI nightly (§14.5) | A12 |
 
@@ -1423,8 +1659,10 @@ mistake in this plan that would cost a rewrite.
 | D-3 | Contact search narrows by system in SQL and filters by hex distance in Python. | GiST cannot express hex range; a system holds hundreds of ships, not millions. | Yes |
 | D-4 | Player-versus-player encounters always resolve at tick stage 2, never live — even when both players are online. | One code path for offline and online defence, so they can never diverge (*GDD §3.5*). | Yes, but only by accepting two paths |
 | D-5 | Public API responses are explicit allowlists from the first commit, not ORM dumps. | The MVP has no secrets to leak, but the discipline is what prevents leaking later (*ARCH §12.1*). | No — this is a standing rule |
-| D-6 | Three NPC archetypes, sharing `core.ships` and the player combat resolver. | The world must not be empty and combat needs an opponent, without building faction AI. | Yes |
-| D-7 | Haulers advance inside stage 1 until tick stage 4 exists. | A stopgap, recorded so it is removed rather than inherited. | Yes — delete on stage 4 |
+| D-6 | NPCs share `core.ships`, the player command handlers and the combat resolver; they differ only by an `npc_agents` row and an action budget instead of AP. | A second rule engine for NPCs is a second set of bugs and guaranteed drift between what players see and what the world does. | No |
+| D-7 | The NPC population is simulated at two fidelities: aggregate flows everywhere, individual ships only where observed, with materialisation and dissolution between them. | Keeps the tick independent of world size while letting the galaxy evolve everywhere; and the aggregate layer is the same quantity psychohistory will later measure (*GDD §2.7*, §8.5). | Yes, at the cost of either an empty galaxy or an unbounded tick |
+| D-11 | Tick stage 4 enters the MVP, restricted to its NPC half. | *GDD* Pillar 1 is false without it: a persistent universe in which nothing happens unless a player causes it is not persistent. | No |
+| D-12 | `civilian_traffic` is an aggregate that never materialises. | It colours the system view and feeds density without adding a fourth archetype to build, balance and test. | Yes |
 | D-8 | One `POST /v1/commands` endpoint with a discriminated union, plus a batch variant. | Locking, idempotency and ledger writes exist once. | Yes |
 | D-9 | Prices are computed inside the transaction from current stock; a client-sent price is ignored, not validated. | Validating a client price implies the client has one (*GDD* C1). | No |
 | D-10 | The `psycho` and `cont` schemas are not created in the MVP. | An empty schema for an unbuilt feature attracts content. | Yes |
@@ -1444,6 +1682,8 @@ Blocking, with the MVP's working assumption. The first three are *GDD §11.2* qu
 | S2 | Can a player exist without a team? | No — registration requires creating or joining one | Task 3.7, faction denormalisation |
 | S3 | Is jump range limited by fuel alone, or also by a maximum per jump? | Fuel alone in the MVP | Task 3.2 |
 | S4 | Starting endowment: ship class, credits, fuel? | One light freighter, 5 000 cr, full tank `[BALANCE]` | Task 3.1 |
+| S5 | How long does an NPC persist once its system is unobserved? | One cycle (`dissolve_after_cycles = 1`) | Task 3.9b |
+| S6 | Should a player be able to *see* aggregate figures — traffic, danger — for a system they have not visited? | No in the MVP; the system view shows density qualitatively, and precise figures are a P5 Knowledge item (*GDD §8.9*) | Task 3.10 |
 
 S1–S4 are design questions that surfaced during detailed design; they belong in *GDD §11.2* once answered.
 
@@ -1454,20 +1694,21 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 | MVP requirement (*GDD §10.1*) | Designed in | Verified by |
 | --- | --- | --- |
 | Hierarchical hex map, galaxy, systems, zoom | §3.1, §3.2, §4.2, §7, §9.1 | A11, property tests |
-| Basic faction territories | §6.5 | Tick tests, soak |
-| Account, credits, AP, location, reputation | §3.3, §4.2, §6.6 | A1, A2, A3 |
+| Basic faction territories | §6.6 | Tick tests, soak |
+| Account, credits, AP, location, reputation | §3.3, §4.2, §6.7 | A1, A2, A3 |
 | Standing orders | §3.3, §5.4 | A6 |
 | Ship: hull, shields, fuel, cargo, weapon, equipment | §3.3, §4.2 | A1, A5 |
 | Hex movement, AP and fuel consumption | §5.4, §3.4 | A2 |
 | Journeys across cycle boundaries | §5.4, §6.2 | A4 |
 | Buy, sell, cargo, station markets | §5.4, §6.4 | A5 |
 | Scan, discovery, basic events | §5.4, §5.5 | A9 |
-| NPC and player encounters, simplified combat | §6.3, §10 | A6, A10 |
+| NPC and player encounters, simplified combat | §6.3, §10.2 | A6, A10 |
+| Aggregate population in every system, individuals where observed (*GDD §2.7*) | §6.5, §10 | A13, A14 |
 | Offline resolution | §5.4 (D-4), §6.3 | A6 |
 | Teams, three factions, team chat, local communication (*GDD §7.3*) | §5.4, §8.3 | A1 |
 | Local/Body/System/Universe events, unified feed | §3.5, §5.5, §9.3 | A9 |
-| Cycle steps 1–3, 5, 11, 12 | §6 | A4, A10, A12 |
-| Design constraints C1–C10 (*GDD §10.4*) | C1 §5.2/§8.1 · C2 §6.1 · C3 §3.5 · C4 §5.5 · C5 §9.1 · C6 §6.3/§6.8 · C7 §3.4 · C8, C9 not applicable (D-10) · C10 not applicable | A3, A9, A10 |
+| Cycle steps 1–5, 11, 12 | §6 | A4, A10, A12, A13 |
+| Design constraints C1–C10 (*GDD §10.4*) | C1 §5.2/§8.1 · C2 §6.1 · C3 §3.5 · C4 §5.5 · C5 §9.1 · C6 §6.3/§6.9 · C7 §3.4 · C8, C9 not applicable (D-10) · C10 not applicable | A3, A9, A10 |
 
 ---
 

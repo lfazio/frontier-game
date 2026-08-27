@@ -31,6 +31,7 @@ Rationale and rejected alternatives are in `ARCH §4`; the enforced package layo
 | Hierarchical hex world, addresses | §2 | §7.1, §10.2 |
 | Player, ships, actions, combat, economy | §4, §5 | §6 |
 | Factions, teams, territory | §6 | §6 |
+| NPC population and simulation fidelity | §2.7 | §6 (Population), §9.2 stage 4 · SDD §6.5, §10 |
 | Communication, visibility, event model | §7 | §7.2, §7.4, §10.5 |
 | Psychohistory and history | §8 | §12.1, ADR-12 |
 | The Continuity (hidden faction) | §9 | §12.1, §13.3, ADR-13 |

@@ -9,7 +9,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 2.0 (restructured; supersedes 1.0) |
+| Version | 2.1 |
 | Date | 2026-08-27 |
 | Companion | `Documentations/architecture.md` (cited as *ARCH §n*) |
 | Audience | Designers, engineers, writers, reviewers |
@@ -272,6 +272,66 @@ on one continuous map.
 Spatial scale and game mechanics remain conceptually separate. A hex at Galaxy level and a hex at Local level differ
 by many orders of magnitude in physical size, but they are the same kind of object to the rules. The player
 experiences one world, not four engines.
+
+## 2.7 The inhabited world
+
+The galaxy is populated whether or not any player is looking at it. NPC haulers move cargo, patrols hold faction
+space, raiders prey on trade routes, and civilian traffic fills the lanes. This is not decoration: it is what makes
+Pillar 1 (§1.2) literally true rather than a slogan.
+
+NPCs carry four jobs, and every NPC design should be judged against them:
+
+| Job | Why the game needs it |
+| --- | --- |
+| **Presence** | A system a player has never visited must already have a history when they arrive. |
+| **Circulation** | Goods must move between stations without players, so shortages propagate and prices mean something (§5.3). |
+| **Territory** | Faction control must be held by *someone*; a border with no patrols is a line on a map (§6.6). |
+| **Opposition** | Combat must be available on the player's schedule, not only when another player happens to be nearby (§5.4). |
+
+### Simulation fidelity varies with observation
+
+The world is simulated everywhere, but not at the same resolution everywhere. This mirrors §2.6: just as spatial
+scale is separate from the rules, **simulation fidelity is separate from the world's existence**.
+
+```text
+        No observer present                  Observer present
+        ───────────────────                  ────────────────
+        Population simulated as              Individual ships, with
+        aggregate flows:                     position, cargo, hull:
+          trade flow                           haulers on real routes
+          patrol strength                      patrols on real orders
+          raider pressure                      raiders hunting real cargo
+                    │                                    ▲
+                    └────────── materialise ─────────────┘
+                    ┌────────── dissolve ────────────────┐
+                    ▼                                    │
+```
+
+Two rules make this honest rather than a trick:
+
+- **The aggregate never stops.** Trade flow, patrol strength and raider pressure evolve every cycle in every system,
+  observed or not. A player returning to a system after a month finds it genuinely changed, not frozen.
+- **An observer MUST NOT be able to tell.** Individuals are materialised from the aggregate and dissolved back into
+  it, and their outcomes feed back: a hauler that completes a run moves real stock; a raider that dies lowers raider
+  pressure. What a player sees is a sample of the population, never a separate reality.
+
+### Why this shape, and not simply "simulate everything"
+
+Beyond cost, the aggregate layer is the same quantity the historical model will later measure. Trade flow, patrol
+strength and raider pressure *are* population-scale variables of the kind §8.2 tracks, and §8.5's claim — that large
+NPC populations are statistically predictable while players are not — is only true if NPC populations are actually
+represented statistically. Building the aggregate now is what makes psychohistory measurable later, rather than a
+number invented on top of an unrelated simulation.
+
+### Constraints
+
+- NPCs **MUST** obey the same physics as players: fuel, cargo capacity, hex distance, weapon range, combat
+  resolution. They are exempt only from Action Points, which are a fairness device for human attention, not a law of
+  the world.
+- NPC behaviour **MUST** be legible. A player who watches a hauler for three cycles should be able to predict the
+  fourth. Unpredictability is the players' role (§8.5), not the population's.
+- NPCs **MUST NOT** be a difficulty dial disguised as a world. Raider pressure rises because trade is rich and
+  patrols are thin — never because a player is doing well.
 
 ---
 
@@ -762,7 +822,7 @@ Event
 This is a design commitment, not an implementation detail: it is what allows one merged feed (§7.9), one set of
 visibility rules (§7.2), and one path from a skirmish to a line in the Chronicle (§7.7).
 
-Event types include `COMBAT_STARTED`, `PLAYER_ENTERED`, `SHIP_DESTROYED`, `TRADE_EVENT`, `DISCOVERY`,
+Event types include `COMBAT_STARTED`, `SHIP_ENTERED`, `SHIP_DESTROYED`, `TRADE_EVENT`, `DISCOVERY`,
 `PIRATE_ACTIVITY`, `FACTION_WAR`, `TERRITORY_CHANGE`, `MESSAGE`.
 
 ## 7.7 Scope and propagation
@@ -1452,9 +1512,10 @@ The first playable version stays small. Everything below is required; nothing be
 | **Economy** | Buy, sell, cargo, basic station markets |
 | **Exploration** | Scan, discover locations, basic events |
 | **Combat** | NPC encounters, player encounters, simplified resolution, offline resolution |
+| **Population** | Aggregate NPC simulation in every system; haulers, patrols and raiders materialised where observed (§2.7) |
 | **Multiplayer** | Teams, the three factions, team chat, local communication |
 | **Events** | Local, Body, System and Universe scopes with the unified feed |
-| **Cycle** | The full daily advance of §3.3 steps 1–3, 5, 11, 12 |
+| **Cycle** | The full daily advance of §3.3 steps 1–5, 11, 12 |
 
 Deliberately **absent** from the MVP but designed for: communication delay, relays, missions beyond a basic form,
 defection, psychohistory, the Chronicle and the Continuity.
@@ -1533,6 +1594,7 @@ should be reviewed as design decisions. Each can be reverted independently.
 | **M10** | **Eras and narrative phases separated** (§8.11 vs §9.12). | v1.0 contained two overlapping six- and seven-step progressions. They describe different things: recurring world states, and one-time community discovery. |
 | **M11** | **"Turn" replaced by "cycle"** throughout; "world day" reserved for the counter. | v1.0 used "turn" for the 24-hour period, for a mission duration and for a player's session. |
 | **M12** | **Authorial voice removed.** | v1.0 contained first- and second-person commentary ("I would make…", "your game") and duplicated conversational fragments, which read as notes rather than specification. |
+| **M13** | **The NPC population promoted to a design section (§2.7)**, with simulation fidelity tied to observation, and moved into the MVP along with cycle step 4. | v1.0 and v2.0 mentioned NPCs in six places without ever saying what they are for or how many there are. A persistent universe (§1.2) in which nothing happens unless a player causes it is not persistent, and the aggregate layer §2.7 introduces is the same quantity §8.2 will later measure. |
 
 ## 11.2 Open questions
 
@@ -1596,6 +1658,7 @@ For notes, issues or commits that cite the old flat numbering.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 2.1 | 2026-08-27 | Added §2.7, promoting the NPC population from an implicit detail to a stated design pillar with an observation-dependent fidelity model; the MVP now includes it and cycle step 4. See §11.1 M13. |
 | 2.0 | 2026-08-27 | Restructured into eleven parts with hierarchical numbering; terminology unified with the architecture document; technical architecture extracted; Continuity material consolidated; normative conventions, non-goals, action catalogue, open questions and this change control section added. See §11.1. |
 | 1.0 | — | Original design document, 75 flat sections. Preserved in version control. |
 
