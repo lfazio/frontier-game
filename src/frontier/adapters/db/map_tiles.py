@@ -98,6 +98,33 @@ class MapTiles:
         except Exception:
             return False
 
+    async def public_tile(self, prefix: HexAddr, world_day: int) -> Tile:
+        """The star chart, and nothing inside a system — UX §9.
+
+        A spectator has no sight (*UX §4.1*), so it sees the shape of the galaxy and who holds
+        it, never what is flying around in it. Strictly weaker than any player's tile.
+        """
+        rows = (
+            (
+                await self._s.execute(
+                    select(models.Location)
+                    .where(text("path <@ CAST(:prefix AS ltree)").bindparams(prefix=prefix.ltree()))
+                    .where(models.Location.level == int(prefix.level) + 1)
+                    .where(models.Location.kind.in_(("region", "system")))
+                    .order_by(models.Location.path)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        control = await self._control(prefix)
+        return Tile(
+            path=str(prefix),
+            level=int(prefix.level),
+            world_day=world_day,
+            entries=[self._entry(row, control) for row in rows],
+        )
+
     async def _known(self, player_id: UUID) -> set[UUID]:
         rows = (
             (

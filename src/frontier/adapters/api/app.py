@@ -14,6 +14,7 @@ from frontier.adapters.api.routers import (
     mapview,
     me,
     missions,
+    watch,
 )
 from frontier.adapters.ws.gateway import router as stream_router
 from frontier.application.executor import WorldTicking
@@ -49,6 +50,7 @@ def create_app(container: Container | None = None) -> FastAPI:
     app.include_router(mapview.router)
     app.include_router(missions.router)
     app.include_router(forecasts.router)
+    app.include_router(watch.router)
     app.include_router(stream_router)
 
     @app.get("/healthz", tags=["ops"])

@@ -118,6 +118,27 @@ def observation_quality(viewer: ViewerContext, event: Event) -> Quality:
     return Quality.NONE
 
 
+def render_public(event: Event) -> EventView | None:
+    """What a viewer with no ship and no account may see — UX §9.
+
+    Deliberately the weakest entitlement in the game: public events that already carry to a whole
+    system or wider, and nothing else. A spectator has no sensors, so it can never learn anything
+    a player standing there would not already know.
+    """
+    if event.visibility is not Visibility.PUBLIC or event.scope < Scope.SYSTEM:
+        return None
+    return EventView(
+        id=event.id,
+        world_day=event.world_day,
+        occurred_at=event.occurred_at.isoformat(),
+        type=event.type.value,
+        origin=str(event.origin),
+        scope=int(event.scope),
+        quality=Quality.PARTIAL,
+        payload=_redact(event),
+    )
+
+
 def render_for(viewer: ViewerContext, event: Event) -> EventView | None:
     """Redaction happens here, before serialisation. A client is never sent what it must not show."""
     quality = observation_quality(viewer, event)
