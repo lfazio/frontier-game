@@ -1,4 +1,4 @@
-.PHONY: install check lint types imports test test-int up down world tick migrate relay soak antileak
+.PHONY: install check lint types imports test test-int up down world tick demo serve client migrate relay soak antileak
 
 install:
 	uv sync
@@ -38,6 +38,15 @@ migrate:
 
 world:
 	uv run python -m frontier.cli.world
+
+demo:
+	uv run python -m frontier.cli.demo
+
+serve:
+	uv run uvicorn frontier.adapters.api.app:app --port 8000
+
+client:
+	cd client && npm install && npm run dev
 
 tick:
 	uv run python -m frontier.cli.tick

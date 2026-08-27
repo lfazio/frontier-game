@@ -16,3 +16,7 @@ htmlcov/
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# Client
+client/node_modules/
+client/dist/
