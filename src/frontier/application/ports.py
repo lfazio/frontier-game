@@ -26,8 +26,11 @@ class IdPort(Protocol):
 
 class Player(Protocol):
     id: UUID
+    callsign: str
     ap_balance: int
     credits: int
+    team_id: UUID | None
+    faction_id: int | None
 
 
 class PlayerRepo(Protocol):
@@ -69,6 +72,11 @@ class WorldState(Protocol):
     async def world_day(self) -> int: ...
 
 
+class StateStore(Protocol):
+    async def load(self, spec: object, player_id: UUID) -> object: ...
+    async def save(self, state: object) -> None: ...
+
+
 class UnitOfWork(Protocol):
     players: PlayerRepo
     ships: ShipRepo
@@ -76,6 +84,7 @@ class UnitOfWork(Protocol):
     commands: CommandLog
     events: EventSink
     world: WorldState
+    state: StateStore
 
     async def __aenter__(self) -> UnitOfWork: ...
     async def __aexit__(self, *exc: object) -> None: ...

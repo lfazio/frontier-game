@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from frontier.application.commands.base import Command, State
+from frontier.application.commands.base import Command
 from frontier.application.ports import ClockPort, IdPort, RngPort, UnitOfWork
 from frontier.domain.decisions import Accepted, Rejected
 from frontier.domain.events.model import Event
@@ -71,7 +71,7 @@ class Executor:
                 raise WorldTicking
 
             day = await uow.world.world_day()
-            state = await self._load(uow, command, player_id)
+            state = await uow.state.load(command.loads(), player_id)
             decision = command.check(state, self.rules)
 
             if isinstance(decision, Rejected):
@@ -83,19 +83,11 @@ class Executor:
             events = self._stamp(drafts, day)
 
             await uow.players.debit_ap(player_id, decision.ap_cost, command.id, command.action, day)
-            if state.ship is not None:
-                await uow.ships.save(state.ship)
+            await uow.state.save(state)
             await uow.events.append(events)
             await self._record(uow, command, player_id, "accepted", decision, day)
             await uow.commit()
             return CommandResult(status="accepted", events=events)
-
-    async def _load(self, uow: UnitOfWork, command: Command, player_id: UUID) -> State:
-        spec = command.loads()
-        player = await uow.players.get_for_update(player_id)
-        ship = await uow.ships.of_player(player_id) if spec.ship else None
-        known = {str(addr) for addr in spec.resolve if await uow.locations.exists(addr)}
-        return State(player=player, ship=ship, known_addresses=frozenset(known))
 
     def _stamp(self, drafts: list[Any], day: int) -> list[Event]:
         now = self.clock.now()
