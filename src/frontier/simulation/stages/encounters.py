@@ -92,7 +92,11 @@ class ResolveEncounters:
         )
 
     async def _respawn(self, ctx: TickContext, loser: Combatant) -> None:
-        """A destroyed player restarts at a faction home with a base hull and a credit penalty."""
+        """The pilot survives: their capsule is recovered, and they are taxed for the salvage.
+
+        A fraction rather than a flat fee, so the loss scales with what a player has and can
+        never leave a poor pilot unable to fly again (design answer S1).
+        """
         ship = (
             await ctx.session.execute(select(models.Ship).where(models.Ship.id == loser.ship_id))
         ).scalar_one()
@@ -123,7 +127,13 @@ class ResolveEncounters:
         await ctx.session.execute(
             update(models.Player)
             .where(models.Player.id == ship.player_id)
-            .values(credits=func.greatest(0, models.Player.credits - ctx.rules.combat.respawn_credit_penalty))
+            .values(
+                credits=func.greatest(
+                    0,
+                    models.Player.credits
+                    - func.floor(models.Player.credits * ctx.rules.combat.rescue_tax_fraction),
+                )
+            )
         )
 
     async def _close(self, ctx: TickContext, encounter_id: UUID) -> None:

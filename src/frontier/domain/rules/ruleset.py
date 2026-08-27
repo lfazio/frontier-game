@@ -55,6 +55,7 @@ class WorldRules:
     radio_range_base: int
     fuel_per_hex: int
     fuel_per_jump_ly: int
+    jump_range_default_ly: int
     shield_regen_per_cycle: int
     hull_repair_cost_per_point: int
     territory_control_threshold: float
@@ -71,7 +72,7 @@ class CombatRules:
     destroyed_cargo_drop_ratio: float
     weapon_damage_min: int
     weapon_damage_max: int
-    respawn_credit_penalty: int
+    rescue_tax_fraction: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,7 +96,6 @@ class NpcRules:
     k_trade: float
     k_raider: float
     haul_capacity: int
-    dissolve_after_cycles: int
     per_flow_unit: Mapping[str, int]
     actions_per_cycle: Mapping[str, int]
 

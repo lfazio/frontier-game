@@ -6,4 +6,5 @@ max_rounds_per_encounter = 5
 destroyed_cargo_drop_ratio = 0.50
 weapon_damage_min = 12
 weapon_damage_max = 20
-respawn_credit_penalty = 1000
+# Salvage tax levied for recovering the pilot's life capsule. Tunable band: 0.03 to 0.10.
+rescue_tax_fraction = 0.05
