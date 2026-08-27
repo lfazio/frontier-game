@@ -27,6 +27,7 @@ BY_FACTION = {1: ("patrol", "supply"), 2: ("supply", "survey"), 3: ("raid", "sur
 
 class MissionLifecycle:
     name = "missions"
+    role: str | None = None
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         expired = await self._expire(ctx)

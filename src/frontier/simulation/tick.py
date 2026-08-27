@@ -63,14 +63,17 @@ class TickRunner:
         clock: SystemClock,
         rng_for: Any,
         features: Features | None = None,
+        extra_stages: tuple[Stage, ...] = (),
     ) -> None:
         self._sessions = sessions
         self._rules = rules
         self._clock = clock
         self._rng_for = rng_for
         self._features = features or Features()
+        self._extra = extra_stages
 
-    async def run(self, stages: tuple[Stage, ...] = TICK_STAGES) -> TickReport:
+    async def run(self, stages: tuple[Stage, ...] | None = None) -> TickReport:
+        stages = TICK_STAGES + self._extra if stages is None else stages
         async with self._sessions() as session:
             await session.begin()
             if not await self._acquire(session):
@@ -143,7 +146,12 @@ class TickRunner:
                 rng_for=self._rng_for,
                 features=self._features,
             )
+            role = getattr(stage, "role", None)
+            if role:
+                await session.execute(text(f"SET LOCAL ROLE {role}"))
             metrics = await stage.run(ctx)
+            if role:
+                await session.execute(text("RESET ROLE"))
             session.add(models.TickStage(world_day=day, stage=stage.name, metrics=metrics))
             await session.commit()
             log.info("tick stage complete", extra={"stage": stage.name, "world_day": day})

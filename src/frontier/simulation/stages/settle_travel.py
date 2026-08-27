@@ -13,6 +13,7 @@ from frontier.simulation.stages.base import TickContext
 
 class SettleTravel:
     name = "settle_travel"
+    role: str | None = None
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         pending = (

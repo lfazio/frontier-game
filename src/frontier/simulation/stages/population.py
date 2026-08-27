@@ -56,6 +56,7 @@ class NpcPopulation:
     """ARCH stage 4, NPC half. Faction strategic AI is deferred and nothing here assumes it."""
 
     name = "npc_population"
+    role: str | None = None
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         flows = await self._aggregate(ctx)

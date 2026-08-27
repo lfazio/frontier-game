@@ -23,6 +23,7 @@ TITLES = {
 
 class ChronicleAndRetention:
     name = "chronicle"
+    role: str | None = None
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         kept = await self._promote_to_history(ctx)

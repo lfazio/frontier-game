@@ -32,6 +32,7 @@ SURPRISE_WINDOW = 10
 
 class PsychohistoryUpdate:
     name = "psychohistory"
+    role: str | None = None
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         if not ctx.features.psychohistory:

@@ -18,6 +18,7 @@ CONSUMPTION = 9
 
 class EconomyStep:
     name = "economy"
+    role: str | None = None
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         economy = ctx.rules.economy

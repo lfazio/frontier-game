@@ -14,6 +14,7 @@ class Features:
     """Systems that ship dark until the world is old enough to tune them — GDD §10.3."""
 
     psychohistory: bool = False
+    continuity: bool = False
 
 
 @dataclass(slots=True)
@@ -29,5 +30,7 @@ class TickContext:
 
 class Stage(Protocol):
     name: str
+    # A stage may name the database role whose grants bound what it can do.
+    role: str | None
 
     async def run(self, ctx: TickContext) -> dict[str, int]: ...

@@ -17,6 +17,7 @@ from frontier.simulation.stages.base import TickContext
 
 class GrantActionPoints:
     name = "grant_action_points"
+    role: str | None = None
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         players = (
