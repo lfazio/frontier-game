@@ -230,6 +230,7 @@ async def test_a_full_tick_stays_well_inside_its_budget(sessions, clean):
         "grant_action_points",
         "missions",
         "npc_population",
+        "psychohistory",
         "resolve_encounters",
         "settle_travel",
         "territory",

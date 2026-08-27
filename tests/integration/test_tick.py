@@ -87,6 +87,7 @@ async def test_every_stage_is_checkpointed(sessions, clean):
         "grant_action_points",
         "missions",
         "npc_population",
+        "psychohistory",
         "resolve_encounters",
         "settle_travel",
         "territory",

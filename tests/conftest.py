@@ -24,6 +24,8 @@ PLAYER_TABLES = (
     "evt.event_deliveries",
     "evt.events",
     "evt.digests",
+    "psycho.forecasts",
+    "psycho.history_variables",
     "hist.chronicle",
     "core.mission_assignments",
     "core.missions",
