@@ -11,7 +11,7 @@ from collections import defaultdict
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import select, update
 
 from frontier.adapters.db import models
 from frontier.simulation.stages.base import TickContext
@@ -60,14 +60,13 @@ class NpcPopulation:
         flows = await self._aggregate(ctx)
         moved = await self._move_unobserved_goods(ctx, flows)
         observed = await self._observed_systems(ctx)
-        created, dissolved = await self._materialise(ctx, flows, observed)
-        acted = await self._act(ctx, observed)
+        created = await self._materialise(ctx, flows, observed)
+        acted = await self._act(ctx)
         return {
             "systems": len(flows),
             "goods_moved": moved,
             "observed": len(observed),
             "npcs_created": created,
-            "npcs_dissolved": dissolved,
             "npcs_acted": acted,
         }
 
@@ -171,7 +170,11 @@ class NpcPopulation:
 
     async def _materialise(
         self, ctx: TickContext, flows: dict[UUID, models.SystemActivity], observed: set[UUID]
-    ) -> tuple[int, int]:
+    ) -> int:
+        """Materialisation is one-way: once a system has been seen, its crews stay and the
+        server keeps playing them (design answer S5). `last_seen_on` records the last visit
+        but no longer decides anyone's fate.
+        """
         npc = ctx.rules.npc
         created = 0
         existing = defaultdict(set)
@@ -199,30 +202,18 @@ class NpcPopulation:
                 .values(last_seen_on=ctx.world_day)
             )
 
-        stale = ctx.world_day - ctx.rules.npc.dissolve_after_cycles
-        doomed = (
-            (
-                await ctx.session.execute(
-                    select(models.NpcAgent.ship_id).where(models.NpcAgent.last_seen_on < stale)
-                )
-            )
-            .scalars()
-            .all()
-        )
-        if doomed:
-            await ctx.session.execute(delete(models.NpcAgent).where(models.NpcAgent.ship_id.in_(doomed)))
-            await ctx.session.execute(delete(models.Ship).where(models.Ship.id.in_(doomed)))
-        return created, len(doomed)
+        return created
 
-    async def _act(self, ctx: TickContext, observed: set[UUID]) -> int:
-        """Materialised NPCs act through the same market the players use — D-6."""
-        if not observed:
-            return 0
+    async def _act(self, ctx: TickContext) -> int:
+        """Every materialised NPC acts, watched or not, through the same market players use.
+
+        The server plays them wherever they are (S5), so a system a player visited once keeps
+        a working crew rather than reverting to arithmetic the moment they leave.
+        """
         agents = (
             await ctx.session.execute(
                 select(models.NpcAgent, models.Ship)
                 .join(models.Ship, models.Ship.id == models.NpcAgent.ship_id)
-                .where(models.NpcAgent.system_id.in_(observed))
                 .order_by(models.NpcAgent.ship_id)
             )
         ).all()
