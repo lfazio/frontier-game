@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import delete, func, select
@@ -61,6 +62,7 @@ async def build_world(settings: Settings, force: bool = False) -> dict[str, int]
             rules = load_ruleset(settings.ruleset_root, settings.ruleset_version)
             session.add_all(seed_markets(rows, rules, SeededRng(settings.world_seed).for_))
             session.add_all(seed_activity(rows))
+            session.add_all(seed_territory(rows))
             state = (await session.execute(select(models.WorldState))).scalar_one_or_none()
             if state is None:
                 session.add(
@@ -101,6 +103,24 @@ def seed_markets(rows: list[GeneratedLocation], rules: RuleSet, rng_for: Any) ->
                     base_price=base_price,
                 )
             )
+    return out
+
+
+FACTION_CODES = {"empire": 1, "republic": 2, "pirates": 3}
+
+
+def seed_territory(rows: list[GeneratedLocation]) -> list[models.Territory]:
+    """A faction holds its own home from the first cycle — SDD §7, step 6.
+
+    Without this the galaxy starts uncontrolled everywhere and takes seven cycles to show a
+    single border, which is neither true to the fiction nor much to look at.
+    """
+    out: list[models.Territory] = []
+    for row in rows:
+        faction = FACTION_CODES.get(str(row.attrs.get("home_for", "")))
+        if faction is None:
+            continue
+        out.append(models.Territory(system_id=row.id, faction_id=faction, influence=Decimal("1")))
     return out
 
 
