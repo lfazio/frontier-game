@@ -40,6 +40,7 @@ async def me(player_id: CurrentPlayer, c: ContainerDep) -> dict[str, Any]:
                 "callsign": player.callsign,
                 "ap": player.ap_balance,
                 "credits": player.credits,
+                "knowledge": player.knowledge,
             },
             "unread": unread,
             "digest": digest,

@@ -288,6 +288,12 @@ class SqlStateStore:
 
     async def _discover(self, state: State) -> None:
         day = await self._day()
+        # Exploration is one of the ways Knowledge is earned — GDD §8.9.
+        await self._s.execute(
+            update(models.Player)
+            .where(models.Player.id == state.player.id)
+            .values(knowledge=models.Player.knowledge + len(state.discovered))
+        )
         for location_id in state.discovered:
             await self._s.execute(
                 text(
