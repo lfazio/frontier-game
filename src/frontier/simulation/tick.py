@@ -14,8 +14,12 @@ from frontier.adapters.db import models
 from frontier.domain.rules.ruleset import RuleSet
 from frontier.simulation.stages.base import Stage, TickContext
 from frontier.simulation.stages.digests import BuildDigests
+from frontier.simulation.stages.economy import EconomyStep
+from frontier.simulation.stages.encounters import ResolveEncounters
 from frontier.simulation.stages.grant_ap import GrantActionPoints
+from frontier.simulation.stages.population import NpcPopulation
 from frontier.simulation.stages.settle_travel import SettleTravel
+from frontier.simulation.stages.territory import TerritoryRecompute
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +27,10 @@ LOCK_KEY = "frontier:tick"
 
 MVP_STAGES: tuple[Stage, ...] = (
     SettleTravel(),  # ARCH stage 1
+    ResolveEncounters(),  # ARCH stage 2
+    EconomyStep(),  # ARCH stage 3
+    NpcPopulation(),  # ARCH stage 4, NPC half only
+    TerritoryRecompute(),  # ARCH stage 5
     GrantActionPoints(),  # ARCH stage 11
     BuildDigests(),  # ARCH stages 12-13
 )
