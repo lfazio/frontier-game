@@ -1,4 +1,4 @@
-.PHONY: install check lint types imports test test-int up down demo world tick migrate relay
+.PHONY: install check lint types imports test test-int up down world tick migrate relay soak
 
 install:
 	uv sync --extra dev
@@ -19,16 +19,16 @@ test:
 	uv run pytest -q -m "not integration"
 
 test-int:
-	uv run pytest -q -m integration
+	uv run pytest -q -m "integration and not soak"
+
+soak:
+	uv run pytest -q -m soak
 
 up:
 	docker compose up -d
 
 down:
 	docker compose down -v
-
-demo:
-	uv run python -m frontier.demo
 
 migrate:
 	uv run alembic upgrade head

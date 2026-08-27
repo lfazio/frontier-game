@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.5 |
+| Version | 0.6 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
@@ -679,9 +679,11 @@ alone:
 | `0002_world_tree` | P1 | locations, ltree extension, indexes |
 | `0004_fleet` | P1 | ships, journeys `[D-16]` |
 | `0005_event_spine` | P2 | `evt` schema, partitioned events, deliveries, outbox, digests |
+| `0006_economy` | P3 | cargo, standing_orders, markets |
+| `0007_conflict` | P3 | encounter_queue, territory, player_discoveries |
+| `0008_population` | P3 | system_activity, npc_agents |
 | `0003_tick_bookkeeping` | P1 | `hist` schema, tick_runs, tick_stages |
 | `0004_event_spine` | P2 | events (partitioned), deliveries, outbox, first partitions |
-| `0005_fleet_detail` | P3 | cargo, standing_orders |
 | `0006_economy` | P3 | markets |
 | `0007_conflict` | P3 | encounter_queue, territory, player_discoveries |
 | `0008_population` | P3 | npc_agents, system_activity; `ships.player_id` made nullable |
@@ -1709,6 +1711,10 @@ mistake in this plan that would cost a rewrite.
 | D-22 | One Redis channel carries every event; each gateway renders per subscriber. | Filtering must happen server-side per viewer anyway (§5.5), so per-scope channels would optimise a step that cannot be skipped. Splitting by path prefix is a later change behind the same interface. | Yes |
 | D-23 | The gateway sends `{"op": "ready"}` once its subscription exists, and never awaits readiness without also watching the pump task. | A client that fetched its gap over HTTP before the subscription existed would miss events published in between. Awaiting the event alone deadlocked when the pump died first — a bug this design prevents rather than detects. | No |
 | D-24 | Stage 12/13 builds a per-player digest keyed `(player_id, world_day)`. | The daily overview must be ready before anyone logs in (*GDD §3.4*), and it is the first projection with a reader, which is what D-19 was waiting for. | Yes |
+| D-25 | The in-memory adapter is retired in P3; every path runs on PostgreSQL. | D-13's scaffolding had done its job. Keeping it once the SQL repositories existed would have meant two rule paths and a standing risk of divergence — the same reason NPCs share the player command handlers (D-6). | No |
+| D-26 | A command declares its fetch set as a `StateSpec`, and one `SqlStateStore` loads and saves it. | Handlers stay free of I/O, so `check` and `apply` remain pure and directly testable, and the query set for every command is reviewable in one file (§5.3). | No |
+| D-27 | The star chart is public: every galaxy, region and system is known from registration. What is *inside* a system is not. | *GDD §2.5* shows systems on the region view, and §5.2 makes discovery about planets, stations and wrecks. Without this, jump has no legal destination and exploration has nothing to reveal. | Yes |
+| D-28 | The respawn penalty is applied as `GREATEST(0, credits - penalty)` in one statement. | Subtracting and then clamping trips the `credits_non_negative` CHECK for a player poorer than the penalty — which is how the constraint caught the bug. | No |
 
 ---
 
@@ -1758,6 +1764,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.6 | 2026-08-27 | P3 delivered: cargo, dock/launch, markets and buy/sell, jump and journeys, scan and discovery, the encounter resolver with live NPC combat and queued player encounters, standing orders, teams, territory, the two-tier NPC population with archetype behaviour, map tiles with ETags, and the nightly soak. Recorded D-25 to D-28. |
 | 0.5 | 2026-08-27 | P2 delivered: the payload catalogue and validation, the partitioned `evt.events` log with deliveries and a transactional outbox, `resolve_audience`/`render_for`, the Redis relay, the WebSocket gateway, `send_message`, `GET /v1/feed`, and the digest stage. Recorded D-21 to D-24; D-19 is discharged. |
 | 0.4 | 2026-08-27 | P1 delivered: the location tree on `ltree`, the world generator, SQLAlchemy repositories and unit of work, the tick runner with stages 1 and 11, and `GET /v1/me`. Recorded D-16 to D-20. Corrected the §7 sizing arithmetic (radius 8 is 217 hexes, not 169). |
 | 0.3 | 2026-08-27 | P0 delivered. Recorded the decisions it forced: in-memory repositories for P0 (D-13), `ap_ledger` moved into migration `0001` (D-14), and `EventDraft` stamping with a new `IdPort` (D-15, §5.1). Noted the Alembic schema bootstrap in §4.4. |

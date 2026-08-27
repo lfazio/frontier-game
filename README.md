@@ -13,9 +13,10 @@ spend a limited Action Point budget and log out.
 
 ## Status
 
-**P2 — Event spine.** Every state change emits an event; one merged feed carries chat and world
-events, redacted per viewer by a single `render_for`. A transactional outbox relays committed
-events to Redis and out over a WebSocket. Next is P3, MVP gameplay.
+**P3 — MVP gameplay.** The first playable world: markets and trade, jumps that span cycles,
+scanning and discovery, combat against NPCs and queued player encounters resolved from standing
+orders, teams and territory, and an NPC population simulated as aggregate flows everywhere and as
+individual ships wherever a player is looking. Next is P4, depth.
 
 ## Running it
 
@@ -25,9 +26,9 @@ make up             # postgres + redis
 make migrate
 make world       # generate a galaxy
 make check          # lint, types, import boundaries, tests
-make demo           # watch a player spend a day's AP
 make tick           # advance the world one cycle
 make relay          # publish committed events to Redis
+make soak           # 60-cycle simulation, nightly rather than per-commit
 uv run uvicorn frontier.adapters.api.app:app --reload
 ```
 

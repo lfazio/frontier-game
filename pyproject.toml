@@ -67,7 +67,10 @@ disallow_any_explicit = false
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-markers = ["integration: requires a live database"]
+markers = [
+    "integration: requires a live database",
+    "soak: long-running simulation, nightly rather than per-commit",
+]
 
 [tool.importlinter]
 root_packages = ["frontier"]
@@ -95,6 +98,7 @@ layers = [
     "frontier.cli",
     "frontier.simulation",
     "frontier.adapters",
+    "frontier.projections",
     "frontier.application",
     "frontier.worldgen",
     "frontier.domain",
