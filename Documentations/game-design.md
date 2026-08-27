@@ -9,7 +9,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 2.7 |
+| Version | 2.8 |
 | Date | 2026-08-27 |
 | Companion | `Documentations/architecture.md` v0.2 (cited as *ARCH §n*) |
 | Companion | `Documentations/detailed-design-mvp.md` v0.2 — MVP implementation detail |
@@ -1766,6 +1766,27 @@ is neither, recovery is triaged by beacon, and a capsule that does not answer is
   they are no longer bound by anything. An ex-agent is the only person in the galaxy in that position — a genuine
   character, and a real route by which the secret escapes (§9.8).
 
+### Coming back
+
+A player who lost everything as an agent **MAY** be recruited again — as the new pilot, on that pilot's own record,
+and only once it has reached the standing the invitation requires (§9.3). Nothing is automatic and nothing is owed.
+
+- **The triggers are the ordinary ones.** An exceptional discovery, presence at a crisis, an anomaly noticed, a
+  reputation earned. The new pilot qualifies the way anyone qualifies, from nothing, having earned none of it
+  before.
+- **The organisation keeps no register of who it has lost.** No record links a new pilot to a previous agent, and
+  none may be created — a stored link between identities would be exactly the leak §9.4 forbids, and
+  compartmentalisation (§9.6) means no cell holds such a list anyway. Whether a returning agent was chosen again or
+  merely chosen is left unresolved, for them as much as for anyone.
+- **What comes back is the player, not the pilot.** They keep no Knowledge, no standing and no clearance — only
+  what they understand. They know what the anomalies mean, what the trajectory is for, and what accepting will cost
+  them a second time.
+
+The effect over a world's lifetime is deliberate: the number of people who have *once* known grows, slowly and
+irreversibly, and some of them go looking. A player who understands what to watch for finds it faster than a player
+who does not, so returning agents are largely self-selected — they come back because they went looking, not because
+anyone fetched them. It is one of the ways the secret erodes, which is what §9.12's later phases are made of.
+
 ### Why this is the right price
 
 The Continuity is given the best information in the game (§9.5) and the only channel outside physics (§9.6). §9.2
@@ -1881,6 +1902,7 @@ should be reviewed as design decisions. Each can be reverted independently.
 | **M10** | **Eras and narrative phases separated** (§8.11 vs §9.12). | v1.0 contained two overlapping six- and seven-step progressions. They describe different things: recurring world states, and one-time community discovery. |
 | **M11** | **"Turn" replaced by "cycle"** throughout; "world day" reserved for the counter. | v1.0 used "turn" for the 24-hour period, for a mission duration and for a player's session. |
 | **M12** | **Authorial voice removed.** | v1.0 contained first- and second-person commentary ("I would make…", "your game") and duplicated conversational fragments, which read as notes rather than specification. |
+| **M18** | **Q10 answered: an ex-agent may be recruited again** (§9.14), as the new pilot, on that pilot's own record, once it independently meets the §9.3 threshold. Nothing automatic; no record links the identities. | Re-recruitment through the ordinary triggers keeps §9.14's price real — a guaranteed return would make death a revolving door. Requiring the new pilot to earn it from nothing also removes the need to store any link between a lost pilot and a new one, which would itself have been the leak §9.4 forbids. |
 | **M17** | **Q9 answered: the Continuity knows** (§8.12). Its agents go first into an incursion, and an agent killed there is not recovered — the account continues as a new pilot (§9.14). Recovery is made unreliable for everyone during an incursion so that a reset stays evidence rather than proof. | The faction had the best information and the only channel outside physics, and §9.2's answer to "why is that not domination" was a set of balance dials, any of which can be turned the wrong way. A price that is not a dial answers it properly: they know what is coming, so they meet it first, and they are the only players who can be permanently removed. It also gives §9.3's invitation a real cost, which it lacked. The masking rule is required, not optional — without it the mechanic would identify every agent posthumously and break §9.4. |
 | **M16** | **The Continuity's channel is instantaneous and galaxy-wide** (§9.6, §7.3, §7.5), exempt from the range, relay and delay rules that bind every other channel. | The faction's stated advantage is *better information* (§9.5), and until now nothing in the design actually gave it any. A channel outside physics grants coordination without granting force, which is the only kind of power §9.2 permits it — and it hands §9.8 a genuine, observable anomaly for players to notice. |
 | **M15** | **The Harrowing added (§8.12)**: an unresolved historical crisis triggers an incursion of powerful alien vessels, which players fight to restore the balance. | Deviation was an abstraction — a number on a forecast with no visible stake. The Harrowing makes the cost of abandoning the trajectory concrete, gives the cooperative end of the game a reason to exist, and supplies §8.11's eras with something that actually ends one. Constrained hard (no exemptions, must be losable, must not be farmable, response never prescribed) so that it stays an opponent rather than weather. |
@@ -1897,7 +1919,6 @@ is recorded in §11.4 and in the section it settles. Gaps in the numbering mean 
 | # | Question | Blocks |
 | --- | --- | --- |
 | **Q8** | May teams own shared assets (§6.5), and who controls them on disband? | Team model; station ownership later |
-| **Q10** | May a pilot who lost everything as an agent (§9.14) ever be recruited again? | Whether the galaxy accumulates people who know and are no longer bound |
 
 ## 11.3 Section mapping, v1.0 → v2.0
 
@@ -1946,6 +1967,7 @@ For notes, issues or commits that cite the old flat numbering.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 2.8 | 2026-08-27 | Q10 answered: a pilot lost as an agent may be recruited again under their new identity, once that identity independently earns the invitation; no record links the two (§9.14). See §11.1 M18. |
 | 2.7 | 2026-08-27 | Q9 answered: the Continuity knows the trajectory is the corridor in which the Harrowing does not arrive (§8.12). Agents go first into an incursion and are not recovered if they die there, continuing as a new pilot (§9.14); recovery is unreliable for everyone during an incursion so the reset cannot identify them. New open question Q10. See §11.1 M17. |
 | 2.6 | 2026-08-27 | The Continuity's communication channel is instantaneous and reaches the whole galaxy, exempt from range, relays and delay (§9.6). See §11.1 M16. |
 | 2.5 | 2026-08-27 | Added §8.12, the Harrowing: an unresolved historical crisis draws an incursion of powerful alien vessels that players fight to restore the balance, bound by the same rules as every other ship. Amended §2.7 so NPC crews spend the same daily Action Point budget as pilots. New open question Q9. See §11.1 M14, M15. |
