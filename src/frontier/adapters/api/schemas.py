@@ -121,6 +121,18 @@ class LeaveTeamBody(BaseModel):
     idempotency_key: UUID
 
 
+class MissionBody(BaseModel):
+    action: Literal["accept_mission", "complete_mission"]
+    mission_id: UUID
+    idempotency_key: UUID
+
+
+class DefectBody(BaseModel):
+    action: Literal["defect"]
+    to_faction_id: Literal[1, 2, 3]
+    idempotency_key: UUID
+
+
 CommandBody = Annotated[
     MoveBody
     | JumpBody
@@ -134,6 +146,8 @@ CommandBody = Annotated[
     | StandingOrdersBody
     | CreateTeamBody
     | JoinTeamBody
-    | LeaveTeamBody,
+    | LeaveTeamBody
+    | MissionBody
+    | DefectBody,
     Field(discriminator="action"),
 ]

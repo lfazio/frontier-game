@@ -10,11 +10,16 @@ from frontier.adapters.api.errors import rejection
 from frontier.adapters.api.schemas import CommandBody
 from frontier.application.commands.base import Command
 from frontier.application.commands.combat import AttackCommand, SetStandingOrdersCommand
+from frontier.application.commands.missions import (
+    AcceptMissionCommand,
+    CompleteMissionCommand,
+)
 from frontier.application.commands.move import MoveCommand
 from frontier.application.commands.navigation import JumpCommand, ScanCommand
 from frontier.application.commands.send_message import Channel, SendMessageCommand
 from frontier.application.commands.teams import (
     CreateTeamCommand,
+    DefectCommand,
     JoinTeamCommand,
     LeaveTeamCommand,
 )
@@ -87,6 +92,12 @@ def build(body: CommandBody) -> Command:
                     auto_reply=body.auto_reply,
                 ),
             )
+        case schemas.MissionBody():
+            if body.action == "accept_mission":
+                return AcceptMissionCommand(id=new_id, idempotency_key=key, mission_id=body.mission_id)
+            return CompleteMissionCommand(id=new_id, idempotency_key=key, mission_id=body.mission_id)
+        case schemas.DefectBody():
+            return DefectCommand(id=new_id, idempotency_key=key, to_faction_id=body.to_faction_id)
         case schemas.CreateTeamBody():
             return CreateTeamCommand(
                 id=new_id, idempotency_key=key, name=body.name, faction_id=body.faction_id

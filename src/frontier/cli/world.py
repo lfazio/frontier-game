@@ -27,6 +27,8 @@ async def build_world(settings: Settings, force: bool = False) -> dict[str, int]
                 raise SystemExit(f"world already has {existing} locations; use --force")
             if existing:
                 # Dependency order: journeys reference ships, ships reference locations.
+                await session.execute(delete(models.MissionAssignment))
+                await session.execute(delete(models.Mission))
                 await session.execute(delete(models.PlayerDiscovery))
                 await session.execute(delete(models.Cargo))
                 await session.execute(delete(models.EncounterQueue))
