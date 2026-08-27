@@ -48,7 +48,7 @@ Section numbers changed in design v2.0; `§11.3` maps the old flat numbering (v1
 These cut across many sections and constrain nearly every feature. The design document states them as C1–C10 (§10.4);
 the short form:
 
-- **One world, many zoom levels.** Galaxy → Region → System → Body → District → Local is one hierarchical hex world,
+- **One world, many zoom levels.** Galaxy → Region → System → Planet → Sector → Local is one hierarchical hex world,
   not separate maps or game modes. An object holds a coordinate at every level; containment is prefix matching;
   distance is only meaningful between siblings under the same parent.
 - **The server is authoritative; the browser is untrusted.** The client submits intents, never outcomes. The server
@@ -77,8 +77,9 @@ the short form:
   or an event subscriber; if a feature fits none of those, revisit the architecture rather than special-casing it.
 - Comments explain only what the code cannot: a non-obvious invariant, a rationale, the shape of a value, a
   design reference. Explicit code gets no comment — never restate a name in prose.
-- Terminology: **cycle** (24 h period), **world day** (counter), **Body** (planet/moon/station/asteroid), **District**
-  (area of a body). Do not reintroduce "turn", "planet" or "planetary region".
+- Terminology: **cycle** (24 h period), **world day** (counter), **Planet** (the level, and any
+  planet/moon/station/asteroid on it), **Sector** (area of a planet). Do not reintroduce "turn", "body" or
+  "planetary region".
 
 ## Scope discipline
 

@@ -9,7 +9,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 2.1 |
+| Version | 2.2 |
 | Date | 2026-08-27 |
 | Companion | `Documentations/architecture.md` (cited as *ARCH §n*) |
 | Audience | Designers, engineers, writers, reviewers |
@@ -50,12 +50,12 @@ Cross-references use `§n.m` for this document and *ARCH §n* for the architectu
 | **Cycle** | The 24-hour period that is the game's fundamental unit of time. One cycle = one world tick. |
 | **World day** | The integer counter of elapsed cycles since world creation. Used in every timestamped record. |
 | **AP** | Action Points. The per-cycle budget that limits what a player can do (§3.2). |
-| **Level** | One rung of the spatial hierarchy: Galaxy, Region, System, Body, District, Local (§2.2). |
-| **Body** | Any substantial object at System level: planet, moon, station, asteroid. Replaces v1.0's "Planet". |
-| **District** | A named area of a Body's surface or structure. Replaces v1.0's "Planetary Region". |
+| **Level** | One rung of the spatial hierarchy: Galaxy, Region, System, Planet, Sector, Local (§2.2). |
+| **Planet** | The level below System, and any substantial object on it: planet, moon, station, asteroid. The level is named for its archetypal member, as *System* is; an object's `kind` distinguishes the rest. |
+| **Sector** | A named area of a Planet's surface or structure. |
 | **Hex** | The atomic cell of the map at any level. |
 | **Address** | An object's position, expressed as one hex coordinate per level (§2.3). |
-| **Scope** | How far an event or message carries: Local, Body, System, Region, Universe (§7.7). |
+| **Scope** | How far an event or message carries: Local, Planet, System, Region, Universe (§7.7). |
 | **Event** | The single record type behind chat, combat, discovery, economy and history (§7.6). |
 | **Faction** | One of the three public political blocs: Empire, Republic, Pirates (§6.1). |
 | **Team** | A player-created group; the primary multiplayer unit. Belongs to one faction (§6.5). |
@@ -115,11 +115,23 @@ Everything in the game resolves into three interacting dimensions.
                     Where are you?
                          │
                          ▼
-              ┌─────────────────────┐
-              │                     │
-              │  PERSISTENT WORLD   │
-              │                     │
-              └─────────────────────┘
+              ┌──────────────────────────────────────────────────┐
+│ LOCAL PLANET SYSTEM REGION TEAM FACTION UNIVERSE │
+├──────────────────────────────────────────────────┤
+│ 🚀 Cmdr. Smith                                   │
+│ Anyone heading toward Alpha-3?                   │
+│                                                  │
+│ ⚠ Pirate activity detected                       │
+│ 3 hexes north                                    │
+│                                                  │
+│ 🚀 Cmdr. Jones                                   │
+│ Yes. ETA 2 cycles.                               │
+│                                                  │
+│ ⚔ Combat detected                                │
+│ Sector 184,72                                    │
+├──────────────────────────────────────────────────┤
+│ Type message...                           [Send] │
+└──────────────────────────────────────────────────┘
                     ▲           ▲
                     │           │
                   TIME      ALLEGIANCE
@@ -129,7 +141,7 @@ Everything in the game resolves into three interacting dimensions.
 
 | Dimension | Realised as | Detailed in |
 | --- | --- | --- |
-| **Space** | A hierarchical hex world: Galaxy → Region → System → Body → District → Local | §2 |
+| **Space** | A hierarchical hex world: Galaxy → Region → System → Planet → Sector → Local | §2 |
 | **Time** | A 24-hour cycle with a limited AP budget | §3 |
 | **Allegiance** | Three public factions, player teams, and one hidden fourth faction | §6, §9 |
 
@@ -193,7 +205,7 @@ either source may be reproduced.
 
 ## 2.1 One unified hexagonal world
 
-Galaxy view, system view, body view and local view are **not separate maps**. They are different spatial resolutions
+Galaxy view, system view, planet view and local view are **not separate maps**. They are different spatial resolutions
 of one hierarchical hexagonal world.
 
 > **Zooming changes spatial resolution, not the underlying world.**
@@ -210,13 +222,14 @@ The world has six addressable levels. The number of levels is configuration and 
 | --- | --- | --- | --- | --- |
 | 0 | **Galaxy** | Regions | Strategic distance between stellar neighbourhoods | The galaxy map |
 | 1 | **Region** | Systems | Several light years | The Sirius Reach |
-| 2 | **System** | Bodies | Interplanetary distance | Sol |
-| 3 | **Body** | Districts | Orbital / surface approach | Earth, Luna, Anchor Station |
-| 4 | **District** | Local areas | Regional surface distance | The Industrial Belt |
+| 2 | **System** | Planets | Interplanetary distance | Sol |
+| 3 | **Planet** | Sectors | Orbital / surface approach | Earth, Luna, Anchor Station |
+| 4 | **Sector** | Local areas | Regional surface distance | The Industrial Belt |
 | 5 | **Local** | — | Tactical / exploration distance | Hex 42,19 |
 
-*Renamed in v2.0:* "Planet" → **Body** (it must also cover moons, stations and asteroids), "Planetary Region" →
-**District** (to avoid collision with the Region level). See §11.1 M1.
+The ladder and its names were settled in v2.2 (§11.1 M1). *Planet* names the level after its archetypal member;
+moons, stations and asteroids occupy the same level and are distinguished by `kind`. *Sector* replaces v1.0's
+"Planetary Region", which collided with the Region level.
 
 The Universe is the container of the Galaxy, not an addressable level. A world deployment holds one Galaxy.
 
@@ -225,12 +238,12 @@ The Universe is the container of the Galaxy, not an addressable level. A world d
 An object's position is an **address**: one hex coordinate per level, from Galaxy downward.
 
 ```text
-Galaxy:    (124, 87)
-Region:    (3, 1)
-System:    (31, 14)
-Body:      (208, 73)
-District:  (11, 4)
-Local:     (42, 19)
+Galaxy:  (124, 87)
+Region:  (3, 1)
+System:  (31, 14)
+Planet:  (208, 73)
+Sector:  (11, 4)
+Local:   (42, 19)
 ```
 
 Two rules follow, and both matter for gameplay:
@@ -250,7 +263,7 @@ and persistent object locations.
 The player zooms without changing game modes.
 
 ```text
-Galaxy ──▶ Region ──▶ System ──▶ Body ──▶ District ──▶ Local
+Galaxy ──▶ Region ──▶ System ──▶ Planet ──▶ Sector ──▶ Local
   Sol         Sirius     Earth    Industrial    Hex 42,17
                                     Belt
 ```
@@ -263,9 +276,9 @@ on one continuous map.
 | Level | Shows |
 | --- | --- |
 | **Galaxy / Region** | Star systems, faction territories, major trade routes, strategic infrastructure, major events, long-distance travel |
-| **System** | Star, bodies, orbits, stations, in-system traffic, local infrastructure, system-scale events |
-| **Body** | Districts, ports and landing sites, surface or orbital features, resources, settlements |
-| **District / Local** | Individual hexes, ships, structures, terrain, encounters, exploration targets |
+| **System** | Star, planets, orbits, stations, in-system traffic, local infrastructure, system-scale events |
+| **Planet** | Sectors, ports and landing sites, surface or orbital features, resources, settlements |
+| **Sector / Local** | Individual hexes, ships, structures, terrain, encounters, exploration targets |
 
 ## 2.6 Scale versus simulation
 
@@ -486,8 +499,12 @@ A ship is composed of Hull, Shields, Engine, Fuel, Cargo, Weapons, Sensors and E
 Sensors deserve emphasis: they determine not only what a player can shoot but what a player can *know* (§7.2), which
 is what makes an unarmed scout a viable and valuable role.
 
-**Open question (§11.2 Q3):** whether a player may operate more than one ship. The MVP assumes exactly one *active*
-ship per player; ownership of others is a later feature.
+A player commands **exactly one ship**. This is a design commitment, not a simplification: the game is about one
+individual inside a civilization (§1.4), and a player flying a fleet is a different game with a different fantasy.
+Fleet actions belong to teams (§6.5), which is where coordination is supposed to cost something.
+
+Losing a ship therefore matters, and replacing one is a real setback rather than a switch to the next hull in the
+hangar.
 
 ## 4.3 Specialisations
 
@@ -762,15 +779,13 @@ not to display (§10.4).
 | Channel | Scope | Reach |
 | --- | --- | --- |
 | **Local** | Local | Radio range from the sender's hex (§7.4) |
-| **Body** | Body | Everyone at or around that body |
+| **Planet** | Planet | Everyone at or around that planet |
 | **System** | System | Everyone in the system, subject to infrastructure |
 | **Region** | Region | Faction and commercial networks |
 | **Team** | Organisational | Team members, wherever they are |
 | **Faction** | Organisational | Faction members, subject to rank and infrastructure |
 | **Universe** | Universe | Announcements and major historical events |
 | **Continuity** | Clearance | Invisible to everyone else (§9.6) |
-
-*Renamed in v2.0:* the v1.0 "Planet" channel is now **Body**, for consistency with §2.2.
 
 Sending a message costs no AP at any scope (§5.6). Communication is how a 15-minute session becomes a social game.
 
@@ -827,7 +842,7 @@ Event types include `COMBAT_STARTED`, `SHIP_ENTERED`, `SHIP_DESTROYED`, `TRADE_E
 
 ## 7.7 Scope and propagation
 
-Events inherit the spatial hierarchy. Scopes are **Local, Body, System, Region, Universe**.
+Events inherit the spatial hierarchy. Scopes are **Local, Planet, System, Region, Universe**.
 
 An event **MAY** propagate upward when it becomes significant enough:
 
@@ -836,7 +851,7 @@ Local combat
       ↓
 Major local battle
       ↓
-Body-wide conflict
+Planet-wide conflict
       ↓
 System-wide conflict
       ↓
@@ -862,7 +877,7 @@ reading history can trace a war back to the skirmish that started it.
 | Event scope | Lifetime `[BALANCE]` |
 | --- | --- |
 | Local | Short-lived |
-| Body | Several cycles |
+| Planet | Several cycles |
 | System | Days to weeks |
 | Promoted historical | Permanent (§8.10) |
 
@@ -872,7 +887,7 @@ The interface merges messages and events into one chronological feed, filtered b
 
 ```text
 ┌────────────────────────────────────────────────┐
-│ LOCAL BODY SYSTEM REGION TEAM FACTION UNIVERSE │
+│ LOCAL PLANET SYSTEM REGION TEAM FACTION UNIVERSE │
 ├────────────────────────────────────────────────┤
 │ 🚀 Cmdr. Smith                                 │
 │ Anyone heading toward Alpha-3?                 │
@@ -972,6 +987,26 @@ Critical threshold:  +8 %                        [BALANCE]
 
 Confidence falls as players produce outcomes the Model did not expect. A world where confidence has fallen from 98 %
 to 31 % is a world that has escaped its own prediction — and that is a legitimate, even desirable, outcome.
+
+### Forecasts are a public good of variable quality
+
+Anyone may read a forecast. Nobody buys the right to one, and no faction owns it: the Historical Institute (§8.8)
+publishes to the galaxy, because a prediction that only the powerful can see is a conspiracy, not a science, and the
+self-fulfilling loop of §8.6 requires that ordinary people can act on it.
+
+What varies is **quality**, not access:
+
+| A reader with… | Sees |
+| --- | --- |
+| No Knowledge, no local data | The headline probability, wide confidence interval, region-level only |
+| Accumulated Knowledge (§8.9) | Narrower intervals, more variables, finer spatial resolution |
+| Local presence and good sensors | Recent data the published forecast has not yet absorbed |
+| Archive or Institute access | The Model's reasoning, not only its output |
+
+Two consequences the design depends on. Because access is universal, a forecast **MUST NOT** be usable as a
+gate on content or an advantage bought with money. Because quality is earned, Knowledge stays worth accumulating and
+worth trading (§8.9) — what a well-informed player sells is not the forecast, which everyone has, but a *better
+reading* of it.
 
 ## 8.4 Boundaries: prediction must never control players
 
@@ -1514,7 +1549,7 @@ The first playable version stays small. Everything below is required; nothing be
 | **Combat** | NPC encounters, player encounters, simplified resolution, offline resolution |
 | **Population** | Aggregate NPC simulation in every system; haulers, patrols and raiders materialised where observed (§2.7) |
 | **Multiplayer** | Teams, the three factions, team chat, local communication |
-| **Events** | Local, Body, System and Universe scopes with the unified feed |
+| **Events** | Local, Planet, System and Universe scopes with the unified feed |
 | **Cycle** | The full daily advance of §3.3 steps 1–5, 11, 12 |
 
 Deliberately **absent** from the MVP but designed for: communication delay, relays, missions beyond a basic form,
@@ -1582,7 +1617,7 @@ should be reviewed as design decisions. Each can be reverted independently.
 
 | # | Modification | Rationale |
 | --- | --- | --- |
-| **M1** | **Canonical six-level scale ladder** (§2.2); "Planet" renamed **Body**, "Planetary Region" renamed **District**. | v1.0 used an eight-noun hierarchy in one section and a four-level one in three others. "Planet" excluded moons, stations and asteroids, which the same level must carry; "Planetary Region" collided with the Region level. |
+| **M1** | **Canonical six-level scale ladder** (§2.2): Galaxy → Region → System → Planet → Sector → Local. "Planetary Region" renamed **Sector**. | v1.0 used an eight-noun hierarchy in one section and a four-level one in three others, and "Planetary Region" collided with the Region level. v2.0 additionally proposed renaming *Planet* to *Body* because the level must also carry moons, stations and asteroids; that was **rejected in v2.2** — the level keeps the name of its archetypal member, and `kind` carries the distinction. |
 | **M2** | **Technical architecture removed** (old §47–§51) and replaced by design constraints C1–C10 (§10.4) plus the companion document. | Two documents describing the same system drift. Behaviour and structure now have one home each. |
 | **M3** | **Normative conventions introduced** (§0.2): MUST/SHOULD/MAY, `[BALANCE]`, `[ILLUSTRATIVE]`. | v1.0 stated invariants and tunables in the same voice ("Possible…", "can…"), so readers could not tell which numbers were decisions and which were examples. |
 | **M4** | **The Continuity consolidated** into §9 from twenty-one scattered sections (old §56–§75). | The material restated the same six ideas three to four times, and its subsections sat at the same heading level as unrelated top-level sections. No design content was dropped. |
@@ -1602,9 +1637,6 @@ Decisions the design still owes. Each is blocking something concrete.
 
 | # | Question | Blocks |
 | --- | --- | --- |
-| **Q1** | Is the six-level ladder (§2.2) final, and are Body/District the accepted names? | World generation; address encoding |
-| **Q2** | Are forecasts a purchasable commodity, a faction privilege, or a public good with variable quality? | Whether §8.3 is a market item or a read-only view |
-| **Q3** | May a player operate more than one ship, and if so, may ships act independently? | Ship model, command scope, AP accounting |
 | **Q4** | Does the Continuity's intervention budget scale with world size or stay fixed? | Whether §9.5 costs grow with the world |
 | **Q5** | Is the Continuity NPC-operated from launch, with player agents added later? | Recruitment timing; whether §9 needs a functioning AI first |
 | **Q6** | Is unspent AP carried over, and up to what cap? | §3.2; the penalty for missing a day |
@@ -1658,6 +1690,7 @@ For notes, issues or commits that cite the old flat numbering.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 2.2 | 2026-08-27 | Q1, Q2 and Q3 answered. Q1: the ladder is final at Galaxy → Region → System → Planet → Sector → Local; *Body* is withdrawn in favour of *Planet* and the Planet-scope channel renamed to match (§11.1 M1). Q2: forecasts are a public good of variable quality, not a commodity or a privilege (§8.3). Q3: a player commands exactly one ship (§4.2). |
 | 2.1 | 2026-08-27 | Added §2.7, promoting the NPC population from an implicit detail to a stated design pillar with an observation-dependent fidelity model; the MVP now includes it and cycle step 4. See §11.1 M13. |
 | 2.0 | 2026-08-27 | Restructured into eleven parts with hierarchical numbering; terminology unified with the architecture document; technical architecture extracted; Continuity material consolidated; normative conventions, non-goals, action catalogue, open questions and this change control section added. See §11.1. |
 | 1.0 | — | Original design document, 75 flat sections. Preserved in version control. |

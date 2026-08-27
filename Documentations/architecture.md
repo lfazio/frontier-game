@@ -203,7 +203,7 @@ Each context owns its tables, exposes a Python-level façade, and communicates o
 | # | Context | Package | Owns | Publishes | Design ref |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Identity | `frontier.identity` | accounts, sessions, credentials | `ACCOUNT_*` | — |
-| 2 | Cartography | `frontier.world` | location tree, hex algebra, bodies, stations | `DISCOVERY` | §2 |
+| 2 | Cartography | `frontier.world` | location tree, hex algebra, planets, stations | `DISCOVERY` | §2 |
 | 3 | Fleet | `frontier.fleet` | ships, modules, cargo, fuel, docking | `SHIP_*`, `SHIP_ENTERED` | §4.2, §5.1 |
 | 4 | Turn | `frontier.turn` | AP ledger, daily grant, standing orders | `TURN_*` | §3.2, §3.5 |
 | 5 | Economy | `frontier.economy` | commodities, station markets, price model | `TRADE_EVENT`, `SHORTAGE` | §5.3 |
@@ -248,8 +248,8 @@ class Level(IntEnum):
     GALAXY = 0
     REGION = 1
     SYSTEM = 2
-    BODY = 3          # planet or moon
-    DISTRICT = 4      # named area of a body
+    PLANET = 3          # planet or moon
+    SECTOR = 4      # named area of a planet
     LOCAL = 5
 
 @dataclass(frozen=True, slots=True)
@@ -273,7 +273,7 @@ class HexAddr:
 
     def parent(self) -> HexAddr | None: ...
     def contains(self, other: HexAddr) -> bool: ...
-    def ltree(self) -> str: ...                          # 'g124_87.r3_1.s31_14'
+    def ltree(self) -> str: ...                          # 'ga124_87.re3_1.sy31_14'
 ```
 
 Rules the core enforces:
@@ -295,7 +295,7 @@ One model serves chat, combat, discovery, economy and history (§7.6).
 ```python
 # frontier/domain/events/model.py
 class Scope(IntEnum):          # §7.7 — ordered, propagates upward
-    LOCAL = 0; BODY = 1; SYSTEM = 2; REGION = 3; UNIVERSE = 4
+    LOCAL = 0; PLANET = 1; SYSTEM = 2; REGION = 3; UNIVERSE = 4
 
 class Visibility(StrEnum):     # who may ever see it, before sensors
     PUBLIC = "public"          # anyone whose subscription covers the scope
@@ -574,7 +574,7 @@ CREATE TABLE core.locations (
     level       smallint NOT NULL,        -- Level enum
     q           int NOT NULL,             -- axial within parent
     r           int NOT NULL,
-    path        ltree NOT NULL,           -- 'g124_87.r3_1.s31_14.b208_73'
+    path        ltree NOT NULL,           -- 'ga124_87.re3_1.sy31_14.pl208_73'
     kind        text NOT NULL,            -- star, planet, station, belt, void
     name        text,
     discovered  boolean NOT NULL DEFAULT false,
@@ -589,7 +589,7 @@ CREATE UNIQUE INDEX locations_parent_hex ON core.locations (parent_id, q, r);
 ```sql
 -- every event inside the Sol system, at any depth (§7.7 scope query)
 SELECT * FROM evt.events
-WHERE origin_path <@ 'g124_87.r3_1.s31_14'
+WHERE origin_path <@ 'ga124_87.re3_1.sy31_14'
   AND world_day >= $1
 ORDER BY id DESC LIMIT 200;
 ```
@@ -1009,12 +1009,16 @@ Open questions for design, not architecture:
 
 1. Does the Continuity's intervention budget scale with world size or stay fixed? (Design Q4; affects whether stage 8
    is O(world) or O(agents).)
-2. Are forecasts a purchasable commodity, a faction privilege or a public good? (Design Q2; affects whether they are
-   a read model or an inventory item.)
-3. Is a player permitted more than one active ship, and may ships act independently? (Design Q3. The MVP fixes one
-   active ship; the command layer assumes one *acting* ship per command either way.)
-4. Is the six-level ladder of §3.2 final, and are `BODY`/`DISTRICT` the accepted names? (Design Q1.) Resolve before
-   world generation is written.
+
+Three earlier questions have been answered by design and are now settled architecture:
+
+- **The scale ladder is final** at Galaxy → Region → System → Planet → Sector → Local (§2.2). `Level` is fixed at six
+  members and the `ltree` label prefixes follow it.
+- **Forecasts are a public good of variable quality** (§8.3), so they are a **read model rendered per viewer**, never
+  an inventory item. Quality is a function of the viewer's Knowledge, which makes forecast rendering one more case
+  for `render_for` (7.4, ADR-7) rather than a second entitlement system.
+- **A player commands exactly one ship** (§4.2), so `ships.player_id` carries a partial unique index and the command
+  layer never needs to disambiguate which ship is acting.
 
 ---
 

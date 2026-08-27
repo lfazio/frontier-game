@@ -31,9 +31,9 @@ scanning and combat, talk to people, log out. Everything else is deferred.
 
 | Area | In | Out (and why) |
 | --- | --- | --- |
-| World | Galaxy → Region → System → Body, generated once; system hex maps | District and Local levels — no surface gameplay yet `[D-1]` |
+| World | Galaxy → Region → System → Planet, generated once; system hex maps | Sector and Local levels — no surface gameplay yet `[D-1]` |
 | Player | Account, credits, AP, position, faction, team, standing orders | Reputation *scores* exist and move; no reputation *effects* |
-| Ship | One active ship: hull, shields, engine, fuel, cargo, one weapon, sensors | Fitting, modules market, multiple ships (*GDD* Q3) |
+| Ship | One ship: hull, shields, engine, fuel, cargo, one weapon, sensors | Fitting, modules market. Multiple ships are permanently out — *GDD §4.2* |
 | Movement | In-system hex movement, inter-system jumps spanning cycles, dock/launch | Probes, advanced navigation, fuel scooping |
 | Economy | Station markets, buy/sell, cargo, per-cycle price relaxation | Mining, production chains, player stations, smuggling |
 | Exploration | Scan, permanent attributed discovery, per-player map knowledge | Anomalies, archives, deep survey |
@@ -90,7 +90,7 @@ src/frontier/
 │   ├── hex/{coordinates,geometry}.py        §3.1, §3.2
 │   ├── events/{model,types}.py              §3.5
 │   ├── rules/{ruleset,ap,combat,economy}.py §3.4
-│   ├── world/{location,body}.py             §3.3
+│   ├── world/{location,planet}.py             §3.3
 │   ├── fleet/{ship,cargo,standing_orders}.py
 │   ├── economy/{market,pricing}.py          §6.4
 │   ├── encounter/{resolution}.py            §6.3
@@ -144,11 +144,11 @@ class Level(IntEnum):
     GALAXY = 0
     REGION = 1
     SYSTEM = 2
-    BODY = 3
-    DISTRICT = 4
+    PLANET = 3
+    SECTOR = 4
     LOCAL = 5
 
-MVP_LEVELS = frozenset({Level.GALAXY, Level.REGION, Level.SYSTEM, Level.BODY})
+MVP_LEVELS = frozenset({Level.GALAXY, Level.REGION, Level.SYSTEM, Level.PLANET})
 
 @dataclass(frozen=True, slots=True)
 class Axial:
@@ -183,13 +183,19 @@ class HexAddr:
 
 | Level | Prefix | `Axial(124, 87)` | `Axial(-3, 1)` |
 | --- | --- | --- | --- |
-| Galaxy | `g` | `g124_87` | `gn3_1` |
-| Region | `r` | `r124_87` | `rn3_1` |
-| System | `s` | … | … |
-| Body | `b` | … | … |
+| Galaxy | `ga` | `ga124_87` | `gan3_1` |
+| Region | `re` | `re124_87` | `ren3_1` |
+| System | `sy` | `sy124_87` | `syn3_1` |
+| Planet | `pl` | `pl124_87` | `pln3_1` |
+| Sector | `se` | `se124_87` | `sen3_1` |
+| Local | `lo` | `lo124_87` | `lon3_1` |
+
+Prefixes are two letters because the level names collide on their first letter — **S**ystem and **S**ector,
+**R**egion and… nothing yet, but the ladder is now fixed and a one-letter scheme has no room left. The prefix is for
+human readability only; the level is determined by position in the path.
 
 `HexAddr.parse` is the inverse and is round-trip tested (§14.2). The human-readable form used in the API and in
-logs is `g124_87/r3_1/s31_14`, i.e. the ltree with `.` replaced by `/`.
+logs is `ga124_87/re3_1/sy31_14`, i.e. the ltree with `.` replaced by `/`.
 
 ### Invariants
 
@@ -403,7 +409,7 @@ entry in this table, and a case in the feed renderer.
 | `SCAN_PERFORMED` | scan | LOCAL | PARTICIPANTS | `range, contacts_found` |
 | `DISCOVERY` | scan | SYSTEM | PUBLIC | `location_id, kind, first_by` |
 | `TRADE_EXECUTED` | buy, sell | LOCAL | PARTICIPANTS | `station_id, commodity, qty, unit_price` |
-| `MARKET_SHIFT` | stage 3 | BODY | PUBLIC | `station_id, commodity, old, new` |
+| `MARKET_SHIFT` | stage 3 | PLANET | PUBLIC | `station_id, commodity, old, new` |
 | `COMBAT_STARTED` | attack, stage 2 | LOCAL | PUBLIC | `attacker, defender, initiator_intent` |
 | `COMBAT_ROUND` | encounter resolution | LOCAL | PARTICIPANTS | `round, rolls, damage` |
 | `COMBAT_RESOLVED` | encounter resolution | LOCAL | PUBLIC | `outcome, survivors, cargo_lost` |
@@ -502,7 +508,7 @@ CREATE INDEX locations_kind ON core.locations (kind) WHERE kind = 'station';
 
 CREATE TABLE core.ships (
     id            uuid PRIMARY KEY,
-    player_id     uuid REFERENCES core.players(id),      -- null for NPCs; one active ship per player, GDD Q3
+    player_id     uuid REFERENCES core.players(id),      -- null for NPCs; exactly one per player, GDD §4.2
     hull          int NOT NULL CHECK (hull >= 0),
     hull_max      int NOT NULL,
     shields       int NOT NULL CHECK (shields >= 0),
@@ -767,7 +773,7 @@ listed, so error messages are predictable and testable.
 ### `move`
 
 ```json
-{"action": "move", "to": "g0_0/r1_0/s4_2/b12_7", "idempotency_key": "..."}
+{"action": "move", "to": "ga0_0/re1_0/sy4_2/pl12_7", "idempotency_key": "..."}
 ```
 
 | Order | Precondition | Rejection |
@@ -813,7 +819,7 @@ plus one `DISCOVERY` (SYSTEM, PUBLIC) per location first identified by this play
 ### `dock` / `launch`
 
 Free (0 AP). `dock` requires a station at the ship's exact hex and the ship not in transit. `launch` requires
-`docked_at IS NOT NULL`. Docking is a state, not a sub-map: the MVP has no Body-level hex movement `[D-1]`.
+`docked_at IS NOT NULL`. Docking is a state, not a sub-map: the MVP has no Planet-level hex movement `[D-1]`.
 
 ### `buy` / `sell`
 
@@ -912,7 +918,7 @@ implementation to drift.
 ### Fan-out
 
 MVP follows *ARCH §7.4*: `PARTICIPANTS` and `TEAM` events are written to `evt.event_deliveries` at commit time;
-`LOCAL`, `BODY` and `SYSTEM` events are queried on read by path prefix. `UNIVERSE` exists but nothing in the MVP
+`LOCAL`, `PLANET` and `SYSTEM` events are queried on read by path prefix. `UNIVERSE` exists but nothing in the MVP
 emits it.
 
 ---
@@ -1027,7 +1033,7 @@ stock  = max(stock, 0)
 
 `production` and `consumption` come from the station's `attrs.station_type` (agricultural, industrial, mining,
 refinery, trade hub), which is what makes routes profitable in a stable direction rather than randomly. Where the
-resulting price moves more than a threshold `[BALANCE]`, a `MARKET_SHIFT` event is emitted at BODY scope so that
+resulting price moves more than a threshold `[BALANCE]`, a `MARKET_SHIFT` event is emitted at PLANET scope so that
 traders in the system learn about it without a scripted news system (*GDD §5.3*).
 
 ## 6.5 Stage 4 — The NPC population
@@ -1048,7 +1054,7 @@ The MVP has 48 systems; the code is written linear in system count so a 5 000-sy
 | `trade_flow` | 0–1 | Density of hauler traffic | Price gradient against neighbours, connectivity, raider pressure |
 | `patrol_strength` | 0–1 | Armed presence of the controlling faction | Territory influence × faction military baseline, minus losses |
 | `raider_pressure` | 0–1 | Predation on trade | Trade flow, weak patrols, spillover from adjacent systems |
-| `civilian_traffic` | 0–1 | Background population | Body and station count, stability |
+| `civilian_traffic` | 0–1 | Background population | Planet and station count, stability |
 
 ```text
 demand_gradient  = Σ over neighbours |price_index(self) − price_index(neighbour)|
@@ -1200,7 +1206,7 @@ indistinguishable from a hand-authored one.
 | Regions | 4 |
 | Systems per region | 10–14 |
 | System hex map radius | 8 (169 hexes) |
-| Bodies per system | 3–8 |
+| Planets per system | 3–8 |
 | Stations per system | 1–3 |
 | Commodities | 8 |
 | Faction home systems | 1 per faction |
@@ -1208,8 +1214,8 @@ indistinguishable from a hand-authored one.
 ```text
 1. Create the galaxy root and 4 region hexes.
 2. For each region, place systems on distinct galaxy-child hexes via Poisson-disc sampling.
-3. For each system, place a star at (0,0) and bodies on rings 2..8 with decreasing density.
-4. Designate stations: faction homes first, then one station per 2 bodies, biased toward the inner rings.
+3. For each system, place a star at (0,0) and planets on rings 2..8 with decreasing density.
+4. Designate stations: faction homes first, then one station per 2 planets, biased toward the inner rings.
 5. Assign each station a type; seed its market from the type's production and consumption profile.
 6. Seed territory: home systems at influence 1.0 for their faction, all others at 0.
 7. Mark faction home systems and their immediate neighbours discovered; everything else undiscovered.
@@ -1218,7 +1224,7 @@ indistinguishable from a hand-authored one.
 Every step draws from `Rng.for_("worldgen", step, index)`, so a seed reproduces a world exactly — which is what makes
 the simulation soak test (§14.5) meaningful.
 
-Sizing check: 48 systems × 169 hexes = 8 112 addressable system hexes and roughly 250 bodies. Small enough to
+Sizing check: 48 systems × 169 hexes = 8 112 addressable system hexes and roughly 250 planets. Small enough to
 generate in seconds and to inspect by hand, large enough that map streaming (§9.1) is genuinely exercised rather
 than accidentally satisfied.
 
@@ -1250,7 +1256,7 @@ than accidentally satisfied.
 | `POST` | `/v1/commands` | Execute one command (§5.4) |
 | `POST` | `/v1/commands:batch` | Execute up to 20 commands in sequence, stopping at the first rejection |
 | `GET` | `/v1/map/tiles` | `?path=&level=` — one tile at the requested level |
-| `GET` | `/v1/systems/{id}` | System detail: bodies, stations, visible contacts |
+| `GET` | `/v1/systems/{id}` | System detail: planets, stations, visible contacts |
 | `GET` | `/v1/stations/{id}/market` | Prices computed live from stock |
 | `GET` | `/v1/feed` | `?channel=&after=&limit=` — merged events and messages |
 | `GET` | `/v1/teams` `POST` `/v1/teams` | List and create |
@@ -1328,7 +1334,7 @@ A tile is the visible content of one path prefix at one level, rendered for one 
 | --- | --- |
 | Galaxy tile | Regions, faction control colours, the viewer's position |
 | Region tile | Systems (discovered only), control, trade-route hints |
-| System tile | Bodies, stations, contacts within sensor range, the viewer's ship |
+| System tile | Planets, stations, contacts within sensor range, the viewer's ship |
 
 Tiles are built by stage 12 and on demand on a cache miss, cached in Redis, and served with `ETag`. Undiscovered
 locations are **absent**, not marked hidden — the payload itself must not reveal that something is there (*GDD* C4,
@@ -1654,7 +1660,7 @@ mistake in this plan that would cost a rewrite.
 
 | ID | Decision | Rationale | Reversible? |
 | --- | --- | --- | --- |
-| D-1 | The MVP addresses four levels (Galaxy, Region, System, Body); District and Local are generated by nothing and used by nothing. Docking is a state, not a sub-map. | Surface gameplay has no MVP content; generating empty levels invites accidental dependencies. | Yes — `Level` already carries all six |
+| D-1 | The MVP addresses four levels (Galaxy, Region, System, Planet); Sector and Local are generated by nothing and used by nothing. Docking is a state, not a sub-map. | Surface gameplay has no MVP content; generating empty levels invites accidental dependencies. | Yes — `Level` already carries all six |
 | D-2 | No pathfinding. Route cost is `distance × ap_per_hex`. | In-system space is uniform in the MVP; A* arrives with hazards. | Yes |
 | D-3 | Contact search narrows by system in SQL and filters by hex distance in Python. | GiST cannot express hex range; a system holds hundreds of ships, not millions. | Yes |
 | D-4 | Player-versus-player encounters always resolve at tick stage 2, never live — even when both players are online. | One code path for offline and online defence, so they can never diverge (*GDD §3.5*). | Yes, but only by accepting two paths |
@@ -1671,12 +1677,11 @@ mistake in this plan that would cost a rewrite.
 
 # 17. Open questions
 
-Blocking, with the MVP's working assumption. The first three are *GDD §11.2* questions reaching implementation.
+Blocking, with the MVP's working assumption. Q6 is the one remaining *GDD §11.2* question that reaches the MVP;
+Q1, Q2 and Q3 were answered in *GDD* v2.2 and are settled here.
 
 | # | Question | MVP assumption | Blocks |
 | --- | --- | --- | --- |
-| Q1 | Is the six-level ladder final, and are Body/District the accepted names? | Yes; four levels used (D-1) | Task 1.4, address encoding |
-| Q3 | May a player operate more than one ship? | No — `ships.player_id` is unique | Task 3.1; relaxing it later is a migration, not a redesign |
 | Q6 | Is unspent AP carried over? | No — `carry_over_max = 0` | Stage 11 |
 | S1 | What does a destroyed player lose? | Respawn at faction home, base hull, empty cargo, credit penalty `[BALANCE]` | Task 3.5 |
 | S2 | Can a player exist without a team? | No — registration requires creating or joining one | Task 3.7, faction denormalisation |
@@ -1706,7 +1711,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 | Aggregate population in every system, individuals where observed (*GDD §2.7*) | §6.5, §10 | A13, A14 |
 | Offline resolution | §5.4 (D-4), §6.3 | A6 |
 | Teams, three factions, team chat, local communication (*GDD §7.3*) | §5.4, §8.3 | A1 |
-| Local/Body/System/Universe events, unified feed | §3.5, §5.5, §9.3 | A9 |
+| Local/Planet/System/Universe events, unified feed | §3.5, §5.5, §9.3 | A9 |
 | Cycle steps 1–5, 11, 12 | §6 | A4, A10, A12, A13 |
 | Design constraints C1–C10 (*GDD §10.4*) | C1 §5.2/§8.1 · C2 §6.1 · C3 §3.5 · C4 §5.5 · C5 §9.1 · C6 §6.3/§6.9 · C7 §3.4 · C8, C9 not applicable (D-10) · C10 not applicable | A3, A9, A10 |
 

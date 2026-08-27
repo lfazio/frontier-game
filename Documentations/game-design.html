@@ -1,0 +1,1726 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<title>game-design.html</title>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8"/>
+
+</head>
+
+<body>
+
+<h1>Game Design Document</h1>
+
+<h2><em>Frontier: The Seldon Era</em></h2>
+
+<blockquote>
+  <p><strong>A persistent, browser-based multiplayer space strategy game inspired by the gameplay philosophy of
+<em>Frontier: Elite II</em> and by Foundation-style concepts of historical prediction, civilizational change and
+emergent history.</strong></p>
+</blockquote>
+
+<p>| Field | Value |
+| --- | --- |
+| Status | Draft for review |
+| Version | 2.1 |
+| Date | 2026-08-27 |
+| Companion | <code>Documentations/architecture.md</code> (cited as <em>ARCH §n</em>) |
+| Audience | Designers, engineers, writers, reviewers |</p>
+
+<hr />
+
+<h1>0. About this document</h1>
+
+<h2>0.1 What this document is</h2>
+
+<p>This document is <strong>normative for behaviour</strong>: what exists in the world, what players may do, and what the world does
+in response. It is the source of truth for design intent.</p>
+
+<p>It is <strong>not</strong> a technical specification. Data models, processes, storage, protocols and deployment belong to the
+companion architecture document. Where the two disagree, this document wins on <em>what the game does</em> and the
+architecture document wins on <em>how it is built</em>; either way, one of them is wrong and must be amended.</p>
+
+<p>Version 1.0 of this document contained five sections of technical architecture (old §47–§51). They have been removed
+in favour of the architecture document, so that implementation guidance has exactly one home. §10.4 retains the
+design-level constraints that the architecture must satisfy.</p>
+
+<h2>0.2 Conventions</h2>
+
+<p>| Marker | Meaning |
+| --- | --- |
+| <strong>MUST</strong> / <strong>MUST NOT</strong> | An invariant. Changing it changes what the game <em>is</em>, and requires a decision recorded in §11.2. |
+| <strong>SHOULD</strong> | A strong default. Deviating needs a stated reason. |
+| <strong>MAY</strong> | Permitted and optional. |
+| <code>[BALANCE]</code> | A tunable value. Every number so marked is indicative; the authoritative values live in versioned rule data (<em>ARCH §11.2</em>), not in this document. |
+| <code>[ILLUSTRATIVE]</code> | An example, mock-up or scenario shown to convey feel. Not a specification. |</p>
+
+<p>Cross-references use <code>§n.m</code> for this document and <em>ARCH §n</em> for the architecture document.</p>
+
+<h2>0.3 Glossary</h2>
+
+<p>| Term | Meaning |
+| --- | --- |
+| <strong>Cycle</strong> | The 24-hour period that is the game's fundamental unit of time. One cycle = one world tick. |
+| <strong>World day</strong> | The integer counter of elapsed cycles since world creation. Used in every timestamped record. |
+| <strong>AP</strong> | Action Points. The per-cycle budget that limits what a player can do (§3.2). |
+| <strong>Level</strong> | One rung of the spatial hierarchy: Galaxy, Region, System, Body, District, Local (§2.2). |
+| <strong>Body</strong> | Any substantial object at System level: planet, moon, station, asteroid. Replaces v1.0's "Planet". |
+| <strong>District</strong> | A named area of a Body's surface or structure. Replaces v1.0's "Planetary Region". |
+| <strong>Hex</strong> | The atomic cell of the map at any level. |
+| <strong>Address</strong> | An object's position, expressed as one hex coordinate per level (§2.3). |
+| <strong>Scope</strong> | How far an event or message carries: Local, Body, System, Region, Universe (§7.7). |
+| <strong>Event</strong> | The single record type behind chat, combat, discovery, economy and history (§7.6). |
+| <strong>Faction</strong> | One of the three public political blocs: Empire, Republic, Pirates (§6.1). |
+| <strong>Team</strong> | A player-created group; the primary multiplayer unit. Belongs to one faction (§6.5). |
+| <strong>Standing orders</strong> | A player's configured behaviour while offline (§4.4). |
+| <strong>The Model</strong> | The psychohistorical simulation of large-scale civilizational variables (§8.2). |
+| <strong>Deviation</strong> | How far the observed world has drifted from the Model's expected trajectory (§8.3). |
+| <strong>The Continuity</strong> | The hidden fourth faction, whose goal is to hold deviation inside an envelope (§9). |
+| <strong>Chronicle</strong> | The permanent, public historical record of the world (§8.10). |</p>
+
+<hr />
+
+<h1>1. Vision</h1>
+
+<h2>1.1 High concept</h2>
+
+<p><em>Frontier: The Seldon Era</em> is a persistent multiplayer space game played in a web browser.</p>
+
+<p>Players inhabit a large, continuously evolving galaxy represented by hierarchical hexagonal maps. They belong to
+player-created teams, and every team declares one of three public factions: <strong>Empire</strong>, <strong>Republic</strong> or <strong>Pirates</strong>.</p>
+
+<p>The game is deliberately <strong>asynchronous</strong>. One major cycle elapses every 24 hours. Players receive Action Points,
+connect when convenient, make strategic decisions, interact with other players, and leave.</p>
+
+<p>The game <strong>MUST</strong> reward planning, knowledge, diplomacy and optimisation. It <strong>MUST NOT</strong> reward reflexes, or reward
+time spent online beyond the point where that time improves decision quality.</p>
+
+<h2>1.2 Design pillars</h2>
+
+<h3>Pillar 1 — A persistent universe</h3>
+
+<p>The galaxy continues to evolve while players are offline. It contains NPC populations, factions, an economy, trade,
+piracy, exploration, infrastructure, political conflict, player teams, territorial influence and historical events.
+Player actions contribute to that evolution; they are not the only thing driving it.</p>
+
+<h3>Pillar 2 — One cycle per day</h3>
+
+<p>The fundamental rhythm is 24 hours. A player receives an AP budget and spends it across the day. AP <strong>MUST</strong>
+represent meaningful activities, never individual clicks (§3.2).</p>
+
+<h3>Pillar 3 — Short sessions</h3>
+
+<p>A casual player <strong>MUST</strong> be able to complete a satisfying daily turn in about fifteen minutes. Additional time
+<strong>SHOULD</strong> buy better decisions, not more actions.</p>
+
+<p>| Player type | Target session |
+| --- | --- |
+| Casual | ≤ 15 min |
+| Regular | 15–30 min |
+| Hardcore optimiser | up to ~60 min |</p>
+
+<h2>1.3 The core design triangle</h2>
+
+<p>Everything in the game resolves into three interacting dimensions.</p>
+
+<p><code>text
+                         SPACE
+                    Where are you?
+                         │
+                         ▼
+              ┌─────────────────────┐
+              │                     │
+              │  PERSISTENT WORLD   │
+              │                     │
+              └─────────────────────┘
+                    ▲           ▲
+                    │           │
+                  TIME      ALLEGIANCE
+               What can      Who are you
+               you do now?    with?
+</code></p>
+
+<p>| Dimension | Realised as | Detailed in |
+| --- | --- | --- |
+| <strong>Space</strong> | A hierarchical hex world: Galaxy → Region → System → Body → District → Local | §2 |
+| <strong>Time</strong> | A 24-hour cycle with a limited AP budget | §3 |
+| <strong>Allegiance</strong> | Three public factions, player teams, and one hidden fourth faction | §6, §9 |</p>
+
+<h2>1.4 Player fantasy</h2>
+
+<p>The player should feel like <strong>one individual living inside a vast, persistent frontier civilization</strong>.</p>
+
+<p>They decide where to go, what to trade, what to explore, whom to fight, whom to trust, what information to share,
+which faction to serve, which team to join, and which historical events to influence. The galaxy evolves around them,
+and their actions reach the economy, the factions, territory and history.</p>
+
+<blockquote>
+  <p><strong>Explore the frontier. Build your fortune. Choose your allegiance. Exchange information. Shape your team's
+destiny. Influence history. And discover whether the future predicted for civilization can actually be changed.</strong></p>
+</blockquote>
+
+<h2>1.5 Endgame philosophy</h2>
+
+<p>The game <strong>SHOULD NOT</strong> end in a permanent "one faction wins the galaxy". Instead, eras produce different historical
+outcomes, and the next era begins from the consequences of the last (§8.11).</p>
+
+<p>```text
+ERA 3 — THE FALL OF THE FRONTIER          [ILLUSTRATIVE]</p>
+
+<p>Empire:        Fragmented
+Republic:      Expanded
+Pirates:       Dominant in outer systems</p>
+
+<p>Team Orion:    Prevented the collapse of Earth
+Red Corsairs:  Controlled 17 major trade routes
+Blackstar:     Discovered the lost archive
+```</p>
+
+<p>Players collectively write the history of the universe. That record is permanent (§8.10).</p>
+
+<h2>1.6 Non-goals</h2>
+
+<p>Stated explicitly, because each one has been a tempting direction at some point in the design:</p>
+
+<ol>
+<li><strong>Not a real-time game.</strong> No mechanic may reward being online at a particular moment, beyond ordinary social
+coordination.</li>
+<li><strong>Not a tactical combat game.</strong> Combat resolves in a few decisions and <strong>MUST NOT</strong> grow into a separate game
+(§5.4).</li>
+<li><strong>Not pay-to-win.</strong> Nothing that affects AP, combat outcomes, market access or information quality may be sold.</li>
+<li><strong>Not a permanent victory ladder.</strong> See §1.5.</li>
+<li><strong>Not a legal agreement.</strong> The Continuity's confidentiality protocol is fiction and <strong>MUST NOT</strong> be implemented as
+an enforceable real-world contract (§9.3).</li>
+<li><strong>Not derivative.</strong> See §1.7.</li>
+</ol>
+
+<h2>1.7 Inspirations and originality</h2>
+
+<p>The game takes broad inspiration from <em>Frontier: Elite II</em> — space travel, trading, mining, exploration, missions,
+ship equipment and progression, piracy, bounty hunting, factions, reputation, political conflict, a persistent economy
+— and from <em>Foundation</em> — psychohistory, statistical prediction, historical inertia, civilizational decline,
+historical crises, knowledge preservation, unpredictable individuals and self-fulfilling predictions.</p>
+
+<p>The universe, characters, ships, artwork, place names and narrative <strong>MUST</strong> be original. No copyrighted content from
+either source may be reproduced.</p>
+
+<hr />
+
+<h1>2. The world</h1>
+
+<h2>2.1 One unified hexagonal world</h2>
+
+<p>Galaxy view, system view, body view and local view are <strong>not separate maps</strong>. They are different spatial resolutions
+of one hierarchical hexagonal world.</p>
+
+<blockquote>
+  <p><strong>Zooming changes spatial resolution, not the underlying world.</strong></p>
+</blockquote>
+
+<p>This is an invariant. The same objects exist at every level; a ship remains the same ship regardless of the level at
+which it is being observed.</p>
+
+<h2>2.2 The scale ladder</h2>
+
+<p>The world has six addressable levels. The number of levels is configuration and <strong>MAY</strong> change; the principle in §2.1
+<strong>MUST NOT</strong>.</p>
+
+<p>| # | Level | Contains | A hex represents | Example |
+| --- | --- | --- | --- | --- |
+| 0 | <strong>Galaxy</strong> | Regions | Strategic distance between stellar neighbourhoods | The galaxy map |
+| 1 | <strong>Region</strong> | Systems | Several light years | The Sirius Reach |
+| 2 | <strong>System</strong> | Bodies | Interplanetary distance | Sol |
+| 3 | <strong>Body</strong> | Districts | Orbital / surface approach | Earth, Luna, Anchor Station |
+| 4 | <strong>District</strong> | Local areas | Regional surface distance | The Industrial Belt |
+| 5 | <strong>Local</strong> | — | Tactical / exploration distance | Hex 42,19 |</p>
+
+<p><em>Renamed in v2.0:</em> "Planet" → <strong>Body</strong> (it must also cover moons, stations and asteroids), "Planetary Region" →
+<strong>District</strong> (to avoid collision with the Region level). See §11.1 M1.</p>
+
+<p>The Universe is the container of the Galaxy, not an addressable level. A world deployment holds one Galaxy.</p>
+
+<h2>2.3 Addresses</h2>
+
+<p>An object's position is an <strong>address</strong>: one hex coordinate per level, from Galaxy downward.</p>
+
+<p><code>text
+Galaxy:    (124, 87)
+Region:    (3, 1)
+System:    (31, 14)
+Body:      (208, 73)
+District:  (11, 4)
+Local:     (42, 19)
+</code></p>
+
+<p>Two rules follow, and both matter for gameplay:</p>
+
+<ul>
+<li><strong>Distance is only meaningful between siblings.</strong> Two hexes may be compared only if they sit at the same level
+under the same parent. There is no cross-level distance, because a hex means a different physical distance at each
+level (§2.6).</li>
+<li><strong>Containment is prefix matching.</strong> Everything inside Sol shares Sol's address prefix. This is what makes "all
+events in this system", "everyone within radio range" and "stream only this part of the map" the same question
+asked at different depths.</li>
+</ul>
+
+<p>Addresses give the world seamless zoom, spatial event propagation, localised communication, efficient map streaming
+and persistent object locations.</p>
+
+<h2>2.4 Zoom</h2>
+
+<p>The player zooms without changing game modes.</p>
+
+<p><code>text
+Galaxy ──▶ Region ──▶ System ──▶ Body ──▶ District ──▶ Local
+  Sol         Sirius     Earth    Industrial    Hex 42,17
+                                    Belt
+</code></p>
+
+<p>Zooming <strong>MUST NOT</strong> be a loading screen, a separate interface or a different rule set. It is a change of resolution
+on one continuous map.</p>
+
+<h2>2.5 What each level shows</h2>
+
+<p>| Level | Shows |
+| --- | --- |
+| <strong>Galaxy / Region</strong> | Star systems, faction territories, major trade routes, strategic infrastructure, major events, long-distance travel |
+| <strong>System</strong> | Star, bodies, orbits, stations, in-system traffic, local infrastructure, system-scale events |
+| <strong>Body</strong> | Districts, ports and landing sites, surface or orbital features, resources, settlements |
+| <strong>District / Local</strong> | Individual hexes, ships, structures, terrain, encounters, exploration targets |</p>
+
+<h2>2.6 Scale versus simulation</h2>
+
+<p>Spatial scale and game mechanics remain conceptually separate. A hex at Galaxy level and a hex at Local level differ
+by many orders of magnitude in physical size, but they are the same kind of object to the rules. The player
+experiences one world, not four engines.</p>
+
+<h2>2.7 The inhabited world</h2>
+
+<p>The galaxy is populated whether or not any player is looking at it. NPC haulers move cargo, patrols hold faction
+space, raiders prey on trade routes, and civilian traffic fills the lanes. This is not decoration: it is what makes
+Pillar 1 (§1.2) literally true rather than a slogan.</p>
+
+<p>NPCs carry four jobs, and every NPC design should be judged against them:</p>
+
+<p>| Job | Why the game needs it |
+| --- | --- |
+| <strong>Presence</strong> | A system a player has never visited must already have a history when they arrive. |
+| <strong>Circulation</strong> | Goods must move between stations without players, so shortages propagate and prices mean something (§5.3). |
+| <strong>Territory</strong> | Faction control must be held by <em>someone</em>; a border with no patrols is a line on a map (§6.6). |
+| <strong>Opposition</strong> | Combat must be available on the player's schedule, not only when another player happens to be nearby (§5.4). |</p>
+
+<h3>Simulation fidelity varies with observation</h3>
+
+<p>The world is simulated everywhere, but not at the same resolution everywhere. This mirrors §2.6: just as spatial
+scale is separate from the rules, <strong>simulation fidelity is separate from the world's existence</strong>.</p>
+
+<p><code>text
+        No observer present                  Observer present
+        ───────────────────                  ────────────────
+        Population simulated as              Individual ships, with
+        aggregate flows:                     position, cargo, hull:
+          trade flow                           haulers on real routes
+          patrol strength                      patrols on real orders
+          raider pressure                      raiders hunting real cargo
+                    │                                    ▲
+                    └────────── materialise ─────────────┘
+                    ┌────────── dissolve ────────────────┐
+                    ▼                                    │
+</code></p>
+
+<p>Two rules make this honest rather than a trick:</p>
+
+<ul>
+<li><strong>The aggregate never stops.</strong> Trade flow, patrol strength and raider pressure evolve every cycle in every system,
+observed or not. A player returning to a system after a month finds it genuinely changed, not frozen.</li>
+<li><strong>An observer MUST NOT be able to tell.</strong> Individuals are materialised from the aggregate and dissolved back into
+it, and their outcomes feed back: a hauler that completes a run moves real stock; a raider that dies lowers raider
+pressure. What a player sees is a sample of the population, never a separate reality.</li>
+</ul>
+
+<h3>Why this shape, and not simply "simulate everything"</h3>
+
+<p>Beyond cost, the aggregate layer is the same quantity the historical model will later measure. Trade flow, patrol
+strength and raider pressure <em>are</em> population-scale variables of the kind §8.2 tracks, and §8.5's claim — that large
+NPC populations are statistically predictable while players are not — is only true if NPC populations are actually
+represented statistically. Building the aggregate now is what makes psychohistory measurable later, rather than a
+number invented on top of an unrelated simulation.</p>
+
+<h3>Constraints</h3>
+
+<ul>
+<li>NPCs <strong>MUST</strong> obey the same physics as players: fuel, cargo capacity, hex distance, weapon range, combat
+resolution. They are exempt only from Action Points, which are a fairness device for human attention, not a law of
+the world.</li>
+<li>NPC behaviour <strong>MUST</strong> be legible. A player who watches a hauler for three cycles should be able to predict the
+fourth. Unpredictability is the players' role (§8.5), not the population's.</li>
+<li>NPCs <strong>MUST NOT</strong> be a difficulty dial disguised as a world. Raider pressure rises because trade is rich and
+patrols are thin — never because a player is doing well.</li>
+</ul>
+
+<hr />
+
+<h1>3. Time and the turn</h1>
+
+<h2>3.1 The cycle</h2>
+
+<p>One cycle is 24 hours. At the cycle boundary the world advances: the economy moves, NPCs and factions act, territory
+is recomputed, missions are generated and expired, offline interactions resolve, the historical model updates, and
+every player receives a new AP grant.</p>
+
+<p>The cycle boundary is a fixed hour, announced to players. The world <strong>MUST</strong> advance whether or not any player is
+online (§1.2 Pillar 1). What the world does at the boundary is listed in §3.3; how it is executed is <em>ARCH §9</em>.</p>
+
+<h2>3.2 Action Points</h2>
+
+<p>AP is the game's scarcity. Each player receives a per-cycle grant and spends it on meaningful actions.</p>
+
+<p>```text
+Daily AP: 10                                     [BALANCE]</p>
+
+<p>Move                1 AP
+Scan                1 AP
+Trade               1 AP
+Mine              2–3 AP
+Combat              2 AP
+Repair              2 AP
+Mission stage     1–3 AP
+Hyperspace jump   4–6 AP
+```</p>
+
+<p>Rules:</p>
+
+<ul>
+<li>Every AP cost is a <code>[BALANCE]</code> value. No cost is fixed by this document; §5.6 holds the canonical catalogue.</li>
+<li>AP <strong>MUST NOT</strong> be purchasable, and unspent AP <strong>SHOULD NOT</strong> accumulate without limit — a small carry-over
+<code>[BALANCE]</code> softens the penalty for missing a day without letting a player bank a week.</li>
+<li>An action that costs AP <strong>MUST</strong> be a decision. Navigating menus, reading, planning, talking and looking at maps
+are free.</li>
+<li>The server owns the AP balance; the client may never assert it (§10.4).</li>
+</ul>
+
+<h2>3.3 What the world does each cycle</h2>
+
+<p>| Order | The world… | Detailed in |
+| --- | --- | --- |
+| 1 | Completes journeys in progress | §5.1 |
+| 2 | Resolves encounters queued since the last cycle, including those involving offline players | §3.5, §5.4 |
+| 3 | Moves the economy: production, consumption, prices, shortages | §5.3 |
+| 4 | Acts as NPCs and factions | §6, §8.2 |
+| 5 | Recomputes territory and influence | §6.6 |
+| 6 | Generates and expires missions | §5.5 |
+| 7 | Updates the historical model and publishes forecasts | §8.2, §8.3 |
+| 8 | Lets the Continuity spend its intervention budget | §9.5 |
+| 9 | Promotes significant events to wider scopes | §7.7 |
+| 10 | Writes permanent records to the Chronicle and expires transient events | §7.8, §8.10 |
+| 11 | Grants Action Points | §3.2 |
+| 12 | Prepares each player's daily overview and digest | §3.4 |</p>
+
+<p>The order is deliberate: destroyed cargo must affect prices in the same cycle, and the Continuity must act <em>after</em>
+seeing the day's forecast, because reacting to deviation is its entire purpose (§9.1).</p>
+
+<h2>3.4 The player session loop</h2>
+
+<p><code>text
+                    CYCLE BOUNDARY
+                         │
+                         ▼
+                  WORLD ADVANCES  (§3.3)
+                         │
+                         ▼
+                    PLAYER LOGIN
+                         │
+                         ▼
+                  DAILY OVERVIEW
+                         │
+                  ┌──────┴──────┐
+                  ▼             ▼
+               Team chat     World events
+                  └──────┬──────┘
+                         ▼
+                    PLAN ACTIONS
+                         │
+                         ▼
+                     SPEND AP
+                         │
+       ┌────────┬────────┼────────┬────────┐
+       ▼        ▼        ▼        ▼        ▼
+    Travel    Trade   Mission  Explore  Combat
+       └────────┴────────┼────────┴────────┘
+                         ▼
+                 PLAYER INTERACTION
+                         │
+                         ▼
+                  EVENTS GENERATED
+                         │
+                         ▼
+                      LOG OUT
+</code></p>
+
+<p>The <strong>daily overview</strong> is the first screen after login and <strong>MUST</strong> answer, without further navigation: what happened
+to me, what changed near me, what my team said, what I can afford to do, and what expires today.</p>
+
+<h2>3.5 Playing while offline</h2>
+
+<p>Players <strong>MUST NOT</strong> be required to be online simultaneously. Every interaction has an offline resolution path.</p>
+
+<p><code>text
+Player B is OFFLINE
+        │
+        ▼
+Player A encounters B
+        │
+        ▼
+Server resolves the interaction
+using B's standing orders (§4.4)
+        │
+        ▼
+Result is recorded as events
+        │
+        ▼
+B is notified at next login
+</code></p>
+
+<p>The rules applied to an absent player <strong>MUST</strong> be the same rules applied to a present one. Being offline may change
+the <em>decisions</em> made on a player's behalf; it may never change the <em>physics</em>.</p>
+
+<hr />
+
+<h1>4. The player</h1>
+
+<h2>4.1 Identity and progression</h2>
+
+<p>A player is an individual inside a much larger civilization — never a head of state.</p>
+
+<p>| Property | Notes |
+| --- | --- |
+| Credits | Personal, never shared automatically with the team |
+| Reputation | Per faction, and separately with the player's own team |
+| Faction | Inherited from the team (§6.5) |
+| Team | One at a time |
+| Knowledge | A strategic resource (§8.9) |
+| Location | An address (§2.3) |
+| Missions | Active and offered |
+| Discoveries | Permanent, and creditable to the discoverer |</p>
+
+<p>Progression is <strong>horizontal</strong>: better ships, better equipment, better information, better relationships. There are no
+levels that gate content, and no build that makes a player immune to another.</p>
+
+<h2>4.2 Ships</h2>
+
+<p>A ship is composed of Hull, Shields, Engine, Fuel, Cargo, Weapons, Sensors and Equipment.</p>
+
+<p>Sensors deserve emphasis: they determine not only what a player can shoot but what a player can <em>know</em> (§7.2), which
+is what makes an unarmed scout a viable and valuable role.</p>
+
+<p><strong>Open question (§11.2 Q3):</strong> whether a player may operate more than one ship. The MVP assumes exactly one <em>active</em>
+ship per player; ownership of others is a later feature.</p>
+
+<h2>4.3 Specialisations</h2>
+
+<p>Trader, Explorer, Miner, Bounty hunter, Pirate, Scout, Combat pilot.</p>
+
+<p>These <strong>MUST</strong> be soft specialisations expressed through ship fitting, reputation and habit — never rigid character
+classes chosen at creation and never changed.</p>
+
+<h2>4.4 Standing orders</h2>
+
+<p>Because most interactions involve an absent player (§3.5), a player's offline behaviour is a first-class design
+object, configured deliberately rather than defaulted silently.</p>
+
+<p>```text
+STANDING ORDERS                                  [ILLUSTRATIVE]</p>
+
+<p>Posture:            DEFEND
+Engage if:          Hostile faction AND cargo value > 5 000 cr
+Retreat at hull:    40 %
+Surrender cargo:    Never
+Radio auto-reply:   "Trading run. No hostile intent."
+```</p>
+
+<p>Editing standing orders is free (§3.2) and <strong>SHOULD</strong> be prompted during onboarding. A player who has never
+considered them is a player who will be surprised by their first offline loss, which is a design failure rather than a
+gameplay outcome.</p>
+
+<hr />
+
+<h1>5. Actions</h1>
+
+<h2>5.1 Movement</h2>
+
+<p>Ships move through hexagonal space. Movement consumes AP and fuel, and <strong>MAY</strong> consume other resources depending on
+the method.</p>
+
+<p>| Action | Meaning |
+| --- | --- |
+| Move | Traverse hexes at the current level |
+| Travel to | A high-level order that resolves into a multi-hex journey, possibly spanning cycles |
+| Jump | Long-range travel between systems; the expensive, strategic option |
+| Dock / Launch | Enter or leave a station or port |
+| Scan | Reveal information about the surrounding hexes (§7.2) |
+| Deploy probe | Leave a persistent sensor behind |</p>
+
+<p>High-level commands <strong>MUST</strong> exist so that a long journey is one decision, not thirty. Micromanagement is not a
+difficulty setting; it is a failure to design the command.</p>
+
+<p>Journeys that exceed the remaining cycle continue across the boundary and complete during step 1 of §3.3.</p>
+
+<h2>5.2 Exploration</h2>
+
+<p>Scanning and exploration reveal locations, resources, wrecks, anomalies and other ships. Discoveries are permanent
+and attributed: the first player to identify a location <strong>SHOULD</strong> be recorded in the Chronicle (§8.10) and <strong>MAY</strong>
+name it, subject to moderation.</p>
+
+<p>Exploration is one of the three sources of Knowledge (§8.9), and the primary route by which an ordinary player first
+encounters evidence of the Continuity (§9.8).</p>
+
+<h2>5.3 Trade and the economy</h2>
+
+<p>The galaxy runs an evolving economy: commodity markets, supply and demand, mining, industrial production, fuel,
+equipment, regional shortages, trade routes and station markets.</p>
+
+<p>The economy <strong>MUST</strong> generate gameplay without a scripted quest behind each activity:</p>
+
+<p><code>text
+Mining disaster
+      ↓
+Resource shortage
+      ↓
+Prices increase
+      ↓
+Traders move toward the region
+      ↓
+Pirates target the trade routes
+      ↓
+Security missions increase
+</code></p>
+
+<p>Every step in that chain is an ordinary consequence of ordinary rules. That is the standard the economy is held to.</p>
+
+<p>Prices <strong>MUST</strong> be local: a shortage is only an opportunity if knowing about it is an advantage (§7.1).</p>
+
+<h2>5.4 Combat</h2>
+
+<p>Combat is deliberately simplified and <strong>MUST NOT</strong> become a separate long tactical game. A normal encounter resolves
+in a few decisions and fits inside the daily AP budget.</p>
+
+<p>Choices available in an encounter: <strong>Attack</strong>, <strong>Defend</strong>, <strong>Escape</strong>, <strong>Board</strong>, <strong>Use equipment</strong>.</p>
+
+<p>Resolution depends on ship characteristics, weapons, shields, hull, equipment, sensors, relative position, the
+decision taken, and controlled randomness.</p>
+
+<p>```text
+Laser power:        82          [ILLUSTRATIVE]
+Enemy shields:      54
+Hit probability:    76 %
+Damage:             31</p>
+
+<p>Enemy counterattack:
+Damage:             18
+```</p>
+
+<p>Two rules protect the format:</p>
+
+<ul>
+<li><strong>A player who is offline is resolved by their standing orders (§4.4), under identical rules.</strong></li>
+<li><strong>Every resolution MUST be reconstructible.</strong> The inputs to each roll are recorded, so a disputed outcome is
+answered by replay rather than by argument (<em>ARCH §9.3</em>).</li>
+</ul>
+
+<h2>5.5 Missions</h2>
+
+<p>Missions are generated from the state of the world, not from a script. The same strategic situation <strong>SHOULD</strong>
+produce different missions for different factions:</p>
+
+<p>```text
+Situation: the Republic is establishing a relay in Sirius-4.</p>
+
+<p>Republic  →  Establish the communication relay in Sirius-4.
+Empire    →  Prevent Republic expansion in Sirius-4.
+Pirates   →  Raid the construction convoy.
+```</p>
+
+<p>This creates natural conflict around shared locations and resources without anyone authoring the conflict.</p>
+
+<p>Missions have stages, each costing AP <code>[BALANCE]</code>, and expire. A mission <strong>SHOULD</strong> state its objective and leave the
+method to the player.</p>
+
+<h2>5.6 Action catalogue</h2>
+
+<p>The canonical list of player actions and their costs. All values are <code>[BALANCE]</code>; the authoritative source is the
+rule data (<em>ARCH §11.2</em>). This table exists so that there is exactly one place to look, and one place to change.</p>
+
+<p>| Action | AP | Other cost | Notes |
+| --- | --- | --- | --- |
+| Move (per hex, current level) | 1 | Fuel | Batched inside a "Travel to" order |
+| Travel to destination | 1 per hex | Fuel | May span cycles |
+| Jump (inter-system) | 4–6 | Fuel, engine wear | Strategic scale |
+| Dock / Launch | 0 | — | Free; not a decision |
+| Scan | 1 | — | Range and quality from sensors |
+| Deploy probe | 1 | Probe | Persistent sensor |
+| Trade (per transaction) | 1 | Credits | Per market, not per unit |
+| Mine | 2–3 | Fuel, equipment wear | |
+| Repair | 2 | Credits or parts | |
+| Combat round | 2 | Ammunition, damage | |
+| Board | 2 | Risk | Only after shields drop |
+| Mission stage | 1–3 | Varies | Stated on the mission |
+| Send message | 0 | — | Free at every scope |
+| Edit standing orders | 0 | — | Free |
+| Read, plan, view maps | 0 | — | Always free (§3.2) |</p>
+
+<hr />
+
+<h1>6. Allegiance</h1>
+
+<h2>6.1 The three public factions</h2>
+
+<p><code>text
+                 EMPIRE
+                /       \
+        REPUBLIC ------- PIRATES
+</code></p>
+
+<p>The factions represent different philosophies, not a good/evil alignment. Each <strong>MUST</strong> be a legitimate strategic
+choice with real strengths and real costs.</p>
+
+<h2>6.2 Empire — <em>Order through authority</em></h2>
+
+<p>| Strengths | Weaknesses |
+| --- | --- |
+| Military power, infrastructure, security, technology, central organisation, reliable services | Bureaucracy, taxes, restrictions, political obligations |</p>
+
+<h2>6.3 Republic — <em>Freedom through law</em></h2>
+
+<p>| Strengths | Weaknesses |
+| --- | --- |
+| Commerce, civilian infrastructure, trade, diplomacy, independent worlds, political flexibility | Weaker centralised military, political constraints, slow mobilisation |</p>
+
+<h2>6.4 Pirates — <em>Freedom from law</em></h2>
+
+<p>| Strengths | Weaknesses |
+| --- | --- |
+| Raiding, smuggling, black markets, hidden bases, mobility, opportunistic missions | Poor infrastructure, bounties, few legitimate services, hostility from both other factions |</p>
+
+<p>Pirates <strong>MUST</strong> be a legitimate strategic choice, not the "evil" faction.</p>
+
+<h2>6.5 Teams</h2>
+
+<p>Players organise into teams. A team declares one faction; a player's faction is their team's faction.</p>
+
+<p><code>text
+Universe
+├── Empire     ── Team Alpha, Team Blackstar, …
+├── Republic   ── Team Orion, Team Frontier, …
+└── Pirates    ── Red Corsairs, Freebooters, …
+</code></p>
+
+<p>| Team-level | Player-level |
+| --- | --- |
+| Faction, team chat, shared objectives, team missions, team reputation, shared intelligence, <strong>MAY</strong> hold shared assets | Ships, credits, equipment, progression, personal reputation |</p>
+
+<p>The team is the primary multiplayer organisation. It <strong>MUST NOT</strong> be able to spend an individual's AP or credits.</p>
+
+<h2>6.6 Territory and influence</h2>
+
+<p>Faction influence exists at every map level and evolves through player actions, team actions, missions, military
+activity, trade, infrastructure and political events.</p>
+
+<p>```text
+       E E E E
+     E E E R R
+   E E R R R P P
+     R R R P P
+       P P P</p>
+
+<p>E = Empire   R = Republic   P = Pirates
+```</p>
+
+<p>Territory is <strong>dynamic</strong> and <strong>MUST NOT</strong> be permanently assigned. Control is a consequence of sustained presence and
+activity, recomputed every cycle (§3.3 step 5).</p>
+
+<h2>6.7 Reputation and defection</h2>
+
+<p>Reputation is tracked per faction and changes through action, not declaration.</p>
+
+<p>A team <strong>MAY</strong> change allegiance. Defection <strong>MUST</strong> be a major political event rather than a menu operation:</p>
+
+<p><code>text
+Team Orion (Republic)  ──▶  Defection  ──▶  Empire
+</code></p>
+
+<p>Consequences <strong>SHOULD</strong> include reputation changes, asset changes, new missions, territorial shifts, new enemies and
+altered faction relations. The defection itself is a Universe-scope event (§7.7) — everyone learns of it.</p>
+
+<p>Note the interaction with §9.4: a Continuity agent's public defection changes nothing about their secret role, and
+that dissonance is intentional.</p>
+
+<hr />
+
+<h1>7. Information</h1>
+
+<h2>7.1 Information as gameplay</h2>
+
+<p>What a player knows is a resource as real as fuel. What a player receives depends on their location, their sensors,
+the communication infrastructure they can reach, and their faction's intelligence.</p>
+
+<p>| Vantage point | Typically knows |
+| --- | --- |
+| Local player | Precisely what is happening in their hexes, right now |
+| System-level observer | That something is happening, roughly where, with a delay |
+| Faction intelligence | Aggregated, filtered, and possibly wrong |</p>
+
+<p>Because knowledge is unevenly distributed, it can be traded, hoarded, sold and faked (§8.9). This is the foundation
+that makes the Continuity's information warfare possible (§9.5) rather than a bolted-on mechanic.</p>
+
+<h2>7.2 Visibility and sensors</h2>
+
+<p>Visibility is graded, not binary. The same event <strong>MUST</strong> be able to reach two players in different detail.</p>
+
+<p>| Observer situation | Sees |
+| --- | --- |
+| In range, good sensors | Full detail: who, what ship, exact hex |
+| In range, weak sensors | "Unidentified contact", approximate position |
+| Out of range, relay coverage | A delayed summary (§7.5) |
+| No coverage | Nothing at all |</p>
+
+<p>The server decides what each player sees and sends only that; the client <strong>MUST NOT</strong> receive information it is meant
+not to display (§10.4).</p>
+
+<h2>7.3 Communication channels</h2>
+
+<p>| Channel | Scope | Reach |
+| --- | --- | --- |
+| <strong>Local</strong> | Local | Radio range from the sender's hex (§7.4) |
+| <strong>Body</strong> | Body | Everyone at or around that body |
+| <strong>System</strong> | System | Everyone in the system, subject to infrastructure |
+| <strong>Region</strong> | Region | Faction and commercial networks |
+| <strong>Team</strong> | Organisational | Team members, wherever they are |
+| <strong>Faction</strong> | Organisational | Faction members, subject to rank and infrastructure |
+| <strong>Universe</strong> | Universe | Announcements and major historical events |
+| <strong>Continuity</strong> | Clearance | Invisible to everyone else (§9.6) |</p>
+
+<p><em>Renamed in v2.0:</em> the v1.0 "Planet" channel is now <strong>Body</strong>, for consistency with §2.2.</p>
+
+<p>Sending a message costs no AP at any scope (§5.6). Communication is how a 15-minute session becomes a social game.</p>
+
+<h2>7.4 Radio range and infrastructure</h2>
+
+<p>Ships communicate over limited physical ranges.</p>
+
+<p><code>text
+Effective range = Base range × Antenna × Equipment × Environment
+</code></p>
+
+<p>Beyond direct range, messages travel through stations, relays, satellites, beacons and faction networks:</p>
+
+<p><code>text
+Ship A ──radio──▶ Relay ──network──▶ Team
+</code></p>
+
+<p>Communication infrastructure is therefore strategically valuable, contestable, and a legitimate military target.</p>
+
+<h2>7.5 Communication delay</h2>
+
+<p>Long-distance communication <strong>MAY</strong> be delayed. The physics stays abstract; the purpose is to make distance matter.</p>
+
+<p><code>text
+Message sent: "Pirates spotted in Sirius."      [ILLUSTRATIVE]
+Distance: 8.2 ly
+Estimated delivery: 3 h 14 m
+</code></p>
+
+<p>Delay is off in the MVP and enabled later (§10.2). The design <strong>MUST</strong> keep delay optional per channel, because a
+delayed team chat is a worse game, while delayed intelligence is a better one.</p>
+
+<h2>7.6 The event model</h2>
+
+<p>Chat and world events share one underlying model. A player message is simply an event of type <code>MESSAGE</code>.</p>
+
+<p><code>text
+Event
+├── timestamp        when
+├── type             what kind
+├── origin           where (an address, §2.3)
+├── scope            how far it carries (§7.7)
+├── visibility       who may ever see it
+├── severity         how much it matters
+├── participants     who was involved
+└── payload          the specifics
+</code></p>
+
+<p>This is a design commitment, not an implementation detail: it is what allows one merged feed (§7.9), one set of
+visibility rules (§7.2), and one path from a skirmish to a line in the Chronicle (§7.7).</p>
+
+<p>Event types include <code>COMBAT_STARTED</code>, <code>SHIP_ENTERED</code>, <code>SHIP_DESTROYED</code>, <code>TRADE_EVENT</code>, <code>DISCOVERY</code>,
+<code>PIRATE_ACTIVITY</code>, <code>FACTION_WAR</code>, <code>TERRITORY_CHANGE</code>, <code>MESSAGE</code>.</p>
+
+<h2>7.7 Scope and propagation</h2>
+
+<p>Events inherit the spatial hierarchy. Scopes are <strong>Local, Body, System, Region, Universe</strong>.</p>
+
+<p>An event <strong>MAY</strong> propagate upward when it becomes significant enough:</p>
+
+<p><code>text
+Local combat
+      ↓
+Major local battle
+      ↓
+Body-wide conflict
+      ↓
+System-wide conflict
+      ↓
+Major historical event  →  Chronicle (§8.10)
+</code></p>
+
+<p>Not every local event becomes a universe notification. Promotion is threshold-driven <code>[BALANCE]</code> and happens once per
+cycle (§3.3 step 9). The promoted event <strong>SHOULD</strong> retain a link to the events that caused it, so that a player
+reading history can trace a war back to the skirmish that started it.</p>
+
+<h2>7.8 Categories and lifetimes</h2>
+
+<p>| Icon | Category |
+| --- | --- |
+| 🚀 | Player |
+| ⚠ | System |
+| ⚔ | Combat |
+| 💰 | Economy |
+| 🔭 | Discovery |
+| ☠ | Piracy |
+| 🏛 | Politics |</p>
+
+<p>| Event scope | Lifetime <code>[BALANCE]</code> |
+| --- | --- |
+| Local | Short-lived |
+| Body | Several cycles |
+| System | Days to weeks |
+| Promoted historical | Permanent (§8.10) |</p>
+
+<h2>7.9 The unified feed</h2>
+
+<p>The interface merges messages and events into one chronological feed, filtered by channel.</p>
+
+<p><code>text
+┌────────────────────────────────────────────────┐
+│ LOCAL BODY SYSTEM REGION TEAM FACTION UNIVERSE │
+├────────────────────────────────────────────────┤
+│ 🚀 Cmdr. Smith                                 │
+│ Anyone heading toward Alpha-3?                 │
+│                                                │
+│ ⚠ Pirate activity detected                     │
+│ 3 hexes north                                  │
+│                                                │
+│ 🚀 Cmdr. Jones                                 │
+│ Yes. ETA 2 cycles.                             │
+│                                                │
+│ ⚔ Combat detected                              │
+│ Sector 184,72                                  │
+├────────────────────────────────────────────────┤
+│ Type message...                         [Send] │
+└────────────────────────────────────────────────┘
+</code></p>
+
+<p>The feed is the game's primary narrative surface. A player who reads only the feed <strong>SHOULD</strong> still understand what
+is happening to their part of the galaxy.</p>
+
+<hr />
+
+<h1>8. History</h1>
+
+<h2>8.1 The Foundation-inspired layer</h2>
+
+<p>The game maintains a large-scale model of civilization and lets players see, use, argue with and break its
+predictions. The concepts borrowed are psychohistory, statistical prediction, historical inertia, civilizational
+decline, historical crises, knowledge preservation, unpredictable individuals and self-fulfilling prophecy (§1.7).</p>
+
+<p>The whole layer resolves to one loop:</p>
+
+<p><code>text
+       THE MODEL
+           │
+           ▼
+    Predicted future
+           │
+           ▼
+     PLAYER ACTIONS
+           │
+           ▼
+     Actual future
+           │
+           ▼
+   Model recalculates
+           │
+           └──────▶ New prediction ──▶ …
+</code></p>
+
+<blockquote>
+  <p><strong>Can civilization escape its predicted future?</strong></p>
+</blockquote>
+
+<p>The players determine the answer. The game <strong>MUST NOT</strong> contain one.</p>
+
+<h2>8.2 The Model</h2>
+
+<p>The Model tracks large-scale variables that evolve gradually.</p>
+
+<p>```text
+DAY 182                                          [ILLUSTRATIVE]</p>
+
+<p>Empire        Military 87   Economy 62   Stability 71   Legitimacy 54
+Republic      Military 52   Economy 81   Stability 78   Legitimacy 73
+Pirates       Influence 41  Economic power 48
+```</p>
+
+<p>Tracked variables include faction stability, military strength, economic health, legitimacy, pirate influence,
+population migration, technological development, infrastructure and trade connectivity.</p>
+
+<p>The Model observes <strong>populations</strong>. It <strong>MUST NOT</strong> take individual players as input, and it <strong>MUST NOT</strong> produce
+statements about them (§8.4).</p>
+
+<h2>8.3 Forecasts and deviation</h2>
+
+<p>Forecasts are probabilistic and carry a confidence value.</p>
+
+<p>```text
+HISTORICAL FORECAST                              [ILLUSTRATIVE]</p>
+
+<p>Sirius Region</p>
+
+<p>Probability of armed conflict:    81 %
+Probability of economic collapse: 43 %
+Probability of pirate takeover:   29 %</p>
+
+<p>Confidence: 76 %
+```</p>
+
+<p><strong>Deviation</strong> is the single metric expressing how far the observed world has drifted from the Model's expected
+trajectory. It is the Continuity's central concern (§9.9) and the trigger for historical crises (§8.7).</p>
+
+<p><code>text
+Expected trajectory:  0 %
+Current deviation:   +2.7 %
+Critical threshold:  +8 %                        [BALANCE]
+</code></p>
+
+<p>Confidence falls as players produce outcomes the Model did not expect. A world where confidence has fallen from 98 %
+to 31 % is a world that has escaped its own prediction — and that is a legitimate, even desirable, outcome.</p>
+
+<h2>8.4 Boundaries: prediction must never control players</h2>
+
+<p>The Model predicts populations and large-scale trends. It <strong>MUST NOT</strong> predict individuals.</p>
+
+<p>| Permitted | Forbidden |
+| --- | --- |
+| "Probability of a pirate offensive: 78 %." | "Player Bob will attack Station Alpha tomorrow." |
+| "This region is trending toward economic collapse." | "Team Orion will defect within three cycles." |</p>
+
+<p>This is an invariant, not a guideline: a system that can predict a named player is a system that can be used to
+target one, and player agency is the premise of the entire history layer. The architecture enforces it structurally
+rather than by convention (<em>ARCH §12.1</em>).</p>
+
+<h2>8.5 Players as anomalies</h2>
+
+<p>Large NPC populations are statistically predictable. Players are not.</p>
+
+<p><code>text
+Billions of NPCs   ──▶  statistically predictable
+Player population  ──▶  increasing uncertainty
+</code></p>
+
+<p>As players intervene, the Model loses accuracy — by design. Rare, sharp deviations surface as gameplay events:</p>
+
+<p>```text
+⚠ HISTORICAL ANOMALY                             [ILLUSTRATIVE]</p>
+
+<p>Observed player activity has produced a
+statistically improbable deviation.</p>
+
+<p>Expected outcome: 84 %
+Observed outcome: 17 %</p>
+
+<p>Further analysis required.
+```</p>
+
+<p>Anomalies are the breadcrumbs of the long mystery (§9.8): they are what an attentive player notices first.</p>
+
+<h2>8.6 Self-fulfilling and self-defeating predictions</h2>
+
+<p>Publishing a forecast changes the world it forecasts. Both directions <strong>MUST</strong> be possible.</p>
+
+<p><code>text
+Forecast: pirate invasion 70 %          Forecast: Empire collapse 80 %
+        ↓                                       ↓
+Empire buys weapons                     Players intervene
+        ↓                                       ↓
+Weapon prices rise                      Conditions change
+        ↓                                       ↓
+Pirates observe the activity            Collapse avoided
+        ↓                                       ↓
+Pirates decide to attack                Prediction fails
+        ↓
+Probability increases
+</code></p>
+
+<p>A forecast is therefore never neutral information. Who receives it, when, and whether it is true are all playable
+questions (§8.9, §9.5).</p>
+
+<h2>8.7 Historical crises</h2>
+
+<p>When deviation or instability crosses a threshold <code>[BALANCE]</code>, the Model identifies a <strong>critical period</strong>.</p>
+
+<p><code>text
+╔══════════════════════════════════╗
+║       HISTORICAL CRISIS          ║              [ILLUSTRATIVE]
+║       THE SIRIUS CRISIS          ║
+╠══════════════════════════════════╣
+║ Empire control:      41 %        ║
+║ Republic influence:  36 %        ║
+║ Pirate influence:    23 %        ║
+║ Critical period:     8 cycles    ║
+╚══════════════════════════════════╝
+</code></p>
+
+<p>A crisis is an announced window in which player action has outsized consequence. The game <strong>MUST NOT</strong> prescribe a
+solution or a correct side. Crises are also the principal recruitment trigger for the Continuity (§9.3).</p>
+
+<h2>8.8 The Historical Institute</h2>
+
+<p>A fictional in-world organisation is the public face of historical analysis — working name <strong>The Historical
+Institute</strong>. Its stated mission is to <em>preserve knowledge and civilization during periods of instability</em>.</p>
+
+<p>It provides forecasts, archives, research, records and crisis warnings. It <strong>SHOULD</strong> remain somewhat mysterious in
+early eras, and its relationship to the Continuity <strong>SHOULD</strong> remain ambiguous for a long time (§9.8).</p>
+
+<h2>8.9 Knowledge as a resource</h2>
+
+<p><strong>Knowledge</strong> is a strategic resource, obtained through exploration, archives, research, sensors, missions,
+discoveries, communication and ancient infrastructure. It improves forecast accuracy, strategic decisions, missions,
+exploration and economic analysis.</p>
+
+<p>Knowledge is tradable, and that is the point. A team holding <em>"a pirate fleet is preparing an attack"</em> may:</p>
+
+<ul>
+<li>keep it secret,</li>
+<li>sell it,</li>
+<li>give it to their faction,</li>
+<li>broadcast it,</li>
+<li>use it to move markets,</li>
+<li>use it to set an ambush,</li>
+<li>or publish a false version of it.</li>
+</ul>
+
+<p>Information is thus a genuine multiplayer resource with the properties of a commodity and the risks of a rumour.</p>
+
+<h2>8.10 The Chronicle</h2>
+
+<p>Significant events become part of a permanent public record.</p>
+
+<p>```text
+DAY 183                                          [ILLUSTRATIVE]</p>
+
+<p>BATTLE OF SIRIUS</p>
+
+<p>Republic fleet destroyed.
+Empire captured the station.
+Pirate teams looted the wreckage.
+```</p>
+
+<p>The Chronicle records wars, discoveries, station destruction, territorial changes, team defections, economic crises,
+major battles and civilizational transitions. It is written by promotion from the event stream (§7.7), never by hand.</p>
+
+<p>The universe <strong>MUST</strong> have a collective memory. It is the reason a player's action can matter beyond their own
+account, and it is the only data in the game whose loss would be unrecoverable in game terms.</p>
+
+<h2>8.11 Eras</h2>
+
+<p>The world moves through <strong>eras</strong> — long-lived civilizational states, each beginning from the consequences of the last.</p>
+
+<p><code>text
+ERA I    Stability
+ERA II   Historical Prediction
+ERA III  Major Crises
+ERA IV   Fragmentation
+ERA V    Dark Age
+ERA VI   Reconstruction
+</code></p>
+
+<p>The sequence above is <strong>illustrative, not scripted</strong>: it is what the Model currently expects, and players may produce
+a different one. Eras are distinct from the <em>narrative phases</em> of §9.12, which describe how much the player community
+has discovered about the meta-game and happen only once.</p>
+
+<hr />
+
+<h1>9. The Continuity</h1>
+
+<blockquote>
+  <p><strong>Restricted design material.</strong> Sections 9.1–9.13 describe content that players are intended to discover through
+play. It is documented here in full because it cannot be built otherwise, and because its secrecy requirements are
+architectural (<em>ARCH §12.1</em>).</p>
+</blockquote>
+
+<h2>9.1 Premise</h2>
+
+<p>The universe publicly recognises three factions. A fourth organisation exists secretly:</p>
+
+<blockquote>
+  <p><strong>The Continuity</strong></p>
+</blockquote>
+
+<p>Its purpose is not to conquer territory or accumulate wealth. It is to <strong>keep civilization sufficiently close to the
+trajectory the Model predicts</strong>.</p>
+
+<p>That objective is not "make everything good", and not "make our faction win". It may require terrible things:</p>
+
+<p>```text
+Predicted trajectory                             [ILLUSTRATIVE]</p>
+
+<p>Empire collapses → Republic rises → Pirates control the frontier
+→ major war → civilizational collapse → reconstruction
+```</p>
+
+<p>If the Continuity considers this trajectory necessary, then players <em>preventing</em> the Empire's collapse is what
+provokes intervention. This is the inversion that makes the faction interesting: it is not opposed to the players'
+goals, it is opposed to their deviation.</p>
+
+<p>Empire, Republic and Pirates are <strong>political identities</strong>. The Continuity is a <strong>secret meta-game identity</strong>. A
+player has one of the first and may also have the second.</p>
+
+<h2>9.2 What the Continuity is not</h2>
+
+<p>These constraints are load-bearing. Without them, ordinary players correctly conclude that their actions do not
+matter, and the game loses its premise.</p>
+
+<p>| The Continuity <strong>MAY</strong> | The Continuity <strong>MUST NOT</strong> |
+| --- | --- |
+| push, nudge, delay, accelerate, hide, reveal | force |
+| shift probabilities | determine outcomes |
+| act through information, markets, NPCs, missions, technology and communication | write directly to player-owned ships, credits or cargo |
+| know more than others | know everything |
+| be almost everywhere | be everywhere at once |</p>
+
+<p>Concretely, its power is bounded by <code>[BALANCE]</code> budgets: limited agents, limited interventions per cycle, limited
+resources, limited knowledge, and imperfect predictions. It manipulates probabilities in the small:</p>
+
+<p><code>text
+Expected:                    After intervention:              [ILLUSTRATIVE]
+Empire victory     61 %      Empire victory     67 %
+Republic victory   29 %      Republic victory   23 %
+Pirate victory     10 %      Pirate victory     10 %
+</code></p>
+
+<p>It does not press a button labelled <em>"Empire wins"</em>.</p>
+
+<h2>9.3 Membership</h2>
+
+<h3>Recruitment</h3>
+
+<p>The Continuity <strong>MUST NOT</strong> be selectable at character or team creation. Players are invited, rarely, after doing
+something notable: an exceptional discovery, participation in a historical crisis (§8.7), noticing an anomaly
+(§8.5), an unusual chain of decisions, exceptional reputation, or finding Continuity-related evidence.</p>
+
+<p><code>text
+Major historical event
+        │
+        ▼
+Player participates
+        │
+        ▼
+Hidden evaluation
+        │
+        ├── No invitation  (silent, no record shown to the player)
+        │
+        └── Candidate ──▶ Secret invitation ──┬── Accept ──▶ Agent
+                                              └── Decline
+</code></p>
+
+<p>The invitation should feel like an achievement, and gives players a reason to show up for major historical events
+even when there is no immediate reward.</p>
+
+<p><code>text
+┌──────────────────────────────────────────┐    [ILLUSTRATIVE]
+│             CLASSIFIED MESSAGE           │
+├──────────────────────────────────────────┤
+│ Commander,                               │
+│                                          │
+│ Your actions during the Sirius Crisis    │
+│ have attracted our attention.            │
+│                                          │
+│ There are events occurring in the        │
+│ galaxy that you do not yet understand.   │
+│                                          │
+│ We would like to offer you access to     │
+│ information unavailable to the public.   │
+│                                          │
+│ This invitation is confidential.         │
+│                                          │
+│ [ ACCEPT ]              [ DECLINE ]      │
+└──────────────────────────────────────────┘
+</code></p>
+
+<h3>The protocol</h3>
+
+<p>Acceptance requires agreeing to a fictional in-universe confidentiality commitment, presented as a classified
+document: not to disclose Continuity operations, personnel, forecasts, objectives, internal communications or
+interventions to players outside the organisation.</p>
+
+<blockquote>
+  <p><strong>This is a role-playing commitment and MUST NOT be implemented as a real-world legal agreement.</strong> No enforceable
+contract may be required to play. No real identity information may be collected for it. See §1.6.</p>
+</blockquote>
+
+<h3>Declining</h3>
+
+<p>Declining <strong>MUST</strong> be entirely legitimate and <strong>MUST NOT</strong> be punished in or out of game. The player <strong>MAY</strong> be told
+the offer will not return, or it <strong>MAY</strong> return after a long interval <code>[BALANCE]</code>. The mystery itself is part of the
+reward for having been noticed.</p>
+
+<h2>9.4 Two identities</h2>
+
+<p>An agent does <strong>not</strong> leave their faction. Their public identity is unchanged, and their secret role is visible only
+in Continuity-specific interfaces.</p>
+
+<p><code>text
+                 PLAYER
+          ┌─────────┴─────────┐
+          ▼                   ▼
+   PUBLIC IDENTITY      SECRET IDENTITY
+   Republic             Continuity
+   Team Orion           Agent Node 37
+   Trader               Operation JANUS
+</code></p>
+
+<p>Two rules make this work:</p>
+
+<ul>
+<li><strong>Agents exist inside every faction.</strong> No player may ever be able to say "all Continuity members are Empire". An
+agent may plausibly be an Imperial officer, a Republic politician or a pirate captain — and <strong>MAY</strong> sincerely
+believe they are serving that faction.</li>
+<li><strong>Agents MUST NOT be publicly identifiable.</strong> There is no Continuity rank, badge, colour, icon, title or hint
+visible to anyone else, and none may be introduced. In the interface, a player's hidden affiliation reads only as:</li>
+</ul>
+
+<p><code>text
+Faction:               Empire
+Team:                  Blackstar
+Reputation:            Imperial +72
+Unknown affiliations:  ???
+</code></p>
+
+<p>Only specific in-game evidence can reveal a hidden membership (§9.8). This is a hard requirement with architectural
+consequences: secrecy must survive not just the interface but error codes, response timing, statistics and the
+ledger (<em>ARCH §12.1</em>).</p>
+
+<h2>9.5 Operations</h2>
+
+<p>Agents receive missions invisible to everyone else. Two properties distinguish them from faction missions: they state
+an <strong>outcome</strong> rather than a method, and they carry a concealment constraint.</p>
+
+<p>```text
+CLASSIFIED OPERATION: JANUS                      [ILLUSTRATIVE]</p>
+
+<p>Public situation:
+Republic forces are approaching Sirius-7.</p>
+
+<p>Historical requirement:
+Sirius-7 must remain under Republic control for the next 6 cycles.</p>
+
+<p>Objective:
+Ensure the Republic convoy reaches Sirius-7.</p>
+
+<p>Constraints:
+Do not reveal Continuity involvement.</p>
+
+<p>Reward:
+Historical stability +0.8 %
+```</p>
+
+<p>```text
+CLASSIFIED OPERATION: MERIDIAN                   [ILLUSTRATIVE]</p>
+
+<p>Historical requirement:
+The Empire must lose control of Sirius-4.</p>
+
+<p>Objective:
+Delay Imperial reinforcement by 2 cycles.
+Do not directly attack Imperial forces.</p>
+
+<p>Recommended:
+Manipulate trade availability.
+```</p>
+
+<p>The player decides how: trade, intelligence, persuading another player, escorting a convoy, moving a market, delaying
+an enemy, spreading information, withholding it, or completing an apparently unrelated mission. Preserving that
+choice is what keeps an agent a player rather than an instrument.</p>
+
+<h3>Methods</h3>
+
+<p>The Continuity almost never appears directly. It works through <strong>information</strong> (leaks, rumours, fabricated
+intelligence, selective disclosure), <strong>economics</strong> (market manipulation, hidden subsidies, artificial shortages,
+funding), <strong>NPCs</strong> (politicians, officers, traders, scientists, criminal organisations), <strong>missions</strong> (creating and
+modifying them), <strong>technology</strong> (introducing or suppressing developments) and <strong>communication</strong> (shaping what reaches
+whom).</p>
+
+<h3>Budgets</h3>
+
+<p><code>text
+Continuity resources:  3                         [BALANCE]
+Interventions:         1
+Classified intel:      2
+</code></p>
+
+<p>Budgets regenerate slowly. An agent's advantage <strong>MUST</strong> remain <em>better information, secret objectives and the
+ability to influence events</em> — never raw power (§9.2).</p>
+
+<h2>9.6 Cells, clearance and secret communication</h2>
+
+<p>The organisation is compartmentalised. An agent knows their own identity, their handler, their current operation and
+their clearance level — and nothing else.</p>
+
+<p><code>text
+              CONTINUITY
+             Central Model
+          ┌────────┼────────┐
+        Cell A   Cell B   Cell C
+          │        │        │
+        Agent    Agent    Agent
+</code></p>
+
+<p>| Clearance | Sees |
+| --- | --- |
+| 1 | A local operation, with no stated reason |
+| 2 | Regional historical objectives |
+| 3 | System-level trajectory |
+| 4 | The civilizational model |
+| 5 | The Plan |</p>
+
+<p>A newly recruited player might know only <em>"something terrible will happen if Sirius-7 falls"</em>, and not why. Agents
+<strong>MUST NOT</strong> be shown the membership list; two agents may sit on opposite sides of a war and cooperate without ever
+learning each other's identity. Compartmentalisation makes the organisation resilient, makes exposure partial, and
+makes paranoia a feature.</p>
+
+<p>Agents share a secure channel that <strong>MUST NOT</strong> resemble faction chat and <strong>MUST</strong> be invisible to everyone else.</p>
+
+<p>```text
+CONTINUITY // SECURE                             [ILLUSTRATIVE]</p>
+
+<p>NODE 17:  Historical deviation +2.1 %
+NODE 04:  Republic intervention successful.
+NODE 17:  Proceed with JANUS.
+MODEL:    Trajectory confidence 81.4 %
+```</p>
+
+<p>Messages <strong>MAY</strong> be delayed, routed through special infrastructure, or restricted by clearance.</p>
+
+<h2>9.7 Betrayal and exposure</h2>
+
+<p>An agent can betray the organisation, and the game <strong>SHOULD</strong> support it as gameplay rather than prevent it.</p>
+
+<p><code>text
+Agent leaks classified information
+        ↓
+Other players learn something true
+        ↓
+Historical trajectory changes
+        ↓
+Continuity responds
+</code></p>
+
+<p>Consequences <strong>MAY</strong> include loss of privileges and access, being hunted, new missions, becoming a tracked anomaly,
+or triggering a storyline. All consequences <strong>MUST</strong> be in-game. Breaking a fictional confidentiality commitment
+<strong>MUST NOT</strong> carry any out-of-game penalty (§1.6, §9.3).</p>
+
+<p>Secrecy also produces the design's strongest social effect. When a Republic player asks <em>"why did you abandon the
+convoy?"</em> and the answer is <em>"I had another objective"</em>, no one can tell whether that was strategy, betrayal,
+selfishness or an intervention. The Continuity injects durable uncertainty into every player relationship — and it
+does so even for the majority of players who never learn it exists.</p>
+
+<h2>9.8 Discovery</h2>
+
+<p>Discovery by ordinary players is a long-term arc, not a reveal.</p>
+
+<p><code>text
+Something strange is happening.
+        ↓
+Some events are statistically improbable.
+        ↓
+Someone appears to be shaping events.
+        ↓
+The same individuals recur behind unrelated events.
+        ↓
+There is a fourth player in this game.
+</code></p>
+
+<p>Discovery <strong>MUST NOT</strong> deliver the whole picture at once. A player who finds a classified document learns that
+<em>Operation MERIDIAN</em> exists and aims to "maintain historical trajectory" — and not who issued it, how large the
+organisation is, what the phrase means, whether the prediction is sound, or whether the organisation is benevolent.</p>
+
+<p>The mystery is a permanent feature of the world, not a puzzle with a solution date.</p>
+
+<h2>9.9 Deviation as the Continuity's metric</h2>
+
+<p>The agent-facing expression of §8.3:</p>
+
+<p>```text
+HISTORICAL DEVIATION                             [ILLUSTRATIVE]</p>
+
+<p>Expected trajectory:  0 %
+Current deviation:   +2.7 %
+Critical threshold:  +8 %</p>
+
+<pre><code>    -5%          0%          +5%
+     └───────────┼───────────┘
+          stable envelope
+</code></pre>
+
+<p>```</p>
+
+<p>The agent's job is to keep the world inside the envelope. Exceeding the threshold triggers a historical crisis
+(§8.7) — which is the same event ordinary players see, from the other side.</p>
+
+<h2>9.10 The paradox and the twist</h2>
+
+<p>The Continuity believes history must remain predictable. Its own interventions change history.</p>
+
+<p><code>text
+Intervention → world changes → Model changes → new intervention required → …
+</code></p>
+
+<p>Two revelations follow, and both <strong>SHOULD</strong> be reachable only late:</p>
+
+<ol>
+<li><strong>The Continuity may be causing some of the events it exists to prevent.</strong></li>
+<li><strong>The Continuity may not be the villain.</strong> Its model may predict a catastrophe — fragmentation, massive population
+loss, a long dark age, eventual recovery — and conclude that interference produces something worse. Its mission
+becomes <em>allow the smaller catastrophe in order to prevent the greater one</em>.</li>
+</ol>
+
+<p>At that point Continuity players and ordinary players can hold the same facts and still disagree, which is the
+philosophical position the whole design has been building toward.</p>
+
+<h2>9.11 The three-level game</h2>
+
+<p>| Level | Content | Who plays it |
+| --- | --- | --- |
+| <strong>1 — Individual</strong> | Ship, credits, missions, exploration, combat | Everyone |
+| <strong>2 — Political</strong> | Team, faction, territory, economy, diplomacy, war | Most players |
+| <strong>3 — Historical</strong> | The Model, forecasts, crises, the Continuity, civilizational trajectory | Players who go looking |</p>
+
+<p>Levels 1 and 2 <strong>MUST</strong> be complete and satisfying on their own. Level 3 is discovered, never required. A player who
+never learns the Continuity exists <strong>MUST</strong> still be playing a good game.</p>
+
+<h2>9.12 Narrative phases</h2>
+
+<p>How much the <em>player community</em> has discovered. These happen once, at world scale, and are distinct from the
+recurring eras of §8.11.</p>
+
+<p>| Phase | Name | The community believes |
+| --- | --- | --- |
+| I | The Frontier | This is a normal three-faction space game |
+| II | The Pattern | Strange correlations link unrelated events |
+| III | The Forecast | Historical predictions exist and can be obtained |
+| IV | The Hand | Someone is manipulating events |
+| V | The Continuity | A small number of players know the fourth faction exists |
+| VI | The Crisis | The Model predicts a civilization-scale catastrophe |
+| VII | The Choice | Follow the plan, or break it |</p>
+
+<p>The final question is deliberately left open:</p>
+
+<blockquote>
+  <p><strong>Is the Continuity preserving civilization, or preventing civilization from evolving?</strong></p>
+
+<p><strong>Is the predicted future actually the best future?</strong></p>
+</blockquote>
+
+<h2>9.13 The most important design rule</h2>
+
+<blockquote>
+  <p><strong>The Continuity can manipulate probabilities, but it cannot determine outcomes.</strong></p>
+</blockquote>
+
+<p>It can push, nudge, delay, accelerate, hide and reveal. It can never force.</p>
+
+<p>The players remain the authors of history:</p>
+
+<blockquote>
+  <p><strong>The future may be predictable, but it is not predetermined.</strong></p>
+</blockquote>
+
+<p>If any proposed Continuity mechanic conflicts with this rule, the mechanic is wrong.</p>
+
+<hr />
+
+<h1>10. Scope</h1>
+
+<h2>10.1 MVP</h2>
+
+<p>The first playable version stays small. Everything below is required; nothing below is optional.</p>
+
+<p>| Area | In the MVP |
+| --- | --- |
+| <strong>World</strong> | Hierarchical hex map, galaxy, star systems, zoom, basic faction territories |
+| <strong>Player</strong> | Account, credits, AP, location, reputation, standing orders |
+| <strong>Ship</strong> | Hull, shields, fuel, cargo, one weapon, basic equipment; one active ship |
+| <strong>Movement</strong> | Hex movement, AP and fuel consumption, journeys across cycle boundaries |
+| <strong>Economy</strong> | Buy, sell, cargo, basic station markets |
+| <strong>Exploration</strong> | Scan, discover locations, basic events |
+| <strong>Combat</strong> | NPC encounters, player encounters, simplified resolution, offline resolution |
+| <strong>Population</strong> | Aggregate NPC simulation in every system; haulers, patrols and raiders materialised where observed (§2.7) |
+| <strong>Multiplayer</strong> | Teams, the three factions, team chat, local communication |
+| <strong>Events</strong> | Local, Body, System and Universe scopes with the unified feed |
+| <strong>Cycle</strong> | The full daily advance of §3.3 steps 1–5, 11, 12 |</p>
+
+<p>Deliberately <strong>absent</strong> from the MVP but designed for: communication delay, relays, missions beyond a basic form,
+defection, psychohistory, the Chronicle and the Continuity.</p>
+
+<h2>10.2 Deferred systems</h2>
+
+<p>Designed, not yet built. Each has a defined attachment point in the architecture (<em>ARCH §18</em>), so none of them
+requires reopening the foundations.</p>
+
+<p>| System | Depends on | Notes |
+| --- | --- | --- |
+| Advanced ship fitting | MVP ships | |
+| Mining, smuggling | Economy | New actions and rules only |
+| Bounty system | Combat, reputation | Driven by <code>SHIP_DESTROYED</code> events |
+| Player-owned stations, colonisation | World, economy | New location kinds with owners |
+| Advanced faction intelligence | Information (§7) | |
+| Communication relays and delay | Comms (§7.4, §7.5) | Off by default in the MVP |
+| Advanced economy, dynamic faction wars | Economy, territory | Replaces cycle steps 3–5 |
+| Player-created missions | Missions | A second mission source |
+| Fleet battles | Combat | Resolution already takes participant sets |
+| Advanced exploration | Exploration | |
+| Historical archives, prediction, crises, eras | The Model (§8) | Needs months of real event data to tune |
+| Knowledge trading | Knowledge (§8.9) | |
+| Procedural historical events | Event promotion (§7.7) | |
+| <strong>The Continuity</strong> | Everything above | Deliberately last (§10.3) |</p>
+
+<h2>10.3 Delivery order</h2>
+
+<p>The build sequence, its rationale and its phase gates live in <em>ARCH §17</em>. Two ordering decisions are design
+decisions rather than engineering ones, and are recorded here:</p>
+
+<ol>
+<li><strong>The Model (§8) ships after months of live play.</strong> Its variables cannot be tuned against a world that has no
+history. Until then, forecasts do not exist in the fiction either.</li>
+<li><strong>The Continuity (§9) ships last.</strong> It only means anything once players have a history to deviate from, and
+its secrecy requirements need a mature world to be tested against. Introducing it early would spend the reveal on
+an empty galaxy.</li>
+</ol>
+
+<h2>10.4 Design constraints on implementation</h2>
+
+<p>The design imposes the following on any implementation. The architecture document describes how each is satisfied;
+this section states <em>why the design requires it</em>, so that a proposed shortcut can be evaluated against intent.</p>
+
+<p>| # | Constraint | Because |
+| --- | --- | --- |
+| C1 | <strong>The server is authoritative; the browser is untrusted.</strong> The client submits intents; the server decides outcomes and owns AP, credits, position, damage, cargo, combat results and ship state. | A persistent shared world whose state can be asserted by a client is not persistent and not shared. |
+| C2 | <strong>The simulation runs independently of any client.</strong> | The world evolves while everyone is offline (§1.2, §3.1). |
+| C3 | <strong>Chat and world events use one model.</strong> | The unified feed (§7.9), uniform visibility (§7.2) and promotion to history (§7.7) all depend on it. |
+| C4 | <strong>Visibility is computed server-side, per viewer.</strong> The client never receives what it must not show. | Information is a resource (§7.1); a client-side filter is a client-side leak. |
+| C5 | <strong>The client receives only the detail its current zoom requires.</strong> | The world must be able to grow without the client growing with it (§2.4). |
+| C6 | <strong>Outcomes are reconstructible.</strong> Inputs to random resolution are recorded. | Disputes are answered by replay (§5.4), and the Chronicle must be trustworthy (§8.10). |
+| C7 | <strong>Balance values are data, not code.</strong> | Every number in this document is <code>[BALANCE]</code>; designers change them without a release. |
+| C8 | <strong>The Model cannot read individual players.</strong> | §8.4, enforced structurally rather than by convention. |
+| C9 | <strong>Continuity membership must not be inferable</strong> from any interface, response, error, timing, statistic or ledger entry. | §9.4; a leak is unrecoverable. |
+| C10 | <strong>The confidentiality protocol creates no real-world obligation.</strong> | §1.6, §9.3. |</p>
+
+<hr />
+
+<h1>11. Design change control</h1>
+
+<h2>11.1 Modifications introduced in v2.0</h2>
+
+<p>Version 2.0 restructures version 1.0 without discarding design content. The following changes go beyond editing and
+should be reviewed as design decisions. Each can be reverted independently.</p>
+
+<p>| # | Modification | Rationale |
+| --- | --- | --- |
+| <strong>M1</strong> | <strong>Canonical six-level scale ladder</strong> (§2.2); "Planet" renamed <strong>Body</strong>, "Planetary Region" renamed <strong>District</strong>. | v1.0 used an eight-noun hierarchy in one section and a four-level one in three others. "Planet" excluded moons, stations and asteroids, which the same level must carry; "Planetary Region" collided with the Region level. |
+| <strong>M2</strong> | <strong>Technical architecture removed</strong> (old §47–§51) and replaced by design constraints C1–C10 (§10.4) plus the companion document. | Two documents describing the same system drift. Behaviour and structure now have one home each. |
+| <strong>M3</strong> | <strong>Normative conventions introduced</strong> (§0.2): MUST/SHOULD/MAY, <code>[BALANCE]</code>, <code>[ILLUSTRATIVE]</code>. | v1.0 stated invariants and tunables in the same voice ("Possible…", "can…"), so readers could not tell which numbers were decisions and which were examples. |
+| <strong>M4</strong> | <strong>The Continuity consolidated</strong> into §9 from twenty-one scattered sections (old §56–§75). | The material restated the same six ideas three to four times, and its subsections sat at the same heading level as unrelated top-level sections. No design content was dropped. |
+| <strong>M5</strong> | <strong>The Continuity's limits expressed as a capability list</strong> (§9.2) rather than a warning. | "Don't make them overpowered" is not checkable. "May shift probabilities, may not write to player-owned entities" is. |
+| <strong>M6</strong> | <strong>Standing orders promoted to a first-class concept</strong> (§4.4). | v1.0 mentioned "configured defensive behaviour" once, inside the offline-play section, though it governs the outcome of most player-versus-player contact. |
+| <strong>M7</strong> | <strong>Single action/AP catalogue</strong> (§5.6). | Costs appeared in one illustrative block and nowhere else; the catalogue gives designers one place to look and one place to change. |
+| <strong>M8</strong> | <strong>Explicit non-goals</strong> (§1.6). | Several were implicit and repeatedly at risk: no real-time play, no pay-to-win, no tactical combat game, no legal agreement. |
+| <strong>M9</strong> | <strong>Deviation defined once</strong> (§8.3) and referenced by crises (§8.7) and the Continuity (§9.9). | v1.0 defined the metric inside the Continuity material, leaving crises without a stated trigger. |
+| <strong>M10</strong> | <strong>Eras and narrative phases separated</strong> (§8.11 vs §9.12). | v1.0 contained two overlapping six- and seven-step progressions. They describe different things: recurring world states, and one-time community discovery. |
+| <strong>M11</strong> | <strong>"Turn" replaced by "cycle"</strong> throughout; "world day" reserved for the counter. | v1.0 used "turn" for the 24-hour period, for a mission duration and for a player's session. |
+| <strong>M12</strong> | <strong>Authorial voice removed.</strong> | v1.0 contained first- and second-person commentary ("I would make…", "your game") and duplicated conversational fragments, which read as notes rather than specification. |
+| <strong>M13</strong> | <strong>The NPC population promoted to a design section (§2.7)</strong>, with simulation fidelity tied to observation, and moved into the MVP along with cycle step 4. | v1.0 and v2.0 mentioned NPCs in six places without ever saying what they are for or how many there are. A persistent universe (§1.2) in which nothing happens unless a player causes it is not persistent, and the aggregate layer §2.7 introduces is the same quantity §8.2 will later measure. |</p>
+
+<h2>11.2 Open questions</h2>
+
+<p>Decisions the design still owes. Each is blocking something concrete.</p>
+
+<p>| # | Question | Blocks |
+| --- | --- | --- |
+| <strong>Q1</strong> | Is the six-level ladder (§2.2) final, and are Body/District the accepted names? | World generation; address encoding |
+| <strong>Q2</strong> | Are forecasts a purchasable commodity, a faction privilege, or a public good with variable quality? | Whether §8.3 is a market item or a read-only view |
+| <strong>Q3</strong> | May a player operate more than one ship, and if so, may ships act independently? | Ship model, command scope, AP accounting |
+| <strong>Q4</strong> | Does the Continuity's intervention budget scale with world size or stay fixed? | Whether §9.5 costs grow with the world |
+| <strong>Q5</strong> | Is the Continuity NPC-operated from launch, with player agents added later? | Recruitment timing; whether §9 needs a functioning AI first |
+| <strong>Q6</strong> | Is unspent AP carried over, and up to what cap? | §3.2; the penalty for missing a day |
+| <strong>Q7</strong> | What triggers an era transition (§8.11) — the Model, a threshold, or a designer? | Whether eras are emergent or curated |
+| <strong>Q8</strong> | May teams own shared assets (§6.5), and who controls them on disband? | Team model; station ownership later |</p>
+
+<h2>11.3 Section mapping, v1.0 → v2.0</h2>
+
+<p>For notes, issues or commits that cite the old flat numbering.</p>
+
+<p>| v1.0 | v2.0 | | v1.0 | v2.0 |
+| --- | --- | --- | --- | --- |
+| §1 High concept | §1.1 | | §38 Historical crises | §8.7 |
+| §2 Design pillars | §1.2 | | §39 Historical Institute | §8.8 |
+| §3 Core game loop | §3.4 | | §40 Knowledge resource | §8.9 |
+| §4 World map | §2.1, §2.5 | | §41 Information trading | §8.9 |
+| §5 Seamless zoom | §2.4 | | §42 Historical anomalies | §8.5 |
+| §6 Hierarchical coordinates | §2.3 | | §43 Long-term story | §8.11 |
+| §7 Scale vs simulation | §2.6 | | §44 Persistent history | §8.10 |
+| §8 Player | §4.1 | | §45 Endgame philosophy | §1.5 |
+| §9 Ships | §4.2, §4.3 | | §46 Central concept | §8.1 |
+| §10 Movement | §5.1 | | §47–§51 Technical architecture | §10.4 + <em>ARCH</em> |
+| §11 Combat | §5.4 | | §52 MVP | §10.1 |
+| §12 Frontier-inspired | §1.7 | | §53 Future features | §10.2 |
+| §13 Economy | §5.3 | | §54 Design triangle | §1.3 |
+| §14–§17 Factions | §6.1–§6.4 | | §55 Final vision | §1.4 |
+| §18 Teams | §6.5 | | §56 The Continuity | §9.1 |
+| §19 Territory | §6.6 | | §56.1–§56.3 Recruitment, protocol | §9.3 |
+| §20 Faction missions | §5.5 | | §56.4, §56.15, §60 Across factions | §9.4 |
+| §21 Defection | §6.7 | | §56.5–§56.7, §59, §67 Operations | §9.5 |
+| §22 Communication | §7.3 | | §56.8, §56.16, §61 Cells, clearance | §9.6 |
+| §23 Local radio | §7.4 | | §56.9 Recruitment events | §9.3 |
+| §24 Infrastructure | §7.4 | | §56.10 Declining | §9.3 |
+| §25 Communication delay | §7.5 | | §56.11, §56.12 Betrayal, social game | §9.7 |
+| §26 Chat interface | §7.9 | | §56.13, §66 Not identifiable | §9.4 |
+| §27 Event system | §7.6 | | §56.14, §70 Secret channel | §9.6 |
+| §28 Event scope | §7.7 | | §56.17 Historical deviation | §9.9 |
+| §29 Event categories | §7.8 | | §56.18, §64, §71 Paradox, twist | §9.10 |
+| §30 Offline multiplayer | §3.5 | | §56.19, §73 Ultimate question | §9.12 |
+| §31 Information as gameplay | §7.1 | | §56.20 Integration | §9.1 |
+| §32 Foundation concepts | §1.7, §8.1 | | §57 The core secret | §9.1 |
+| §33 Psychohistorical model | §8.2 | | §58, §68 Constraints | §9.2 |
+| §34 Historical prediction | §8.3 | | §62, §63 Discovery | §9.8 |
+| §35 Predictions and players | §8.4 | | §65 Challenging the model | §8.3 |
+| §36 Players as anomalies | §8.5 | | §69 AI + player faction | §9.3, Q5 |
+| §37 Self-fulfilling predictions | §8.6 | | §72 Three-level game | §9.11 |
+| | | | §74 Campaign structure | §9.12 |
+| | | | §75 Most important rule | §9.13 |</p>
+
+<h2>11.4 Change log</h2>
+
+<p>| Version | Date | Change |
+| --- | --- | --- |
+| 2.1 | 2026-08-27 | Added §2.7, promoting the NPC population from an implicit detail to a stated design pillar with an observation-dependent fidelity model; the MVP now includes it and cycle step 4. See §11.1 M13. |
+| 2.0 | 2026-08-27 | Restructured into eleven parts with hierarchical numbering; terminology unified with the architecture document; technical architecture extracted; Continuity material consolidated; normative conventions, non-goals, action catalogue, open questions and this change control section added. See §11.1. |
+| 1.0 | — | Original design document, 75 flat sections. Preserved in version control. |</p>
+
+<hr />
+
+<p><em>End of document.</em></p>
+
+</body>
+</html>
