@@ -320,6 +320,8 @@ class NpcAgent(Base):
     route: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     materialised_on: Mapped[int] = mapped_column(Integer)
     last_seen_on: Mapped[int] = mapped_column(Integer)
+    ap_balance: Mapped[int] = mapped_column(Integer, default=0)
+    last_grant_day: Mapped[int] = mapped_column(Integer, default=-1)
 
 
 class Chronicle(Base):

@@ -10,8 +10,3 @@ haul_capacity = 20
 hauler = 6
 patrol = 4
 raider = 4
-
-[actions_per_cycle]
-hauler = 4
-patrol = 3
-raider = 3

@@ -97,7 +97,6 @@ class NpcRules:
     k_raider: float
     haul_capacity: int
     per_flow_unit: Mapping[str, int]
-    actions_per_cycle: Mapping[str, int]
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,10 +160,9 @@ class RuleSet:
         events_raw = dict(files["events"])
         npc_raw = dict(files["npc"])
         per_flow = npc_raw.pop("per_flow_unit", {})
-        actions = npc_raw.pop("actions_per_cycle", {})
         npc_fields = _take(
             npc_raw,
-            {f for f in NpcRules.__dataclass_fields__} - {"per_flow_unit", "actions_per_cycle"},
+            {f for f in NpcRules.__dataclass_fields__} - {"per_flow_unit"},
             "npc",
         )
 
@@ -186,5 +184,5 @@ class RuleSet:
                     "events",
                 ),
             ),
-            npc=NpcRules(per_flow_unit=dict(per_flow), actions_per_cycle=dict(actions), **npc_fields),
+            npc=NpcRules(per_flow_unit=dict(per_flow), **npc_fields),
         )

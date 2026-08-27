@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select, update
 
 from frontier.adapters.db import models
+from frontier.domain.rules.ruleset import ActionKind
 from frontier.simulation.stages.base import TickContext
 
 ARCHETYPES = ("hauler", "patrol", "raider")
@@ -220,16 +221,22 @@ class NpcPopulation:
 
         acted = 0
         for agent, ship in agents:
-            budget = ctx.rules.npc.actions_per_cycle.get(agent.archetype, 0)
-            if not budget:
-                continue
-            if agent.archetype == "hauler":
-                acted += await self._haul(ctx, ship, budget)
-            else:
-                acted += await self._drift(ctx, agent, ship)
+            spent = (
+                await self._haul(ctx, agent, ship)
+                if agent.archetype == "hauler"
+                else await self._drift(ctx, agent, ship)
+            )
+            if spent:
+                agent.ap_balance -= spent
+                acted += 1
         return acted
 
-    async def _haul(self, ctx: TickContext, ship: models.Ship, budget: int) -> int:
+    @staticmethod
+    def _afford(agent: models.NpcAgent, cost: int) -> bool:
+        """A crew cannot do what its budget will not buy, exactly as a pilot cannot."""
+        return agent.ap_balance >= cost
+
+    async def _haul(self, ctx: TickContext, agent: models.NpcAgent, ship: models.Ship) -> int:
         """Buy where a station is long, sell where it is short: prices visibly move."""
         lines = (
             (
@@ -243,7 +250,10 @@ class NpcPopulation:
             .scalars()
             .all()
         )
-        if len(lines) < 2:
+        # Buy, fly, sell: two trades and the crossing between them, priced from the same table
+        # a player pays (GDD §2.7).
+        cost = 2 * ctx.rules.ap_cost(ActionKind.TRADE) + ctx.rules.ap_cost(ActionKind.MOVE_HEX)
+        if len(lines) < 2 or not self._afford(agent, cost):
             return 0
 
         surplus = max(lines, key=lambda m: m.stock - m.target_stock)
@@ -262,7 +272,7 @@ class NpcPopulation:
         if destination is None:
             return 0
 
-        volume = min(ship.cargo_max, surplus.stock - surplus.target_stock, budget * 5)
+        volume = min(ship.cargo_max, surplus.stock - surplus.target_stock)
         if volume <= 0:
             return 0
         surplus.stock -= volume
@@ -275,10 +285,13 @@ class NpcPopulation:
         await ctx.session.execute(
             update(models.Ship).where(models.Ship.id == ship.id).values(position_path=landing)
         )
-        return 1
+        return cost
 
     async def _drift(self, ctx: TickContext, agent: models.NpcAgent, ship: models.Ship) -> int:
         """Legible movement: patrols and raiders work a fixed system, not the whole galaxy."""
+        cost = ctx.rules.ap_cost(ActionKind.MOVE_HEX)
+        if not self._afford(agent, cost):
+            return 0
         rng = ctx.rng_for("npc-move", str(ship.id), ctx.world_day)
         neighbourhood = (
             (
@@ -297,7 +310,7 @@ class NpcPopulation:
         await ctx.session.execute(
             update(models.Ship).where(models.Ship.id == ship.id).values(position_path=target.path)
         )
-        return 1
+        return cost
 
     async def _spawn(self, ctx: TickContext, system_id: UUID, archetype: str, slot: int) -> None:
         """Identity is seeded from (system, archetype, slot), so the same slot is the same NPC."""
