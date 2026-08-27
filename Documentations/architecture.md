@@ -5,10 +5,10 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.3 |
+| Version | 0.4 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
-| Normative source | `Documentations/game-design.md` v2.4 (cited as §n) |
+| Normative source | `Documentations/game-design.md` v2.5 (cited as §n) |
 | Companion | `Documentations/detailed-design-mvp.md` — MVP detail for phases P0–P3 |
 | Audience | Server, client and infrastructure engineers; technical reviewers |
 
@@ -950,6 +950,7 @@ what would force a rewrite.
 | **P3 — MVP gameplay** | Ships, movement, fuel, scanning, station markets, simplified combat, the NPC population (aggregate everywhere, individuals where observed), teams, the three factions, local/team channels, basic territory (§10.1) | The first playable world |
 | **P4 — Depth** | Missions, reputation, defection, relays, digests, chronicle promotion | Makes the world feel persistent |
 | **P5 — History** | Psychohistory aggregates, forecasts, the Historical Institute, knowledge as a tradable resource (§8.8–§8.9) | Requires months of real event data to tune |
+| **P7+ — The Harrowing** | Incursion spawning, region-scale encounters, cross-team engagement (§8.12) | Needs an opponent that scales past a single player, so it follows fleet battles; and it is the payoff of the history layer, so it follows P5 |
 | **P6 — The Continuity** | Hidden faction as an **AI first**: agents, cells, intervention budget and stage 8, with the anti-leak suite. Recruitment, clearance UI and the secret channel follow in P7 (§9.3, §10.3) | Deliberately last: it only means something once players have a history to deviate from. Shipping the AI first means the evidence players later find is real history rather than retrofitted |
 
 Feature flags let P5 and P6 code ship dark long before they are enabled.
@@ -967,7 +968,8 @@ Each deferred system has a named seam, so adding it is a plug-in rather than a r
 | Player-owned stations, colonisation | New `locations.kind` values with owner attribution; the tree already supports them |
 | Communication relays and delay | `comms` already computes `deliver_at`; MVP sets delay to zero via `features.comms_delay` |
 | Advanced economy, dynamic faction wars | Stage 4's second half — faction strategic AI — plus replacing the stage-3 implementation behind the `Stage` protocol |
-| Named, persistent NPCs (Continuity instruments, §9.5) | `npc_agents` gains a `persistent` flag and is exempted from dissolution |
+| Named, persistent NPCs (Continuity instruments, §9.5) | A `persistent` flag on `npc_agents`; nothing else, now that no crew is dissolved |
+| The Harrowing (§8.12) | A fourth NPC archetype with its own hulls, spawned by a tick stage watching crisis expiry rather than by system activity. It needs no new mechanism: incursion ships are ships, and they spend Action Points like every other crew |
 | Player-created missions | A second `MissionProvider` implementation |
 | Fleet battles | `encounter.resolve()` already takes participant *sets*; MVP restricts cardinality to 1v1 by rule, not by code |
 | Historical archives, prediction, crises, eras | The `hist` and `psycho` schemas exist from P1; only the stages and read models are added |
@@ -1056,6 +1058,7 @@ remains, and it does not touch this architecture until teams can own things:
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.4 | 2026-08-27 | Tracks *GDD* v2.5: NPC crews draw the same Action Point budget as players, so no future population can act more cheaply than a human; added the seam for the Harrowing (§8.12). |
 | 0.3 | 2026-08-27 | Tracks *GDD* v2.4: ADR-15 amended — materialisation is one-way and NPCs are never dissolved, so the individual population follows exploration rather than live observation. |
 | 0.2 | 2026-08-27 | Tracks *GDD* v2.3. Added the Population bounded context and driver F10, and split tick stage 4 into an O(world) aggregate half and an O(observed) individual half (ADR-15). Recorded the settled scale ladder and the two-letter `ltree` prefixes (ADR-14) and forecasts as a per-viewer read model (ADR-16). Moved the answered design questions out of section 20, leaving Q8; added risk R8 and the tier-agreement test. Renamed `PLAYER_ENTERED` to `SHIP_ENTERED`. |
 | 0.1 | 2026-08-27 | First complete architecture for the Python implementation. |

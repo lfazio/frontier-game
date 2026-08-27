@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.10 |
+| Version | 0.11 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
@@ -76,7 +76,8 @@ test in §14 and is verified in CI, not by inspection.
 ## 1.3 Explicitly not in the MVP
 
 Stated so that nobody builds them "while they are in there": missions, reputation effects, defection, relays,
-communication delay, bounties, mining, player stations, the Chronicle, forecasts, the Continuity. *ARCH §18* holds
+communication delay, bounties, mining, player stations, the Chronicle, forecasts, the Continuity, the Harrowing
+(*GDD §8.12*). *ARCH §18* holds
 the seam for each.
 
 ---
@@ -687,6 +688,7 @@ alone:
 | `0011_psychohistory` | P5 | `psycho` schema: aggregate views, history_variables, forecasts, the `psycho_reader` role |
 | `0012_knowledge` | P5 | `players.knowledge` |
 | `0013_jump_range` | P5 | `ships.jump_range_ly` |
+| `0014_npc_action_points` | P6 | `npc_agents.ap_balance`, `last_grant_day` |
 | `0003_tick_bookkeeping` | P1 | `hist` schema, tick_runs, tick_stages |
 | `0004_event_spine` | P2 | events (partitioned), deliveries, outbox, first partitions |
 | `0006_economy` | P3 | markets |
@@ -1728,6 +1730,7 @@ mistake in this plan that would cost a rewrite.
 | D-39 | The wreck fee is `floor(credits × rescue_tax_fraction)`, not a flat sum, and is framed as salvage for the life capsule. | S1. A flat penalty is noise to a veteran and ruin to a newcomer; a share scales with means and can never leave a pilot unable to fly. The fraction is `[BALANCE]` inside a 3–10 % band. | Yes |
 | D-40 | A jump is bounded by the hull's `jump_range_ly` as well as by fuel, refused with `BEYOND_JUMP_RANGE`. | S3. Range becomes a property of the ship a player chose, so hulls differ in reach and not merely in tank size. | Yes |
 | D-41 | Materialised NPCs are never dissolved; every agent acts each cycle, observed or not. | S5. Dissolution made a system's inhabitants a function of who was watching, contradicting the persistence *GDD §2.7* promises. Cost now scales with the *explored* world; the per-system archetype caps bound it, and R1 is the trigger to revisit. | Yes |
+| D-43 | NPC crews hold an AP balance on `npc_agents`, granted by tick stage 11 under the same rule and the same numbers as players, and spent through `RuleSet.ap_cost`. | *GDD §2.7*: an NPC is a ship with a pilot who happens to be a program. A separate `actions_per_cycle` budget was a second economy that could drift from the players' — and it would have let the Continuity's NPC agents act without limit, which is exactly what §9.2 forbids. | No |
 | D-42 | A player may hold no team; `players.team_id` and `faction_id` stay nullable and paired by a CHECK. | S2. Independence is a way to play, not an unfinished registration — so `leave_team` remains, and a player without a faction simply sees no faction missions. | No |
 | D-35 | The Model reads only `psycho` views, and the `psycho_reader` role holds no privilege on `core` or `evt`. | *GDD §8.4* — populations, never individuals — becomes a property of the grants rather than of every future author remembering it (*ARCH ADR-12*). Proved by tests that assert `permission denied` for players, ships, events and reputation. | No |
 | D-36 | `Observation` carries no identifying field, and a test asserts its exact field set. | The database boundary stops a query; this stops a *signature* from ever being widened to accept a player in the first place. | No |
@@ -1792,6 +1795,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.11 | 2026-08-27 | NPC crews now draw and spend the same Action Point budget as players (D-43), replacing `actions_per_cycle`; migration `0014`. The Harrowing (*GDD §8.12*) is named in §1.3 as out of MVP scope. |
 | 0.10 | 2026-08-27 | Design answers S1–S6 applied: salvage tax as a share of credits, hull-bound jump range, NPC persistence replacing dissolution, and independence confirmed for unteamed players. §17 is now empty. Recorded D-39 to D-42. |
 | 0.9 | 2026-08-27 | P5 delivered: the `psycho` schema with aggregate-only views and a reader role that cannot see individuals, the pure historical model (variables, inertia, deviation, confidence, forecasts), tick stage 7 behind a feature flag, Knowledge earned by discovery, and `GET /v1/forecasts` disclosed per viewer. Recorded D-35 to D-38. |
 | 0.8 | 2026-08-27 | Fixed a layering violation that had broken the `Layers` import contract since P3: the map-tile read model moved from `projections/` to `adapters/db/` (D-34). Pinned the CI interpreter to match `.python-version`. |

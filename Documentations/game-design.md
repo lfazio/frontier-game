@@ -9,7 +9,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 2.4 |
+| Version | 2.5 |
 | Date | 2026-08-27 |
 | Companion | `Documentations/architecture.md` v0.2 (cited as *ARCH §n*) |
 | Companion | `Documentations/detailed-design-mvp.md` v0.2 — MVP implementation detail |
@@ -342,9 +342,15 @@ number invented on top of an unrelated simulation.
 
 ### Constraints
 
-- NPCs **MUST** obey the same physics as players: fuel, cargo capacity, hex distance, weapon range, combat
-  resolution. They are exempt only from Action Points, which are a fairness device for human attention, not a law of
-  the world.
+- NPCs **MUST** obey the same rules as players, without exception: fuel, cargo capacity, hex distance, weapon
+  range, combat resolution — **and the same daily Action Point budget** (§3.2). An NPC is a ship with a pilot who
+  happens to be a program, so nothing it does may be cheaper for it than for a human.
+
+  This is what makes the population fair rather than merely plausible. A player can look at any crew in the galaxy
+  and know it cannot out-act them today; a faction cannot be given an army that never tires; and no future system
+  can quietly buy itself unlimited influence by spawning more ships. Where a shipped AI plays a ship, it spends the
+  same budget through the same commands, so an absent player resolved from standing orders (§3.5) and an NPC
+  running its route are the same machinery with different policies.
 - NPC behaviour **MUST** be legible. A player who watches a hauler for three cycles should be able to predict the
   fourth. Unpredictability is the players' role (§8.5), not the population's.
 - NPCs **MUST NOT** be a difficulty dial disguised as a world. Raider pressure rises because trade is rich and
@@ -1111,6 +1117,9 @@ When deviation or instability crosses a threshold `[BALANCE]`, the Model identif
 A crisis is an announced window in which player action has outsized consequence. The game **MUST NOT** prescribe a
 solution or a correct side. Crises are also the principal recruitment trigger for the Continuity (§9.3).
 
+A crisis that runs its critical period without being resolved does not simply lapse. **Something answers it** —
+see §8.12.
+
 ## 8.8 The Historical Institute
 
 A fictional in-world organisation is the public face of historical analysis — working name **The Historical
@@ -1188,6 +1197,65 @@ period. Nothing else may trigger one:
 
 A transition is a Universe-scope event (§7.7) and a permanent Chronicle entry (§8.10): the galaxy is told that an age
 has ended, and afterwards it can always be shown exactly when and why.
+
+## 8.12 The Harrowing
+
+> Numbered after §8.11 rather than beside §8.7 to leave the existing section numbers undisturbed. Read it as the
+> consequence of a crisis nobody resolved.
+
+When a historical crisis (§8.7) runs its critical period unresolved, the deviation does not merely persist. **Ships
+arrive.**
+
+They are not of the Empire, the Republic or the Pirates, and they are not of the Continuity. They are powerful,
+unfamiliar and silent: no demands, no diplomacy, no terms, no visible motive. Working names: the event is **the
+Harrowing**; the vessels are **Harrowers**. Both are placeholders until the fiction is written, and both **MUST**
+remain original (§1.7).
+
+The design intent is a single, sharp answer to a question the history layer otherwise leaves abstract: *what is
+actually at stake if the trajectory is abandoned?* Until the Harrowing, deviation is a number on a forecast. After
+it, deviation is the thing that brings ships.
+
+### What an incursion does
+
+| | |
+| --- | --- |
+| **Trigger** | A crisis whose critical period expires with deviation still past the threshold `[BALANCE]` |
+| **Scale** | A region, not a system: several systems are contested at once |
+| **Duration** | An episode with an end — an incursion **MUST** resolve, one way or another |
+| **Announcement** | Universe scope (§7.7); the galaxy learns of it the cycle it begins |
+| **Record** | Every loss is permanent and enters the Chronicle (§8.10) |
+| **Aftermath** | The surviving state is where the next era starts (§8.11) |
+
+### Rules
+
+These constrain the system as firmly as §9.2 constrains the Continuity, and for the same reason: a threat that
+cannot be reasoned about is not an opponent, it is weather.
+
+- **Harrowers MUST obey the rules every other ship obeys** — fuel, cargo, hex distance, weapon range, combat
+  resolution and the daily Action Point budget (§2.7). They are dangerous because of what they fly and how many of
+  them there are, never because they are exempt. *A player who loses to one must be able to see why, and a player
+  who studies one must be able to learn something usable.*
+- **An incursion MUST be survivable by coordinated players and MUST NOT be survivable alone.** This is the one
+  place the design deliberately requires cooperation across teams — and, if the players choose it, across factions.
+- **The game MUST NOT prescribe the response.** The threat is common; what anyone does about it is not. The Empire
+  may militarise, the Republic may evacuate, a pirate crew may loot the evacuation, and a trader may simply get
+  rich selling hull plate. Refusing to fight is a legitimate choice with legitimate consequences.
+- **Harrowers MUST NOT be farmable.** They are an emergency, not a resource: an incursion that becomes a reliable
+  income has stopped being a crisis.
+- **Losing MUST be possible.** If an incursion cannot be lost, it is a cutscene. What is lost — stations, systems,
+  a faction's grip on a region — is what the next era inherits.
+
+### What it does to the Model
+
+An incursion is the largest deviation event the world can produce, and the Model is not exempt from it: confidence
+falls sharply while one is under way (§8.3), because a galaxy under attack stops behaving like the population the
+Model was fitted to. A region that survives one returns to a *different* expected trajectory, not the old one.
+
+### The open thread
+
+Whether the Continuity knows this is coming — whether the trajectory it defends is precisely the corridor in which
+the Harrowing does not arrive — is deliberately unresolved in the fiction, and is recorded as an open design
+question (§11.2 Q9). Players **MUST NOT** be able to settle it from any published number.
 
 ---
 
@@ -1644,6 +1712,7 @@ requires reopening the foundations.
 | Player-created missions | Missions | A second mission source |
 | Fleet battles | Combat | Resolution already takes participant sets |
 | Advanced exploration | Exploration | |
+| **The Harrowing** (§8.12) | Historical crises, fleet battles, advanced combat | The one system that requires cross-team cooperation; needs an opponent that scales beyond one player |
 | Historical archives, prediction, crises, eras | The Model (§8) | Needs months of real event data to tune |
 | Knowledge trading | Knowledge (§8.9) | |
 | Procedural historical events | Event promotion (§7.7) | |
@@ -1704,6 +1773,7 @@ should be reviewed as design decisions. Each can be reverted independently.
 | **M10** | **Eras and narrative phases separated** (§8.11 vs §9.12). | v1.0 contained two overlapping six- and seven-step progressions. They describe different things: recurring world states, and one-time community discovery. |
 | **M11** | **"Turn" replaced by "cycle"** throughout; "world day" reserved for the counter. | v1.0 used "turn" for the 24-hour period, for a mission duration and for a player's session. |
 | **M12** | **Authorial voice removed.** | v1.0 contained first- and second-person commentary ("I would make…", "your game") and duplicated conversational fragments, which read as notes rather than specification. |
+| **M15** | **The Harrowing added (§8.12)**: an unresolved historical crisis triggers an incursion of powerful alien vessels, which players fight to restore the balance. | Deviation was an abstraction — a number on a forecast with no visible stake. The Harrowing makes the cost of abandoning the trajectory concrete, gives the cooperative end of the game a reason to exist, and supplies §8.11's eras with something that actually ends one. Constrained hard (no exemptions, must be losable, must not be farmable, response never prescribed) so that it stays an opponent rather than weather. |
 | **M14** | **Materialised NPCs persist and are played by the server** (§2.7), rather than dissolving back into the aggregate when the last observer leaves. Adds the salvage tax (§5.4), the hull's own jump range (§5.1), and states that an unteamed player is *independent* (§6.5). | Answers to the implementation questions S1–S6. Dissolution made a system's inhabitants a function of who was watching, which contradicts the persistence §2.7 is there to promise; the cost of keeping them is bounded by the systems players have actually visited. The flat destruction penalty was replaced by a share of credits because a fixed sum removes a poor pilot from the game rather than setting them back. |
 | **M13** | **The NPC population promoted to a design section (§2.7)**, with simulation fidelity tied to observation, and moved into the MVP along with cycle step 4. | v1.0 and v2.0 mentioned NPCs in six places without ever saying what they are for or how many there are. A persistent universe (§1.2) in which nothing happens unless a player causes it is not persistent, and the aggregate layer §2.7 introduces is the same quantity §8.2 will later measure. |
 
@@ -1717,6 +1787,7 @@ is recorded in §11.4 and in the section it settles. Gaps in the numbering mean 
 | # | Question | Blocks |
 | --- | --- | --- |
 | **Q8** | May teams own shared assets (§6.5), and who controls them on disband? | Team model; station ownership later |
+| **Q9** | Does the Continuity know that the trajectory it defends is the corridor in which the Harrowing (§8.12) does not arrive? | Whether §9 is a conspiracy of caretakers or of survivors; the late-game reveal in §9.10 |
 
 ## 11.3 Section mapping, v1.0 → v2.0
 
@@ -1765,6 +1836,7 @@ For notes, issues or commits that cite the old flat numbering.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 2.5 | 2026-08-27 | Added §8.12, the Harrowing: an unresolved historical crisis draws an incursion of powerful alien vessels that players fight to restore the balance, bound by the same rules as every other ship. Amended §2.7 so NPC crews spend the same daily Action Point budget as pilots. New open question Q9. See §11.1 M14, M15. |
 | 2.4 | 2026-08-27 | Implementation questions S1–S6 answered: a wrecked pilot's capsule is recovered for a salvage tax that is a share of credits, not a flat fee (§5.4); a player may remain independent of any team (§6.5); jump range depends on the hull as well as the tank (§5.1); materialised NPCs persist and the server keeps playing them (§2.7). See §11.1 M14. |
 | 2.3 | 2026-08-27 | Q4–Q7 answered. Q4: the Continuity's budget scales with world extent, holding its reach per system constant (§9.2). Q5: the Continuity is NPC-operated from the moment it exists; player agents are recruited into a working organisation (§9.3, §10.3). Q6: half of unspent AP carries over, up to an administrator-defined ceiling (§3.2). Q7: era transitions fire on sustained threshold crossings, never by hand (§8.11). |
 | 2.2 | 2026-08-27 | Q1, Q2 and Q3 answered. Q1: the ladder is final at Galaxy → Region → System → Planet → Sector → Local; *Body* is withdrawn in favour of *Planet* and the Planet-scope channel renamed to match (§11.1 M1). Q2: forecasts are a public good of variable quality, not a commodity or a privilege (§8.3). Q3: a player commands exactly one ship (§4.2). |
