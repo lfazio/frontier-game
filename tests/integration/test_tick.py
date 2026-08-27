@@ -79,7 +79,15 @@ async def test_every_stage_is_checkpointed(sessions, clean):
             .scalars()
             .all()
         )
-    assert stages == ["build_digests", "grant_action_points", "settle_travel"]
+    assert stages == [
+        "build_digests",
+        "economy",
+        "grant_action_points",
+        "npc_population",
+        "resolve_encounters",
+        "settle_travel",
+        "territory",
+    ]
 
 
 async def test_a_completed_stage_is_skipped_on_a_resumed_run(sessions, clean):
