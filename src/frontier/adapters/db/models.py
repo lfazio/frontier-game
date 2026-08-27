@@ -76,6 +76,7 @@ class Player(Base):
     faction_id: Mapped[int | None] = mapped_column(ForeignKey("core.factions.id"), nullable=True)
     credits: Mapped[int] = mapped_column(BigInteger, default=0)
     ap_balance: Mapped[int] = mapped_column(Integer, default=0)
+    knowledge: Mapped[int] = mapped_column(Integer, default=0)
     last_grant_day: Mapped[int] = mapped_column(Integer, default=-1)
 
 
@@ -364,3 +365,25 @@ class Reputation(Base):
     player_id: Mapped[UUID] = mapped_column(ForeignKey("core.players.id"), primary_key=True)
     faction_id: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     score: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class HistoryVariable(Base):
+    __tablename__ = "history_variables"
+    __table_args__ = ({"schema": "psycho"},)
+    region_id: Mapped[UUID] = mapped_column(primary_key=True)
+    world_day: Mapped[int] = mapped_column(Integer, primary_key=True)
+    variable: Mapped[str] = mapped_column(String(32), primary_key=True)
+    observed: Mapped[Decimal] = mapped_column(Numeric(8, 4))
+    expected: Mapped[Decimal] = mapped_column(Numeric(8, 4))
+
+
+class ForecastRow(Base):
+    __tablename__ = "forecasts"
+    __table_args__ = ({"schema": "psycho"},)
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    region_id: Mapped[UUID] = mapped_column()
+    world_day: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(32))
+    probability: Mapped[Decimal] = mapped_column(Numeric(5, 4))
+    confidence: Mapped[Decimal] = mapped_column(Numeric(5, 4))
+    deviation: Mapped[Decimal] = mapped_column(Numeric(6, 4))
