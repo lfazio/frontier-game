@@ -5,10 +5,10 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.1 |
+| Version | 0.2 |
 | Date | 2026-08-27 |
 | Scope | The MVP client (*GDD §10.1*) and a spectator mode for demonstrating a running world |
-| Depends on | `game-design.md` v2.6, `architecture.md` v0.5, `detailed-design-mvp.md` v0.12 |
+| Depends on | `game-design.md` v2.9, `architecture.md` v0.7, `detailed-design-mvp.md` v0.12 |
 | Audience | Client engineers, designers, anyone building or reviewing the front end |
 
 ### How to read this document
@@ -145,6 +145,9 @@ Rules:
   channel (§8.3).
 - The "last seen" line is the only place the interface refers to the player's own absence. It **MUST NOT** be
   phrased as a reproach.
+- **Only the current cycle's overview is kept.** The client holds no history of past days and `GET /v1/me` takes no
+  `world_day`: what happened before is in the feed and, if it mattered, in the Chronicle. Revisit only if fetching
+  the latest turns out to cost more than caching a little of it would.
 
 ---
 
@@ -270,7 +273,37 @@ Every action follows one interaction contract, because every action follows one 
 | Accepted | The server's events are rendered; AP and state come from the response, never from arithmetic |
 | Refused | The reason is stated in the player's language, and the interface returns to exactly its prior state |
 
-## 5.1 Refusals are normal
+## 5.3 Routes
+
+A journey of several hexes is **one decision, not one per hop**. The player plots a route, sees what the whole thing
+costs, and confirms once.
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  ROUTE · 5 hexes to Kestrel Yard                                             │
+│                                                                              │
+│    ◆──⬡──⬡──⬡──⬡──⬢                                                          │
+│                                                                              │
+│    5 AP · 5 fuel            leaves 2 AP · 45 fuel        [ Fly ]  [ Cancel ] │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+It is submitted as one `POST /v1/commands:batch` (*SDD §8.2*). The server still evaluates and charges every hop
+separately, which means a route can stop partway — and the interface **MUST** say so plainly rather than reporting
+a failure:
+
+> **Stopped after 3 of 5 hexes.** Not enough Action Points for the rest. You are at `…/pln4_3`.
+
+Rules:
+
+- **The cost shown is the whole route's**, with the balance remaining after it.
+- **A partial route is a result, not an error.** The ship is somewhere real; the interface says where, why it
+  stopped, and what would let it finish.
+- **A route is never re-submitted automatically.** Resuming is the player's decision, with its own confirmation.
+- **The route is drawn before it is flown**, and the drawn path is the path submitted — the client uses the
+  server's own hex-line rule (§8.4) so the two cannot disagree.
+
+## 5.4 Refusals are normal
 
 A `409` is gameplay, not an error (*SDD §8.4*). It **MUST NOT** be presented as a failure: no red banner, no
 "something went wrong", no error toast. It is an answer.
@@ -288,7 +321,7 @@ A `409` is gameplay, not an error (*SDD §8.4*). It **MUST NOT** be presented as
 
 Wording rules: state the fact, then the remedy. Never blame. Never use the word "error" for a refusal.
 
-## 5.2 Idempotency
+## 5.5 Idempotency
 
 The client generates an `idempotency_key` (UUIDv4) **once per intent**, and reuses it on retry. A retry that returns
 `Idempotent-Replay: true` is rendered as the original outcome, silently — the player asked once and it happened
@@ -388,7 +421,27 @@ Non-negotiable for the MVP, because retrofitting is what never happens:
 - **Contrast** meets WCAG 2.2 AA at minimum; the feed and the market table meet AAA for body text.
 - **No time-based interaction.** Nothing in the MVP requires a fast response, so nothing needs an extension.
 
-## 8.4 Language
+## 8.4 Rendering the board
+
+Hex maps are drawn on **canvas**, not SVG. A system is a radius-8 board — 217 hexes — and a region view can hold
+several hundred marks; as DOM nodes that is an amount of layout work no browser should be asked to do sixty times a
+second while panning.
+
+The consequence is not optional. **Canvas has no accessibility tree**, so the textual view specified in §8.3 stops
+being a courtesy and becomes the only way a screen reader can perceive the map at all. It is therefore built
+alongside the canvas, from the same data, in the same slice — never afterwards. A canvas map shipped without it is
+an inaccessible map, not an incomplete one.
+
+Two further rules follow from the choice:
+
+- **Keyboard focus is the client's job.** Canvas has no focusable children, so hex selection, panning and zoom are
+  driven from an explicit focus model the client owns and draws — a visible focus ring on the selected hex, moved
+  with the arrow keys.
+- **Hit-testing is arithmetic, not the DOM.** Pointer position converts to axial coordinates directly, which is the
+  same `Axial` maths the server uses; the client **MUST** use the identical rounding rule so that the hex a player
+  clicks is the hex the server is asked about.
+
+## 8.5 Language
 
 - Second person, plain, unhurried. *"You are docked."* not *"Player is currently in a docked state."*
 - The world's terms are used exactly as the design defines them: **cycle**, **world day**, **Planet**, **Sector**,
@@ -400,8 +453,17 @@ Non-negotiable for the MVP, because retrofitting is what never happens:
 
 # 9. Watch mode
 
-A read-only view of a live world, reachable without an account. It exists so the game can be *shown* — to a
-reviewer, a prospective player, or a designer checking whether a cycle looks right.
+A read-only, top-down view of a live world: where fighting is happening, where control is shifting, where trade has
+stopped. It has **two lives**, and the same rendering serves both.
+
+| | Demonstration deployment | Live world |
+| --- | --- | --- |
+| Who | Anyone, no account | The Continuity, and nobody else (*GDD §9.6*) |
+| How often | Freely | One watch every `X` hours `[BALANCE]`, rationed across the whole faction |
+| Why it exists | The game is hard to show; a recording is not convincing and an account requires an invitation | It is the faction's sight, and its scarcest shared resource |
+
+Building it once serves both, which is the main reason it is slice **C1** (§11). The rationed version is phase P7
+work; the MVP builds only the demonstration deployment.
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -423,6 +485,7 @@ reviewer, a prospective player, or a designer checking whether a cycle looks rig
 | **Nothing about the hidden faction, at any zoom, ever** | *GDD §9.4*; the anti-leak suite covers spectator responses as it covers player ones |
 | **Watch mode has no sight of its own** and therefore sees no contacts at all — only public, system-or-wider events | A viewer with no ship has no sensors; §4.1 applied to a spectator yields an empty board |
 | **"Advance a cycle" exists only on a demo deployment**, never production | It is a demonstration control, not a game action |
+| **On a live world the view is unreachable without a watch**, and taking one leaves no trace | *GDD §9.6*: a watch is a read. No event, no notification, no timing difference |
 | **Watch mode is unauthenticated and rate-limited** | It is a public surface |
 
 Watch mode is the smallest client that is still honest: it renders the same tiles and the same feed through the same
@@ -498,10 +561,23 @@ redaction — and it is the artefact to show anyone who asks what the game is.
 
 | # | Question | Blocks |
 | --- | --- | --- |
-| U1 | Is watch mode part of the production deployment, or demo-only? | Whether it needs its own rate limits and abuse handling |
-| U2 | Hex rendering: SVG or canvas? | 8 000-hex system maps may exceed comfortable SVG node counts |
-| U3 | Does the client keep a local history of past cycles' overviews, or only the latest? | Whether `GET /v1/me` needs a `world_day` parameter |
-| U4 | How is a route of several hexes presented — one confirmation for the route, or one per hop? | The batch endpoint exists (*SDD §8.2*); the interaction does not |
+**None outstanding.** The answers are recorded in the sections they settle.
+
+| Answered | Question | Answer |
+| --- | --- | --- |
+| U1 | Is watch mode production or demo-only? | Both, differently. Freely available on a demonstration deployment; on a live world it is a rationed Continuity capability (§9, *GDD §9.6*) |
+| U2 | Hex rendering: SVG or canvas? | **Canvas** (§8.5) |
+| U3 | Does the client keep past overviews? | Only the latest, so `GET /v1/me` needs no `world_day` (§3) |
+| U4 | One confirmation per route or per hop? | One for the route (§5.3) |
+
+---
+
+# 13. Change log
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 0.2 | 2026-08-27 | Answered U1–U4: watch mode serves both a demonstration deployment and, on a live world, the Continuity's rationed watch (§9); hex maps are drawn on canvas, which makes the textual map view mandatory rather than courteous (§8.4); the client keeps only the latest overview (§3); a route is one confirmation and a partial route is a result, not an error (§5.3). |
+| 0.1 | 2026-08-27 | First UI/UX design for the MVP client and watch mode. |
 
 ---
 

@@ -9,7 +9,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 2.8 |
+| Version | 2.9 |
 | Date | 2026-08-27 |
 | Companion | `Documentations/architecture.md` v0.2 (cited as *ARCH §n*) |
 | Companion | `Documentations/detailed-design-mvp.md` v0.2 — MVP implementation detail |
@@ -1607,6 +1607,32 @@ That asymmetry is the Continuity's real weapon, and it is deliberately the *only
 
 Messages **MAY** additionally be restricted by clearance tier.
 
+### The watch
+
+The Continuity's second shared capability is a **watch**: a single top-down look at the whole galaxy at once —
+where fighting is happening, where control is shifting, where trade has stopped — assembled from what is publicly
+observable everywhere, in one picture, in one moment.
+
+It is rationed, and the ration belongs to the **faction, not the agent**: one watch every `X` hours `[BALANCE]` for
+the entire Continuity, however many agents there are. A suggested starting point is six hours — four in a cycle —
+and the value is a dial for how sharp the faction's sight is.
+
+That one detail is what makes the capability interesting rather than merely strong:
+
+- **It must be spent, and only one person can spend it.** Agents have to agree when to look, which is precisely
+  what the instantaneous channel above is for. The two capabilities are designed as a pair: the channel is useless
+  without something worth coordinating, and the watch is unusable without a way to coordinate.
+- **A watch spent is a watch gone.** Taking one early because a cell is impatient means not having one when the
+  deviation spikes. The faction's scarcest resource is its own attention.
+- **It shows populations and public events, never people.** A watch reveals that a system is burning, not who is
+  burning it. It **MUST NOT** report any individual a player could not have learned about by ordinary means
+  (§8.4, §7.2), and it grants no reach: it is sight, and sight moves nothing (§9.13).
+- **Taking one MUST be unobservable.** No event, no notification, no statistic, no timing difference (§9.4). A
+  watch is a read and leaves no mark.
+
+The same picture is what a spectator sees on a demonstration deployment (*UX §9*); on a live world it is not
+available to anyone else.
+
 ## 9.7 Betrayal and exposure
 
 An agent can betray the organisation, and the game **SHOULD** support it as gameplay rather than prevent it.
@@ -1902,6 +1928,7 @@ should be reviewed as design decisions. Each can be reverted independently.
 | **M10** | **Eras and narrative phases separated** (§8.11 vs §9.12). | v1.0 contained two overlapping six- and seven-step progressions. They describe different things: recurring world states, and one-time community discovery. |
 | **M11** | **"Turn" replaced by "cycle"** throughout; "world day" reserved for the counter. | v1.0 used "turn" for the 24-hour period, for a mission duration and for a player's session. |
 | **M12** | **Authorial voice removed.** | v1.0 contained first- and second-person commentary ("I would make…", "your game") and duplicated conversational fragments, which read as notes rather than specification. |
+| **M19** | **The watch added (§9.6)**: the Continuity may take one galaxy-wide look every `X` hours, rationed across the whole faction rather than per agent. | The faction's stated advantage is information (§9.5), and the instant channel gave it coordination without giving it anything to coordinate *about*. A shared, scarce watch supplies that, and forces agents to agree on when to use it — which is what makes the channel matter. It grants sight and no reach, so §9.13 is untouched. |
 | **M18** | **Q10 answered: an ex-agent may be recruited again** (§9.14), as the new pilot, on that pilot's own record, once it independently meets the §9.3 threshold. Nothing automatic; no record links the identities. | Re-recruitment through the ordinary triggers keeps §9.14's price real — a guaranteed return would make death a revolving door. Requiring the new pilot to earn it from nothing also removes the need to store any link between a lost pilot and a new one, which would itself have been the leak §9.4 forbids. |
 | **M17** | **Q9 answered: the Continuity knows** (§8.12). Its agents go first into an incursion, and an agent killed there is not recovered — the account continues as a new pilot (§9.14). Recovery is made unreliable for everyone during an incursion so that a reset stays evidence rather than proof. | The faction had the best information and the only channel outside physics, and §9.2's answer to "why is that not domination" was a set of balance dials, any of which can be turned the wrong way. A price that is not a dial answers it properly: they know what is coming, so they meet it first, and they are the only players who can be permanently removed. It also gives §9.3's invitation a real cost, which it lacked. The masking rule is required, not optional — without it the mechanic would identify every agent posthumously and break §9.4. |
 | **M16** | **The Continuity's channel is instantaneous and galaxy-wide** (§9.6, §7.3, §7.5), exempt from the range, relay and delay rules that bind every other channel. | The faction's stated advantage is *better information* (§9.5), and until now nothing in the design actually gave it any. A channel outside physics grants coordination without granting force, which is the only kind of power §9.2 permits it — and it hands §9.8 a genuine, observable anomaly for players to notice. |
@@ -1967,6 +1994,7 @@ For notes, issues or commits that cite the old flat numbering.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 2.9 | 2026-08-27 | Added the watch (§9.6): one galaxy-wide look every `X` hours, rationed across the whole Continuity rather than per agent, showing populations and public events and never individuals. See §11.1 M19. |
 | 2.8 | 2026-08-27 | Q10 answered: a pilot lost as an agent may be recruited again under their new identity, once that identity independently earns the invitation; no record links the two (§9.14). See §11.1 M18. |
 | 2.7 | 2026-08-27 | Q9 answered: the Continuity knows the trajectory is the corridor in which the Harrowing does not arrive (§8.12). Agents go first into an incursion and are not recovered if they die there, continuing as a new pilot (§9.14); recovery is unreliable for everyone during an incursion so the reset cannot identify them. New open question Q10. See §11.1 M17. |
 | 2.6 | 2026-08-27 | The Continuity's communication channel is instantaneous and reaches the whole galaxy, exempt from range, relays and delay (§9.6). See §11.1 M16. |

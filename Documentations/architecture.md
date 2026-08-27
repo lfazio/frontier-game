@@ -5,10 +5,10 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.7 |
+| Version | 0.8 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
-| Normative source | `Documentations/game-design.md` v2.8 (cited as §n) |
+| Normative source | `Documentations/game-design.md` v2.9 (cited as §n) |
 | Companion | `Documentations/detailed-design-mvp.md` — MVP detail for phases P0–P3 |
 | Audience | Server, client and infrastructure engineers; technical reviewers |
 
@@ -970,6 +970,7 @@ Each deferred system has a named seam, so adding it is a plug-in rather than a r
 | Advanced economy, dynamic faction wars | Stage 4's second half — faction strategic AI — plus replacing the stage-3 implementation behind the `Stage` protocol |
 | Named, persistent NPCs (Continuity instruments, §9.5) | A `persistent` flag on `npc_agents`; nothing else, now that no crew is dissolved |
 | Permanent pilot loss (§9.14) | A pilot becomes a row distinct from the account: `players` gains a generation, and a reset writes a new pilot rather than mutating the old. The Chronicle already records a death; nothing else may distinguish the case. **No column may link a new pilot to a former agent** — re-recruitment evaluates the new pilot's own record, so the link is not merely forbidden but unnecessary. The anti-leak suite gains two probes: an agent's reset against an ordinary pilot's, and a search for any stored cross-identity reference |
+| The Continuity's watch (§9.6) | The spectator projection already built for *UX §9*, gated by a faction-wide rate limit in Redis rather than a per-player one. It reads only, so it emits no event and touches no write path |
 | The Harrowing (§8.12) | A fourth NPC archetype with its own hulls, spawned by a tick stage watching crisis expiry rather than by system activity. It needs no new mechanism: incursion ships are ships, and they spend Action Points like every other crew |
 | Player-created missions | A second `MissionProvider` implementation |
 | Fleet battles | `encounter.resolve()` already takes participant *sets*; MVP restricts cardinality to 1v1 by rule, not by code |
@@ -1059,6 +1060,7 @@ remains, and it does not touch this architecture until teams can own things:
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.8 | 2026-08-27 | Tracks *GDD* v2.9: recorded the seam for the Continuity's watch, which reuses the spectator projection behind a faction-wide rate limit. |
 | 0.7 | 2026-08-27 | Tracks *GDD* v2.8: re-recruitment evaluates the new pilot alone, so no cross-identity link may be stored; the anti-leak seam gains a probe for one. |
 | 0.6 | 2026-08-27 | Tracks *GDD* v2.7: recorded the seam for permanent pilot loss, which separates pilot identity from account identity and adds a probe to the anti-leak suite. |
 | 0.5 | 2026-08-27 | Tracks *GDD* v2.6: recorded the Continuity channel's exemption from range, relay and delay. |

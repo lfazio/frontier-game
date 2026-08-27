@@ -10,11 +10,11 @@ and say so.
 
 | Document | Authority |
 | --- | --- |
-| `Documentations/game-design.md` (v2.8) | **What the game does.** Normative for behaviour. Cited as `§n.m`. |
-| `Documentations/architecture.md` (v0.7) | **How it is built.** Normative for structure. Cited as `ARCH §n`. |
+| `Documentations/game-design.md` (v2.9) | **What the game does.** Normative for behaviour. Cited as `§n.m`. |
+| `Documentations/architecture.md` (v0.8) | **How it is built.** Normative for structure. Cited as `ARCH §n`. |
 | `Documentations/detailed-design-mvp.md` (v0.12) | **How the MVP is built.** Module, schema, API and algorithm
 detail. Cited as `SDD §n`. |
-| `Documentations/ui-ux-mvp.md` (v0.1) | **What the player sees and touches.** Screens, states, wording and
+| `Documentations/ui-ux-mvp.md` (v0.2) | **What the player sees and touches.** Screens, states, wording and
 interaction contracts. Cited as `UX §n`. |
 
 Where they disagree, the design document wins on behaviour and the architecture document wins on implementation —
