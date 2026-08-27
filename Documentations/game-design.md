@@ -9,7 +9,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 2.2 |
+| Version | 2.3 |
 | Date | 2026-08-27 |
 | Companion | `Documentations/architecture.md` (cited as *ARCH §n*) |
 | Audience | Designers, engineers, writers, reviewers |
@@ -379,8 +379,17 @@ Hyperspace jump   4–6 AP
 Rules:
 
 - Every AP cost is a `[BALANCE]` value. No cost is fixed by this document; §5.6 holds the canonical catalogue.
-- AP **MUST NOT** be purchasable, and unspent AP **SHOULD NOT** accumulate without limit — a small carry-over
-  `[BALANCE]` softens the penalty for missing a day without letting a player bank a week.
+- AP **MUST NOT** be purchasable.
+- **Half of unspent AP carries over, up to an administrator-defined ceiling.**
+
+  ```text
+  carry       = min(floor(unspent ÷ 2), carry_ceiling)     [BALANCE]
+  new balance = daily grant + carry
+  ```
+
+  Missing a day therefore costs something real without wiping the day out, and the ceiling stops anyone banking a
+  week to dump it in one session. Both the halving and the ceiling are `[BALANCE]`; the halving is the design
+  commitment, the number is not.
 - An action that costs AP **MUST** be a decision. Navigating menus, reading, planning, talking and looking at maps
   are free.
 - The server owns the AP balance; the client may never assert it (§10.4).
@@ -1149,6 +1158,21 @@ The sequence above is **illustrative, not scripted**: it is what the Model curre
 a different one. Eras are distinct from the *narrative phases* of §9.12, which describe how much the player community
 has discovered about the meta-game and happen only once.
 
+### Era transitions are triggered by thresholds
+
+An era changes when the Model's variables (§8.2) cross a configured boundary and stay across it for a sustained
+period. Nothing else may trigger one:
+
+- **No designer may fire an era transition by hand.** If a person can decide when the Dark Age begins, then players
+  do not write the history of the universe (§1.5) — they attend it.
+- **No single dramatic event is enough.** A transition requires the crossing to hold for a minimum number of cycles
+  `[BALANCE]`. Hysteresis keeps a spike, a large battle or one bad cycle from flipping the world's state and
+  flipping it back.
+- Which variables, at what boundaries, is `[BALANCE]`. That the trigger is a threshold is not.
+
+A transition is a Universe-scope event (§7.7) and a permanent Chronicle entry (§8.10): the galaxy is told that an age
+has ended, and afterwards it can always be shown exactly when and why.
+
 ---
 
 # 9. The Continuity
@@ -1196,7 +1220,21 @@ matter, and the game loses its premise.
 | be almost everywhere | be everywhere at once |
 
 Concretely, its power is bounded by `[BALANCE]` budgets: limited agents, limited interventions per cycle, limited
-resources, limited knowledge, and imperfect predictions. It manipulates probabilities in the small:
+resources, limited knowledge, and imperfect predictions.
+
+**The budgets scale with the size of the world, not with the number of players.** A galaxy twice as large gets
+roughly twice the intervention budget, so the Continuity's reach *per system* stays constant:
+
+```text
+interventions per cycle ≈ systems ÷ systems_per_intervention        [BALANCE]
+agent ceiling           ≈ systems ÷ systems_per_agent               [BALANCE]
+```
+
+Two things follow, and both are the point. A growing galaxy does not slip out of the Continuity's grip, so the
+premise survives expansion. And a growing *population* does not strengthen it, so the odds facing any individual
+player never worsen because the game got popular — which is what §9.2's whole table exists to protect.
+
+It manipulates probabilities in the small:
 
 ```text
 Expected:                    After intervention:              [ILLUSTRATIVE]
@@ -1208,6 +1246,24 @@ Pirate victory     10 %      Pirate victory     10 %
 It does not press a button labelled *"Empire wins"*.
 
 ## 9.3 Membership
+
+### The organisation exists before any player joins it
+
+The Continuity is **NPC-operated from the moment it exists in the world**. It runs its own agents, spends its own
+budget and shapes events long before the first player is invited. Player recruitment is a later addition to a working
+organisation, never its creation.
+
+This ordering does most of the narrative work by itself:
+
+- **The evidence players eventually find is real.** By the time anyone notices a pattern (§9.8), the interventions
+  that produced it actually happened, at recorded times, for reasons the Model can be shown to have had. Nothing is
+  retrofitted, and nothing needs to be.
+- **A recruit joins something.** They get a handler, a cell and a clearance tier that already existed (§9.6), rather
+  than founding a conspiracy of one.
+- **Declining costs the world nothing.** If no player ever accepts, the Continuity carries on. That is what makes
+  declining genuinely free (see below) rather than a refusal to let the story proceed.
+
+The delivery consequence is recorded in §10.3: the first shipped form of §9 is the AI, and player agents follow.
 
 ### Recruitment
 
@@ -1587,6 +1643,9 @@ decisions rather than engineering ones, and are recorded here:
 2. **The Continuity (§9) ships last.** It only means anything once players have a history to deviate from, and
    its secrecy requirements need a mature world to be tested against. Introducing it early would spend the reveal on
    an empty galaxy.
+3. **The Continuity ships as an AI first, and recruits players second.** Its first release operates entirely through
+   NPC agents (§9.3). Player recruitment is a separate, later release, so that by the time anyone is invited the
+   organisation has a real history of interventions to have been invited into.
 
 ## 10.4 Design constraints on implementation
 
@@ -1640,10 +1699,6 @@ is recorded in §11.4 and in the section it settles. Gaps in the numbering mean 
 
 | # | Question | Blocks |
 | --- | --- | --- |
-| **Q4** | Does the Continuity's intervention budget scale with world size or stay fixed? | Whether §9.5 costs grow with the world |
-| **Q5** | Is the Continuity NPC-operated from launch, with player agents added later? | Recruitment timing; whether §9 needs a functioning AI first |
-| **Q6** | Is unspent AP carried over, and up to what cap? | §3.2; the penalty for missing a day |
-| **Q7** | What triggers an era transition (§8.11) — the Model, a threshold, or a designer? | Whether eras are emergent or curated |
 | **Q8** | May teams own shared assets (§6.5), and who controls them on disband? | Team model; station ownership later |
 
 ## 11.3 Section mapping, v1.0 → v2.0
@@ -1684,7 +1739,7 @@ For notes, issues or commits that cite the old flat numbering.
 | §33 Psychohistorical model | §8.2 | | §58, §68 Constraints | §9.2 |
 | §34 Historical prediction | §8.3 | | §62, §63 Discovery | §9.8 |
 | §35 Predictions and players | §8.4 | | §65 Challenging the model | §8.3 |
-| §36 Players as anomalies | §8.5 | | §69 AI + player faction | §9.3, Q5 |
+| §36 Players as anomalies | §8.5 | | §69 AI + player faction | §9.3 |
 | §37 Self-fulfilling predictions | §8.6 | | §72 Three-level game | §9.11 |
 | | | | §74 Campaign structure | §9.12 |
 | | | | §75 Most important rule | §9.13 |
@@ -1693,6 +1748,7 @@ For notes, issues or commits that cite the old flat numbering.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 2.3 | 2026-08-27 | Q4–Q7 answered. Q4: the Continuity's budget scales with world extent, holding its reach per system constant (§9.2). Q5: the Continuity is NPC-operated from the moment it exists; player agents are recruited into a working organisation (§9.3, §10.3). Q6: half of unspent AP carries over, up to an administrator-defined ceiling (§3.2). Q7: era transitions fire on sustained threshold crossings, never by hand (§8.11). |
 | 2.2 | 2026-08-27 | Q1, Q2 and Q3 answered. Q1: the ladder is final at Galaxy → Region → System → Planet → Sector → Local; *Body* is withdrawn in favour of *Planet* and the Planet-scope channel renamed to match (§11.1 M1). Q2: forecasts are a public good of variable quality, not a commodity or a privilege (§8.3). Q3: a player commands exactly one ship (§4.2). |
 | 2.1 | 2026-08-27 | Added §2.7, promoting the NPC population from an implicit detail to a stated design pillar with an observation-dependent fidelity model; the MVP now includes it and cycle step 4. See §11.1 M13. |
 | 2.0 | 2026-08-27 | Restructured into eleven parts with hierarchical numbering; terminology unified with the architecture document; technical architecture extracted; Continuity material consolidated; normative conventions, non-goals, action catalogue, open questions and this change control section added. See §11.1. |

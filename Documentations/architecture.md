@@ -479,7 +479,7 @@ STAGES: tuple[Stage, ...] = (
 | 5 | Territory recompute | presence, influence | territory ownership, `TERRITORY_CHANGE` | §6.6 |
 | 6 | Mission lifecycle | faction needs, events | offers created/expired | §5.5 |
 | 7 | Psychohistory update | **aggregates only** | history variables, forecasts | §8.2, §8.3 |
-| 8 | Continuity interventions | clearance-scoped state | intervention budget, agent taskings | §9 |
+| 8 | Continuity interventions | clearance-scoped state | intervention budget, agent taskings | §9 (O(world), see 20) |
 | 9 | Event promotion | the day's events | promoted higher-scope events | §7.7 |
 | 10 | Chronicle & retention | promoted events | permanent records; drop expired partitions | §7.8, §8.10 |
 | 11 | Grant AP | player roster | `ap_ledger` grants, balances | §3.2 |
@@ -942,7 +942,7 @@ what would force a rewrite.
 | **P3 — MVP gameplay** | Ships, movement, fuel, scanning, station markets, simplified combat, the NPC population (aggregate everywhere, individuals where observed), teams, the three factions, local/team channels, basic territory (§10.1) | The first playable world |
 | **P4 — Depth** | Missions, reputation, defection, relays, digests, chronicle promotion | Makes the world feel persistent |
 | **P5 — History** | Psychohistory aggregates, forecasts, the Historical Institute, knowledge as a tradable resource (§8.8–§8.9) | Requires months of real event data to tune |
-| **P6 — The Continuity** | Hidden faction, clearance, recruitment, secret channels and operations (§9) | Deliberately last: it only means something once players have a history to deviate from, and it needs the anti-leak suite mature |
+| **P6 — The Continuity** | Hidden faction as an **AI first**: agents, cells, intervention budget and stage 8, with the anti-leak suite. Recruitment, clearance UI and the secret channel follow in P7 (§9.3, §10.3) | Deliberately last: it only means something once players have a history to deviate from. Shipping the AI first means the evidence players later find is real history rather than retrofitted |
 
 Feature flags let P5 and P6 code ship dark long before they are enabled.
 
@@ -1005,13 +1005,18 @@ Full records live in `docs/adr/`; this is the index with the essential trade-off
 | R6 | The daily tick is a single point of failure | A missed day is highly visible to every player | Resumable stages, alerting on `tick_runs` without `finished_at`, and a documented manual re-run procedure |
 | R7 | AP as the sole throttle may not deter multi-accounting | Unfair advantage, world distortion | Detection data collected from P1; policy response, not an architectural one |
 
-Open questions for design, not architecture:
+Design questions that were open against this architecture have all been answered, and are now settled architecture:
 
-1. Does the Continuity's intervention budget scale with world size or stay fixed? (Design Q4; affects whether stage 8
-   is O(world) or O(agents).)
-
-Three earlier questions have been answered by design and are now settled architecture:
-
+- **The Continuity's intervention budget scales with world extent** (§9.2), so tick stage 8 is **O(world)**, not
+  O(agents). It is written against the same region-shardable pattern as stages 3–6, which is what keeps R1's
+  mitigation applicable to it.
+- **The Continuity is NPC-operated before it recruits players** (§9.3), so its first release needs a working agent
+  AI and its tick stage, but no recruitment, clearance UI or secret channel. The anti-leak suite (13.3) is still
+  required from that first release, because NPC agents have covers to blow just as player agents do.
+- **Era transitions fire on sustained threshold crossings** (§8.11), never by operator action. There is therefore no
+  admin endpoint to advance an era, and the transition is a tick-stage output like any other.
+- **Unspent Action Points half-carry to a ceiling** (§3.2), so the daily grant is a *reset to a computed value*
+  rather than an addition; the ledger entry may be negative and the reconciliation in 7.3 must allow it.
 - **The scale ladder is final** at Galaxy → Region → System → Planet → Sector → Local (§2.2). `Level` is fixed at six
   members and the `ltree` label prefixes follow it.
 - **Forecasts are a public good of variable quality** (§8.3), so they are a **read model rendered per viewer**, never
