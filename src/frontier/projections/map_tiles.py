@@ -1,0 +1,128 @@
+"""Map tiles — the client never receives the whole world. GDD §10.4 C5, SDD §9.1.
+
+An undiscovered location is **absent** from the payload, not marked hidden: the payload itself
+must not reveal that something is there.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from frontier.adapters.db import models
+from frontier.domain.hex.coordinates import HexAddr, Level
+from frontier.domain.hex.geometry import addr_distance
+
+VISIBLE_KINDS = ("system", "station", "planet", "star")
+
+
+@dataclass(frozen=True, slots=True)
+class Tile:
+    path: str
+    level: int
+    world_day: int
+    entries: list[dict[str, Any]]
+
+    def etag(self) -> str:
+        material = json.dumps(
+            {"p": self.path, "d": self.world_day, "e": self.entries},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return '"' + hashlib.blake2b(material.encode(), digest_size=16).hexdigest() + '"'
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"path": self.path, "level": self.level, "world_day": self.world_day, "entries": self.entries}
+
+
+class MapTiles:
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    async def tile(
+        self, prefix: HexAddr, player_id: UUID, world_day: int, sensor_range: int, position: HexAddr | None
+    ) -> Tile:
+        known = await self._known(player_id)
+        rows = (
+            (
+                await self._s.execute(
+                    select(models.Location)
+                    .where(text("path <@ CAST(:prefix AS ltree)").bindparams(prefix=prefix.ltree()))
+                    .where(models.Location.level == int(prefix.level) + 1)
+                    .where(models.Location.kind.in_(VISIBLE_KINDS))
+                    .order_by(models.Location.path)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        control = await self._control(prefix)
+        entries = [
+            self._entry(row, control)
+            for row in rows
+            if row.id in known or self._in_sensor_range(row, position, sensor_range)
+        ]
+        return Tile(path=str(prefix), level=int(prefix.level), world_day=world_day, entries=entries)
+
+    def _entry(self, row: models.Location, control: dict[UUID, int]) -> dict[str, Any]:
+        entry: dict[str, Any] = {
+            "id": str(row.id),
+            "path": str(row.path),
+            "kind": row.kind,
+            "name": row.name,
+            "q": row.q,
+            "r": row.r,
+        }
+        if row.kind == "system" and row.id in control:
+            entry["controller"] = control[row.id]
+        if row.kind == "station" and "station_type" in row.attrs:
+            entry["station_type"] = row.attrs["station_type"]
+        return entry
+
+    def _in_sensor_range(self, row: models.Location, position: HexAddr | None, reach: int) -> bool:
+        if position is None or row.level != int(Level.PLANET):
+            return False
+        try:
+            return addr_distance(position, row.path) <= reach
+        except Exception:
+            return False
+
+    async def _known(self, player_id: UUID) -> set[UUID]:
+        rows = (
+            (
+                await self._s.execute(
+                    select(models.PlayerDiscovery.location_id).where(
+                        models.PlayerDiscovery.player_id == player_id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return set(rows)
+
+    async def _control(self, prefix: HexAddr) -> dict[UUID, int]:
+        rows = (
+            (
+                await self._s.execute(
+                    select(models.Territory)
+                    .join(models.Location, models.Location.id == models.Territory.system_id)
+                    .where(text("path <@ CAST(:prefix AS ltree)").bindparams(prefix=prefix.ltree()))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        best: dict[UUID, tuple[float, int]] = {}
+        for row in rows:
+            score = float(row.influence)
+            if score > best.get(row.system_id, (0.0, 0))[0]:
+                best[row.system_id] = (score, row.faction_id)
+        return {k: v[1] for k, v in best.items() if v[0] >= 0.5}

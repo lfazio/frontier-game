@@ -4,12 +4,27 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Response
 
+from frontier.adapters.api import schemas
 from frontier.adapters.api.deps import ContainerDep, CurrentPlayer
 from frontier.adapters.api.errors import rejection
-from frontier.adapters.api.schemas import CommandBody, MoveBody
+from frontier.adapters.api.schemas import CommandBody
 from frontier.application.commands.base import Command
+from frontier.application.commands.combat import AttackCommand, SetStandingOrdersCommand
 from frontier.application.commands.move import MoveCommand
+from frontier.application.commands.navigation import JumpCommand, ScanCommand
 from frontier.application.commands.send_message import Channel, SendMessageCommand
+from frontier.application.commands.teams import (
+    CreateTeamCommand,
+    JoinTeamCommand,
+    LeaveTeamCommand,
+)
+from frontier.application.commands.trade import (
+    DockCommand,
+    LaunchCommand,
+    RepairCommand,
+    TradeCommand,
+)
+from frontier.domain.fleet.standing_orders import Posture, StandingOrders
 from frontier.domain.hex.coordinates import HexAddr
 
 router = APIRouter(prefix="/v1", tags=["commands"])
@@ -22,7 +37,7 @@ async def submit(
     player_id: CurrentPlayer,
     c: ContainerDep,
 ) -> object:
-    result = await c.executor.execute(_build(body), player_id)
+    result = await c.executor.execute(build(body), player_id)
     if result.rejection is not None:
         return rejection(result.rejection)
     if result.replayed:
@@ -30,12 +45,53 @@ async def submit(
     return result.as_dict()
 
 
-def _build(body: CommandBody) -> Command:
-    if isinstance(body, MoveBody):
-        return MoveCommand(id=uuid4(), idempotency_key=body.idempotency_key, to=HexAddr.parse(body.to))
-    return SendMessageCommand(
-        id=uuid4(),
-        idempotency_key=body.idempotency_key,
-        channel=Channel(body.channel),
-        text=body.text,
-    )
+def build(body: CommandBody) -> Command:
+    """One place turns a validated request into a command; the union keeps it exhaustive."""
+    new_id, key = uuid4(), body.idempotency_key
+    match body:
+        case schemas.MoveBody():
+            return MoveCommand(id=new_id, idempotency_key=key, to=HexAddr.parse(body.to))
+        case schemas.JumpBody():
+            return JumpCommand(id=new_id, idempotency_key=key, to_system=HexAddr.parse(body.to_system))
+        case schemas.ScanBody():
+            return ScanCommand(id=new_id, idempotency_key=key)
+        case schemas.DockBody():
+            return DockCommand(id=new_id, idempotency_key=key, station_id=body.station_id)
+        case schemas.LaunchBody():
+            return LaunchCommand(id=new_id, idempotency_key=key)
+        case schemas.TradeBody():
+            return TradeCommand(
+                id=new_id,
+                idempotency_key=key,
+                commodity=body.commodity,
+                qty=body.qty,
+                selling=body.action == "sell",
+            )
+        case schemas.RepairBody():
+            return RepairCommand(id=new_id, idempotency_key=key)
+        case schemas.AttackBody():
+            return AttackCommand(id=new_id, idempotency_key=key, target_ship_id=body.target_ship_id)
+        case schemas.SendMessageBody():
+            return SendMessageCommand(
+                id=new_id, idempotency_key=key, channel=Channel(body.channel), text=body.text
+            )
+        case schemas.StandingOrdersBody():
+            return SetStandingOrdersCommand(
+                id=new_id,
+                idempotency_key=key,
+                orders=StandingOrders(
+                    posture=Posture(body.posture),
+                    engage_hostile=body.engage_hostile,
+                    engage_above_cargo=body.engage_above_cargo,
+                    retreat_at_hull_pct=body.retreat_at_hull_pct,
+                    auto_reply=body.auto_reply,
+                ),
+            )
+        case schemas.CreateTeamBody():
+            return CreateTeamCommand(
+                id=new_id, idempotency_key=key, name=body.name, faction_id=body.faction_id
+            )
+        case schemas.JoinTeamBody():
+            return JoinTeamCommand(id=new_id, idempotency_key=key, team_id=body.team_id)
+        case _:
+            return LeaveTeamCommand(id=new_id, idempotency_key=key)
