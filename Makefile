@@ -1,7 +1,7 @@
 .PHONY: install check lint types imports test test-int up down world tick migrate relay soak
 
 install:
-	uv sync --extra dev
+	uv sync
 
 check: lint types imports test
 

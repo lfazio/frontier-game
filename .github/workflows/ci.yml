@@ -30,11 +30,14 @@ jobs:
           --health-cmd "redis-cli ping" --health-interval 5s
           --health-timeout 5s --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - run: uv sync --extra dev
+          # Pinned so CI and developer machines resolve the same interpreter: a local 3.14
+          # against a CI 3.12 is how an environment-dependent failure hides.
+          python-version-file: .python-version
+      - run: uv sync
       - name: Lint
         run: |
           uv run ruff check src tests

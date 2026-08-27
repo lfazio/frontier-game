@@ -1,5 +1,9 @@
 """Map tiles — the client never receives the whole world. GDD §10.4 C5, SDD §9.1.
 
+A read model lives with the other SQL adapters, beside the feed: it is built by querying the
+database, so putting it in its own layer above `adapters` would only invert the dependency
+(*ARCH §16* sketches a separate `projections/` package; see SDD D-34).
+
 An undiscovered location is **absent** from the payload, not marked hidden: the payload itself
 must not reveal that something is there.
 """

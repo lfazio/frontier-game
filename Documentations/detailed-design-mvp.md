@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.7 |
+| Version | 0.8 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
@@ -1722,6 +1722,7 @@ mistake in this plan that would cost a rewrite.
 | D-31 | Missions are generated from where the world is under strain (raider pressure plus trade flow), not from a script. | *GDD §5.5*: the same situation should produce different work for different factions, without anyone authoring the conflict. | Yes |
 | D-32 | Reputation is clamped to ±100 in SQL on every write. | It is a standing, not a currency: an unbounded score would make late players permanently unreachable and early ones untouchable. | Yes |
 | D-33 | Defection moves the whole team, is a Universe-scope `HISTORIC` event, and costs 25 standing with the faction left behind. | *GDD §6.7* requires a major political event rather than a menu operation; the reputation cost is what makes it a decision. | Yes |
+| D-34 | Read models live in `adapters/db/` beside the repositories, not in a separate `projections/` package. | Every MVP read model is built by querying the database, so a package layered *below* `adapters` inverts the real dependency — and because the API routers call the read models, the two packages formed an import cycle that `import-linter` rejected. Diverges from the sketch in *ARCH §16*, which should be amended. | Yes |
 
 ---
 
@@ -1771,6 +1772,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.8 | 2026-08-27 | Fixed a layering violation that had broken the `Layers` import contract since P3: the map-tile read model moved from `projections/` to `adapters/db/` (D-34). Pinned the CI interpreter to match `.python-version`. |
 | 0.7 | 2026-08-27 | P4 delivered: event promotion and the permanent Chronicle with retention, mission generation from world pressure with accept/complete commands, reputation with clamped scores, and team defection as a Universe-scope event. Recorded D-29 to D-33. The tick now runs ten stages. |
 | 0.6 | 2026-08-27 | P3 delivered: cargo, dock/launch, markets and buy/sell, jump and journeys, scan and discovery, the encounter resolver with live NPC combat and queued player encounters, standing orders, teams, territory, the two-tier NPC population with archetype behaviour, map tiles with ETags, and the nightly soak. Recorded D-25 to D-28. |
 | 0.5 | 2026-08-27 | P2 delivered: the payload catalogue and validation, the partitioned `evt.events` log with deliveries and a transactional outbox, `resolve_audience`/`render_for`, the Redis relay, the WebSocket gateway, `send_message`, `GET /v1/feed`, and the digest stage. Recorded D-21 to D-24; D-19 is discharged. |

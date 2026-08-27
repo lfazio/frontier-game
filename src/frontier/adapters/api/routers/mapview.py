@@ -9,8 +9,8 @@ from fastapi import APIRouter, Header, Response
 from frontier.adapters.api.deps import ContainerDep, CurrentPlayer
 from frontier.adapters.api.errors import problem
 from frontier.adapters.db.feed import viewer_for
+from frontier.adapters.db.map_tiles import MapTiles
 from frontier.domain.hex.coordinates import HexAddr
-from frontier.projections.map_tiles import MapTiles
 
 router = APIRouter(prefix="/v1", tags=["map"])
 

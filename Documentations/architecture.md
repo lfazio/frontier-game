@@ -919,7 +919,7 @@ frontier/
 │   ├── simulation/
 │   │   ├── tick.py
 │   │   └── stages/                # one module per stage, idempotent
-│   ├── projections/               # map tiles, feeds, dashboard
+│   ├── adapters/db/…              # repositories *and* read models: map tiles, feeds, dashboard
 │   ├── psychohistory/             # aggregate-only bounded context [ADR-12]
 │   ├── continuity/                # imported by nobody           [ADR-13]
 │   ├── adapters/
