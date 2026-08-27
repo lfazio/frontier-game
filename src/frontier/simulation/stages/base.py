@@ -9,6 +9,13 @@ from frontier.adapters.clock import SystemClock
 from frontier.domain.rules.ruleset import RuleSet
 
 
+@dataclass(frozen=True, slots=True)
+class Features:
+    """Systems that ship dark until the world is old enough to tune them — GDD §10.3."""
+
+    psychohistory: bool = False
+
+
 @dataclass(slots=True)
 class TickContext:
     session: AsyncSession
@@ -16,6 +23,7 @@ class TickContext:
     rules: RuleSet
     clock: SystemClock
     rng_for: Any
+    features: Features = field(default_factory=Features)
     metrics: dict[str, int] = field(default_factory=dict)
 
 

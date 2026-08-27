@@ -19,3 +19,4 @@ class Settings(BaseSettings):
     jwt_ttl_seconds: int = 900
     tick_hour_utc: int = Field(default=4, ge=0, le=23)
     world_seed: str = "p0-fixture"
+    features_psychohistory: bool = False

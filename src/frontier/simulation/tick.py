@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from frontier.adapters.clock import SystemClock
 from frontier.adapters.db import models
 from frontier.domain.rules.ruleset import RuleSet
-from frontier.simulation.stages.base import Stage, TickContext
+from frontier.simulation.stages.base import Features, Stage, TickContext
 from frontier.simulation.stages.chronicle import ChronicleAndRetention
 from frontier.simulation.stages.digests import BuildDigests
 from frontier.simulation.stages.economy import EconomyStep
@@ -21,6 +21,7 @@ from frontier.simulation.stages.grant_ap import GrantActionPoints
 from frontier.simulation.stages.missions import MissionLifecycle
 from frontier.simulation.stages.population import NpcPopulation
 from frontier.simulation.stages.promotion import EventPromotion
+from frontier.simulation.stages.psychohistory import PsychohistoryUpdate
 from frontier.simulation.stages.settle_travel import SettleTravel
 from frontier.simulation.stages.territory import TerritoryRecompute
 
@@ -35,6 +36,7 @@ TICK_STAGES: tuple[Stage, ...] = (
     NpcPopulation(),  # ARCH stage 4, NPC half only
     TerritoryRecompute(),  # ARCH stage 5
     MissionLifecycle(),  # ARCH stage 6
+    PsychohistoryUpdate(),  # ARCH stage 7
     EventPromotion(),  # ARCH stage 9
     ChronicleAndRetention(),  # ARCH stage 10
     GrantActionPoints(),  # ARCH stage 11
@@ -55,12 +57,18 @@ class TickReport:
 
 class TickRunner:
     def __init__(
-        self, sessions: async_sessionmaker[AsyncSession], rules: RuleSet, clock: SystemClock, rng_for: Any
+        self,
+        sessions: async_sessionmaker[AsyncSession],
+        rules: RuleSet,
+        clock: SystemClock,
+        rng_for: Any,
+        features: Features | None = None,
     ) -> None:
         self._sessions = sessions
         self._rules = rules
         self._clock = clock
         self._rng_for = rng_for
+        self._features = features or Features()
 
     async def run(self, stages: tuple[Stage, ...] = TICK_STAGES) -> TickReport:
         async with self._sessions() as session:
@@ -128,7 +136,12 @@ class TickRunner:
                 return already
 
             ctx = TickContext(
-                session=session, world_day=day, rules=self._rules, clock=self._clock, rng_for=self._rng_for
+                session=session,
+                world_day=day,
+                rules=self._rules,
+                clock=self._clock,
+                rng_for=self._rng_for,
+                features=self._features,
             )
             metrics = await stage.run(ctx)
             session.add(models.TickStage(world_day=day, stage=stage.name, metrics=metrics))
