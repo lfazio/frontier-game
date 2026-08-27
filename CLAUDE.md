@@ -12,6 +12,8 @@ and say so.
 | --- | --- |
 | `Documentations/game-design.md` (v2.0) | **What the game does.** Normative for behaviour. Cited as `§n.m`. |
 | `Documentations/architecture.md` (v0.1) | **How it is built.** Normative for structure. Cited as `ARCH §n`. |
+| `Documentations/detailed-design-mvp.md` (v0.1) | **How the MVP is built.** Module, schema, API and algorithm
+detail for phases P0–P3. Cited as `SDD §n`. |
 
 Where they disagree, the design document wins on behaviour and the architecture document wins on implementation —
 and one of them needs amending. Neither is aspirational notes: read the relevant sections before implementing.
@@ -33,6 +35,8 @@ Rationale and rejected alternatives are in `ARCH §4`; the enforced package layo
 | Psychohistory and history | §8 | §12.1, ADR-12 |
 | The Continuity (hidden faction) | §9 | §12.1, §13.3, ADR-13 |
 | MVP scope / deferred systems | §10.1, §10.2 | §17, §18 |
+| MVP tables, endpoints, commands, tick stages | — | SDD §4, §5, §6, §8 |
+| MVP task breakdown and acceptance criteria | — | SDD §1.2, §15 |
 | Design constraints on implementation | §10.4 (C1–C10) | throughout |
 | Open design questions | §11.2 (Q1–Q8) | §20 |
 
