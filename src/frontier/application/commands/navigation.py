@@ -55,7 +55,12 @@ class JumpCommand:
         if self.to_system.contains(state.ship.position):
             return Rejected(RejectionCode.NOT_ADJACENT, {"reason": "already in that system"})
 
-        ap_cost, fuel_cost, _ = self._cost(state, rules)
+        ap_cost, fuel_cost, light_years = self._cost(state, rules)
+        if light_years > state.ship.jump_range_ly:
+            return Rejected(
+                RejectionCode.BEYOND_JUMP_RANGE,
+                {"distance_ly": light_years, "range_ly": state.ship.jump_range_ly},
+            )
         if state.player.ap_balance < ap_cost:
             return Rejected(RejectionCode.INSUFFICIENT_AP, {"need": ap_cost})
         if state.ship.fuel < fuel_cost:

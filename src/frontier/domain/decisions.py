@@ -38,6 +38,7 @@ class RejectionCode(StrEnum):
     MISSION_TAKEN = "MISSION_TAKEN"
     WRONG_FACTION = "WRONG_FACTION"
     NOT_AT_MISSION_SITE = "NOT_AT_MISSION_SITE"
+    BEYOND_JUMP_RANGE = "BEYOND_JUMP_RANGE"
 
 
 @dataclass(frozen=True, slots=True)

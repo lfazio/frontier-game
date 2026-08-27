@@ -2,6 +2,7 @@ sensor_range_base = 3
 radio_range_base = 5
 fuel_per_hex = 1
 fuel_per_jump_ly = 2
+jump_range_default_ly = 8
 shield_regen_per_cycle = 10
 hull_repair_cost_per_point = 12
 territory_control_threshold = 0.50

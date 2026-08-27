@@ -24,6 +24,7 @@ class Ship:
     sensor_range: int
     shields: int = 0
     shields_max: int = 0
+    jump_range_ly: int = 8
     docked_at: UUID | None = None
     in_transit: bool = False
     destroyed_on: int | None = None
