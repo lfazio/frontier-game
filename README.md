@@ -22,6 +22,19 @@ is a merge gate.
 Both the historical model and the Continuity ship dark, behind `FEATURES_PSYCHOHISTORY` and
 `FEATURES_CONTINUITY`.
 
+## Watching a world
+
+The quickest way to see the game is watch mode — a spectator view of a real server, no account
+needed. It is deliberately weaker than any player's view: the star chart, who holds it, and
+events that already carry across a whole system.
+
+```sh
+make up && make migrate
+make demo      # a world with eight pilots and fifty cycles of history
+make serve     # API on :8000
+make client    # browser client on :5173
+```
+
 ## Running it
 
 ```sh
@@ -35,7 +48,7 @@ make relay          # publish committed events to Redis
 make soak           # 60-cycle simulation, nightly rather than per-commit
 
 # The historical model ships dark; enable it with FEATURES_PSYCHOHISTORY=true.
-uv run uvicorn frontier.adapters.api.app:app --reload
+make serve
 ```
 
 `make check` is the gate: `ruff`, `mypy --strict` over `domain` and `application`, `import-linter`
