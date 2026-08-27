@@ -14,7 +14,6 @@ from frontier.domain.hex.coordinates import HexAddr
 
 class ClockPort(Protocol):
     def now(self) -> datetime: ...
-    def world_day(self) -> int: ...
 
 
 class RngPort(Protocol):
@@ -33,7 +32,9 @@ class Player(Protocol):
 
 class PlayerRepo(Protocol):
     async def get_for_update(self, player_id: UUID) -> Player: ...
-    async def debit_ap(self, player_id: UUID, amount: int, command_id: UUID, reason: str) -> None: ...
+    async def debit_ap(
+        self, player_id: UUID, amount: int, command_id: UUID, reason: str, world_day: int
+    ) -> None: ...
 
 
 class ShipRepo(Protocol):
@@ -65,6 +66,7 @@ class EventSink(Protocol):
 
 class WorldState(Protocol):
     async def phase(self) -> str: ...
+    async def world_day(self) -> int: ...
 
 
 class UnitOfWork(Protocol):

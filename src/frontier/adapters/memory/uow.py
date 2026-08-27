@@ -19,7 +19,9 @@ class _Players:
     async def get_for_update(self, player_id: UUID) -> object:
         return self._w.players[player_id]
 
-    async def debit_ap(self, player_id: UUID, amount: int, command_id: UUID, reason: str) -> None:
+    async def debit_ap(
+        self, player_id: UUID, amount: int, command_id: UUID, reason: str, world_day: int
+    ) -> None:
         player = self._w.players[player_id]
         if player.ap_balance < amount:
             raise ValueError("ap_balance would go negative")
@@ -86,6 +88,9 @@ class _WorldState:
 
     async def phase(self) -> str:
         return self._w.phase
+
+    async def world_day(self) -> int:
+        return self._w.world_day
 
 
 class MemoryUnitOfWork:

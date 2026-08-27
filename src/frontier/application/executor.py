@@ -69,22 +69,23 @@ class Executor:
             if await uow.world.phase() == "ticking":
                 raise WorldTicking
 
+            day = await uow.world.world_day()
             state = await self._load(uow, command, player_id)
             decision = command.check(state, self.rules)
 
             if isinstance(decision, Rejected):
-                await self._record(uow, command, player_id, "rejected", decision)
+                await self._record(uow, command, player_id, "rejected", decision, day)
                 await uow.commit()
                 return CommandResult(status="rejected", events=[], rejection=decision)
 
             drafts = command.apply(state, decision, self.rules, self.rng)
-            events = self._stamp(drafts)
+            events = self._stamp(drafts, day)
 
-            await uow.players.debit_ap(player_id, decision.ap_cost, command.id, command.action)
+            await uow.players.debit_ap(player_id, decision.ap_cost, command.id, command.action, day)
             if state.ship is not None:
                 await uow.ships.save(state.ship)
             await uow.events.append(events)
-            await self._record(uow, command, player_id, "accepted", decision)
+            await self._record(uow, command, player_id, "accepted", decision, day)
             await uow.commit()
             return CommandResult(status="accepted", events=events)
 
@@ -95,8 +96,8 @@ class Executor:
         known = {str(addr) for addr in spec.resolve if await uow.locations.exists(addr)}
         return State(player=player, ship=ship, known_addresses=frozenset(known))
 
-    def _stamp(self, drafts: list[Any]) -> list[Event]:
-        now, day = self.clock.now(), self.clock.world_day()
+    def _stamp(self, drafts: list[Any], day: int) -> list[Event]:
+        now = self.clock.now()
         return [
             Event(
                 id=self.ids.new(),
@@ -115,7 +116,13 @@ class Executor:
         ]
 
     async def _record(
-        self, uow: UnitOfWork, command: Command, player_id: UUID, status: str, decision: Accepted | Rejected
+        self,
+        uow: UnitOfWork,
+        command: Command,
+        player_id: UUID,
+        status: str,
+        decision: Accepted | Rejected,
+        day: int,
     ) -> None:
         outcome: dict[str, object] = (
             {"ap_cost": decision.ap_cost, "fuel_cost": decision.fuel_cost}
@@ -128,6 +135,6 @@ class Executor:
             command.action,
             status,
             outcome,
-            self.clock.world_day(),
+            day,
             self.rules.version,
         )

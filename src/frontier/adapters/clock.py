@@ -10,28 +10,20 @@ from uuid import UUID
 
 
 class SystemClock:
-    def __init__(self, epoch: datetime, world_day: int | None = None) -> None:
-        self._epoch = epoch
-        self._forced_day = world_day
+    """The world day is world state, not clock state: it comes from `core.world_state`."""
 
     def now(self) -> datetime:
         return datetime.now(UTC)  # noqa: TID251 — the adapter is the exception ARCH ADR-6 allows
 
-    def world_day(self) -> int:
-        if self._forced_day is not None:
-            return self._forced_day
-        return (self.now() - self._epoch).days
-
 
 class SeededRng:
-    """Deterministic per-entity randomness — ARCH §9.3."""
+    """Deterministic randomness. Callers pass the world day as the first part — ARCH §9.3."""
 
-    def __init__(self, world_seed: str, world_day_source: SystemClock) -> None:
+    def __init__(self, world_seed: str) -> None:
         self._seed = world_seed
-        self._clock = world_day_source
 
     def for_(self, *parts: str | int) -> Random:
-        material = "|".join([self._seed, str(self._clock.world_day()), *map(str, parts)])
+        material = "|".join([self._seed, *map(str, parts)])
         return Random(blake2b(material.encode(), digest_size=8).hexdigest())
 
 

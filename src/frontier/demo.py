@@ -28,7 +28,7 @@ async def main() -> None:
     ship = Ship(id=uuid4(), player_id=player.id, position=starting_position(), **STARTING_SHIP)
     world.ships[ship.id] = ship
 
-    print(f"ruleset {rules.version}   world day {container.clock.world_day()}")
+    print(f"ruleset {rules.version}   world day {world.world_day}")
     print(f"start    {ship.position}  ap={player.ap_balance} fuel={ship.fuel}\n")
 
     for step in range(12):

@@ -46,6 +46,7 @@ class World:
     commands: dict[tuple[UUID, UUID], dict[str, object]] = field(default_factory=dict)
     events: list[Event] = field(default_factory=list)
     phase: str = "open"
+    world_day: int = 0
 
     def ship_of(self, player_id: UUID) -> Ship:
         return next(s for s in self.ships.values() if s.player_id == player_id)
