@@ -29,6 +29,8 @@ class StateSpec:
     orders: bool = False
     team: bool = False
     team_id: UUID | None = None
+    mission: bool = False
+    mission_id: UUID | None = None
     resolve: tuple[HexAddr, ...] = ()
 
 
@@ -55,6 +57,7 @@ class State:
     station: Station | None = None
     market: dict[str, MarketLine] | None = None
     team: TeamRef | None = None
+    mission: MissionRef | None = None
     contacts: list[Contact] = field(default_factory=list)
     nearby: list[NearbyLocation] = field(default_factory=list)
     known_addresses: frozenset[str] = field(default_factory=frozenset)
@@ -68,6 +71,21 @@ class State:
     orders_changed: bool = False
     combat_result: tuple[UUID, int, int] | None = None
     team_change: tuple[str, str, int] | None = None
+    mission_change: tuple[str, UUID] | None = None
+    reputation_change: tuple[int, int] | None = None
+    defection: int | None = None
+
+
+@dataclass(slots=True)
+class MissionRef:
+    id: UUID
+    kind: str
+    faction_id: int
+    system_path: str
+    reward_credits: int
+    reward_reputation: int
+    assigned: bool
+    mine: bool
 
 
 @dataclass(slots=True)

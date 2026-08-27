@@ -15,6 +15,7 @@ from frontier.adapters.db import models
 from frontier.application.commands.base import (
     Contact,
     MarketLine,
+    MissionRef,
     NearbyLocation,
     State,
     StateSpec,
@@ -53,6 +54,8 @@ class SqlStateStore:
             state.known_systems = await self._known_systems(player_id)
         if spec.orders:
             state.orders = await self._orders(player_id)
+        if spec.mission and spec.mission_id is not None:
+            state.mission = await self._mission_ref(spec.mission_id, player_id)
         if spec.team and spec.team_id is not None:
             state.team = await self._team_ref(spec.team_id)
         if spec.resolve:
@@ -91,6 +94,14 @@ class SqlStateStore:
                 .where(models.Ship.id == ship_id)
                 .values(hull=hull, shields=shields, destroyed_on=await self._day() if hull <= 0 else None)
             )
+        if state.mission_change is not None:
+            await self._apply_mission_change(state)
+        if state.defection is not None:
+            await self._defect(state)
+        if state.reputation_change is not None:
+            faction_id, delta = state.reputation_change
+            if faction_id:
+                await self._adjust_reputation(state.player.id, faction_id, delta)
         if state.team_change is not None:
             await self._apply_team_change(state)
         if state.market is not None:
@@ -360,6 +371,90 @@ class SqlStateStore:
         ).scalar_one_or_none()
         if remaining is None:
             await self._s.execute(text("DELETE FROM core.teams WHERE id = :id").bindparams(id=team_id))
+
+    async def _mission_ref(self, mission_id: UUID, player_id: UUID) -> MissionRef | None:
+        row = (
+            await self._s.execute(select(models.Mission).where(models.Mission.id == mission_id))
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        assignments = (
+            (
+                await self._s.execute(
+                    select(models.MissionAssignment).where(
+                        models.MissionAssignment.mission_id == mission_id,
+                        models.MissionAssignment.status == "active",
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        system_path = (
+            await self._s.execute(select(models.Location.path).where(models.Location.id == row.system_id))
+        ).scalar_one()
+        return MissionRef(
+            id=row.id,
+            kind=row.kind,
+            faction_id=row.faction_id,
+            system_path=str(system_path),
+            reward_credits=row.reward_credits,
+            reward_reputation=row.reward_reputation,
+            assigned=bool(assignments),
+            mine=any(a.player_id == player_id for a in assignments),
+        )
+
+    async def _apply_mission_change(self, state: State) -> None:
+        assert state.mission_change is not None and state.mission is not None
+        kind, mission_id = state.mission_change
+        day = await self._day()
+        if kind == "accept":
+            self._s.add(
+                models.MissionAssignment(mission_id=mission_id, player_id=state.player.id, accepted_on=day)
+            )
+            return
+
+        await self._s.execute(
+            update(models.MissionAssignment)
+            .where(
+                models.MissionAssignment.mission_id == mission_id,
+                models.MissionAssignment.player_id == state.player.id,
+            )
+            .values(status="complete", closed_on=day)
+        )
+        await self._s.execute(
+            update(models.Player)
+            .where(models.Player.id == state.player.id)
+            .values(credits=state.player.credits)
+        )
+        await self._adjust_reputation(
+            state.player.id, state.mission.faction_id, state.mission.reward_reputation
+        )
+
+    async def _defect(self, state: State) -> None:
+        assert state.defection is not None and state.player.team_id is not None
+        day = await self._day()
+        await self._s.execute(
+            update(models.Team)
+            .where(models.Team.id == state.player.team_id)
+            .values(faction_id=state.defection, defected_on=day)
+        )
+        await self._s.execute(
+            update(models.Player)
+            .where(models.Player.team_id == state.player.team_id)
+            .values(faction_id=state.defection)
+        )
+
+    async def _adjust_reputation(self, player_id: UUID, faction_id: int, delta: int) -> None:
+        """Reputation is earned by action and clamped, so it can never run away — GDD §6.7."""
+        await self._s.execute(
+            text(
+                "INSERT INTO core.reputation (player_id, faction_id, score) "
+                "VALUES (:player, :faction, GREATEST(-100, LEAST(100, :delta))) "
+                "ON CONFLICT (player_id, faction_id) DO UPDATE "
+                "SET score = GREATEST(-100, LEAST(100, core.reputation.score + :delta))"
+            ).bindparams(player=player_id, faction=faction_id, delta=delta)
+        )
 
 
 def to_domain(row: models.Ship) -> Ship:
