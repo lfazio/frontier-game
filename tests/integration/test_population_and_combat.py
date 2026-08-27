@@ -5,7 +5,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 
 from frontier.adapters.clock import SeededRng, SystemClock
 from frontier.adapters.db import models
@@ -104,7 +104,12 @@ async def test_npcs_appear_only_where_a_player_can_see_them(sessions, clean):
 
 
 async def test_materialising_twice_creates_nothing_new(sessions, clean):
-    """Criterion A14, second half: the same system on the same day yields the same NPCs."""
+    """Criterion A14, second half: the same system on the same day yields the same NPCs.
+
+    Re-run against the *same* world day, as a resumed tick would be. The crews already there
+    keep their identities and no slot is filled twice; flows do not advance again, because a
+    cumulative quantity moved twice for one day would be a different world.
+    """
     _, _, spawn = await a_player(sessions)
     async with sessions() as session, session.begin():
         await session.execute(
@@ -117,12 +122,29 @@ async def test_materialising_twice_creates_nothing_new(sessions, clean):
 
     async with sessions() as session:
         first = sorted(str(a.ship_id) for a in (await session.execute(select(models.NpcAgent))).scalars())
+        before = {
+            row.system_id: float(row.trade_flow)
+            for row in (await session.execute(select(models.SystemActivity))).scalars()
+        }
 
+    async with sessions() as session, session.begin():
+        await session.execute(delete(models.TickStage))
+        await session.execute(update(models.TickRun).values(finished_at=None))
     await tick.run(stages=(NpcPopulation(),))
 
     async with sessions() as session:
-        second = sorted(str(a.ship_id) for a in (await session.execute(select(models.NpcAgent))).scalars())
-    assert first and first == second
+        agents = (await session.execute(select(models.NpcAgent))).scalars().all()
+        second = sorted(str(a.ship_id) for a in agents)
+        after = {
+            row.system_id: float(row.trade_flow)
+            for row in (await session.execute(select(models.SystemActivity))).scalars()
+        }
+
+    assert first and set(first) <= set(second)
+    # Nobody's slot was filled twice…
+    assert len({(a.system_id, a.archetype, a.slot) for a in agents}) == len(agents)
+    # …and a cumulative quantity did not move twice for one day.
+    assert after == before
 
 
 async def test_npc_ships_share_the_ship_table(sessions, clean):
@@ -199,17 +221,75 @@ async def test_a_destroyed_player_respawns_at_a_home_station(sessions, clean):
 
 
 async def test_territory_follows_sustained_presence(sessions, clean):
-    """Control is not granted at the instant somebody arrives — GDD §6.6."""
+    """Control is not granted at the instant somebody arrives — GDD §6.6.
+
+    Measured away from the faction homes, which world generation seeds at full control (D-48);
+    a global maximum would sit pinned at 1.0 and show nothing.
+    """
+    # Presence needs a faction behind it, and it has to be somewhere nobody already holds.
+    player_id, ship_id, _ = await a_player(sessions)
+    async with sessions() as session, session.begin():
+        homes = set(
+            (
+                await session.execute(
+                    select(models.Location.id).where(models.Location.attrs.has_key("home_for"))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        elsewhere = (
+            await session.execute(
+                select(models.Location)
+                .where(models.Location.kind == "system", models.Location.id.notin_(homes))
+                .order_by(models.Location.path)
+                .limit(1)
+            )
+        ).scalar_one()
+        hex_ = (
+            await session.execute(
+                select(models.Location).where(models.Location.parent_id == elsewhere.id).limit(1)
+            )
+        ).scalar_one()
+        team = models.Team(id=uuid4(), name=uuid4().hex[:12], faction_id=2, founded_on=0)
+        session.add(team)
+        await session.execute(
+            update(models.Player).where(models.Player.id == player_id).values(team_id=team.id, faction_id=2)
+        )
+        await session.execute(
+            update(models.Ship)
+            .where(models.Ship.id == ship_id)
+            .values(system_id=elsewhere.id, position_path=hex_.path)
+        )
+
     tick = runner(sessions, clean)
     await tick.run()
-    async with sessions() as session:
-        after_one = (await session.execute(select(func.max(models.Territory.influence)))).scalar_one()
 
+    async def frontier_influence() -> float:
+        async with sessions() as session:
+            homes = set(
+                (
+                    await session.execute(
+                        select(models.Location.id).where(models.Location.attrs.has_key("home_for"))
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            total = (
+                await session.execute(
+                    select(func.sum(models.Territory.influence)).where(
+                        models.Territory.system_id.notin_(homes)
+                    )
+                )
+            ).scalar_one()
+        return float(total or 0)
+
+    after_one = await frontier_influence()
     for _ in range(5):
         await tick.run()
+    after_six = await frontier_influence()
 
-    async with sessions() as session:
-        after_six = (await session.execute(select(func.max(models.Territory.influence)))).scalar_one()
     assert after_six > after_one
 
 

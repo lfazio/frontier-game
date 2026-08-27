@@ -183,3 +183,42 @@ def test_a_forecast_never_reports_who_moved_the_needle(client, clean):
     assert asyncio.run(intervene()) >= 0
     body = json.dumps(client.get("/v1/forecasts", headers=headers).json()).lower()
     assert not [word for word in SECRETS if word in body]
+
+
+def test_a_spectator_learns_strictly_less_than_a_player(client, clean):
+    """Watch mode must never become an intelligence tool — UX §9."""
+    headers = register(client)
+    overview = client.get("/v1/watch/overview").json()
+    position = HexAddr.parse(client.get("/v1/me", headers=headers).json()["ship"]["position"])
+    system, region = position.parent(), position.parent().parent()
+
+    spectator_system = client.get(f"/v1/watch/map?path={system}").json()["entries"]
+    player_system = client.get(f"/v1/map/tiles?path={system}", headers=headers).json()["entries"]
+
+    assert overview["world_day"] >= 0
+    # A spectator has no sight, so a system's interior is empty for it and not for a player.
+    assert spectator_system == []
+    assert player_system
+
+    spectator_region = {e["path"] for e in client.get(f"/v1/watch/map?path={region}").json()["entries"]}
+    player_region = {
+        e["path"] for e in client.get(f"/v1/map/tiles?path={region}", headers=headers).json()["entries"]
+    }
+    assert spectator_region <= player_region
+
+
+def test_the_spectator_feed_carries_nothing_local_and_nothing_private(client, clean):
+    register(client)
+    body = client.get("/v1/watch/feed").json()
+    assert all(event["scope"] >= 2 for event in body["events"])
+    assert not [word for word in SECRETS if word in json.dumps(body).lower()]
+    for event in body["events"]:
+        assert "ship_id" not in event["payload"]
+        assert "text" not in event["payload"]
+
+
+def test_watch_mode_can_be_switched_off_entirely(clean):
+    dark = clean.model_copy(update={"features_watch": False})
+    with TestClient(create_app(build_sql(dark))) as spectator:
+        assert spectator.get("/v1/watch/overview").status_code == 404
+        assert spectator.get("/v1/watch/feed").status_code == 404

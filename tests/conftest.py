@@ -79,6 +79,9 @@ async def clean(db_settings: Settings) -> Settings:
         for table in PLAYER_TABLES:
             await conn.execute(text(f"DELETE FROM {table}"))
         await conn.execute(text("UPDATE core.world_state SET world_day = 0, phase = 'open'"))
+        # The world day goes backwards here, which nothing else in the game does; the
+        # population's own "already simulated" marker has to come back with it.
+        await conn.execute(text("UPDATE core.system_activity SET last_simulated_on = -1"))
     await engine.dispose()
     if not populated:
         await build_world(db_settings, force=True)
