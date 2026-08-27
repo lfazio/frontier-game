@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.9 |
+| Version | 0.10 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
@@ -686,6 +686,7 @@ alone:
 | `0010_missions_and_reputation` | P4 | missions, mission_assignments, reputation, `teams.defected_on` |
 | `0011_psychohistory` | P5 | `psycho` schema: aggregate views, history_variables, forecasts, the `psycho_reader` role |
 | `0012_knowledge` | P5 | `players.knowledge` |
+| `0013_jump_range` | P5 | `ships.jump_range_ly` |
 | `0003_tick_bookkeeping` | P1 | `hist` schema, tick_runs, tick_stages |
 | `0004_event_spine` | P2 | events (partitioned), deliveries, outbox, first partitions |
 | `0006_economy` | P3 | markets |
@@ -1724,6 +1725,10 @@ mistake in this plan that would cost a rewrite.
 | D-31 | Missions are generated from where the world is under strain (raider pressure plus trade flow), not from a script. | *GDD §5.5*: the same situation should produce different work for different factions, without anyone authoring the conflict. | Yes |
 | D-32 | Reputation is clamped to ±100 in SQL on every write. | It is a standing, not a currency: an unbounded score would make late players permanently unreachable and early ones untouchable. | Yes |
 | D-33 | Defection moves the whole team, is a Universe-scope `HISTORIC` event, and costs 25 standing with the faction left behind. | *GDD §6.7* requires a major political event rather than a menu operation; the reputation cost is what makes it a decision. | Yes |
+| D-39 | The wreck fee is `floor(credits × rescue_tax_fraction)`, not a flat sum, and is framed as salvage for the life capsule. | S1. A flat penalty is noise to a veteran and ruin to a newcomer; a share scales with means and can never leave a pilot unable to fly. The fraction is `[BALANCE]` inside a 3–10 % band. | Yes |
+| D-40 | A jump is bounded by the hull's `jump_range_ly` as well as by fuel, refused with `BEYOND_JUMP_RANGE`. | S3. Range becomes a property of the ship a player chose, so hulls differ in reach and not merely in tank size. | Yes |
+| D-41 | Materialised NPCs are never dissolved; every agent acts each cycle, observed or not. | S5. Dissolution made a system's inhabitants a function of who was watching, contradicting the persistence *GDD §2.7* promises. Cost now scales with the *explored* world; the per-system archetype caps bound it, and R1 is the trigger to revisit. | Yes |
+| D-42 | A player may hold no team; `players.team_id` and `faction_id` stay nullable and paired by a CHECK. | S2. Independence is a way to play, not an unfinished registration — so `leave_team` remains, and a player without a faction simply sees no faction missions. | No |
 | D-35 | The Model reads only `psycho` views, and the `psycho_reader` role holds no privilege on `core` or `evt`. | *GDD §8.4* — populations, never individuals — becomes a property of the grants rather than of every future author remembering it (*ARCH ADR-12*). Proved by tests that assert `permission denied` for players, ships, events and reputation. | No |
 | D-36 | `Observation` carries no identifying field, and a test asserts its exact field set. | The database boundary stops a query; this stops a *signature* from ever being widened to accept a player in the first place. | No |
 | D-37 | Psychohistory ships behind `FEATURES_PSYCHOHISTORY`, default off, and `/v1/forecasts` returns 404 while dark. | *GDD §10.3*: the variables cannot be tuned against a world with no history. A 404 rather than a 403 keeps the unbuilt system from advertising itself. | Yes |
@@ -1734,11 +1739,20 @@ mistake in this plan that would cost a rewrite.
 
 # 17. Open questions
 
-Blocking, with the MVP's working assumption. Every *GDD §11.2* question that reaches the MVP has now been
-answered; what remains are questions this document raised.
+**None outstanding.** Every question this document raised (S1–S6) and every *GDD §11.2* question that reaches the
+MVP has been answered; the answers are recorded in §16 and in the sections they settle. New questions belong here as
+they surface.
 
-| # | Question | MVP assumption | Blocks |
-| --- | --- | --- | --- |
+| Answered | Question | Answer |
+| --- | --- | --- |
+| S1 | What does a destroyed player lose? | The hull and its cargo, plus a **salvage tax** — a share of credits `[BALANCE]`, currently 5 % within an agreed 3–10 % band — charged for recovering the life capsule (D-39) |
+| S2 | Can a player exist without a team? | Yes. Until they join or found one they are **independent**: no faction, no faction standing, no faction missions (*GDD §6.5*) |
+| S3 | Is jump range limited by fuel alone? | No — also by the hull's own `jump_range_ly` (D-40) |
+| S4 | Starting endowment | One light freighter, 5 000 cr, full tank `[BALANCE]` |
+| S5 | How long does an NPC persist once unobserved? | Indefinitely. Materialisation is one-way and the server keeps playing them (D-41) |
+| S6 | May a player see aggregate figures for a system they have not visited? | No. Density is qualitative; precise figures are a Knowledge matter (*GDD §8.9*) |
+
+--- | --- | --- | --- |
 | S1 | What does a destroyed player lose? | Respawn at faction home, base hull, empty cargo, credit penalty `[BALANCE]` | Task 3.5 |
 | S2 | Can a player exist without a team? | No — registration requires creating or joining one | Task 3.7, faction denormalisation |
 | S3 | Is jump range limited by fuel alone, or also by a maximum per jump? | Fuel alone in the MVP | Task 3.2 |
@@ -1778,6 +1792,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.10 | 2026-08-27 | Design answers S1–S6 applied: salvage tax as a share of credits, hull-bound jump range, NPC persistence replacing dissolution, and independence confirmed for unteamed players. §17 is now empty. Recorded D-39 to D-42. |
 | 0.9 | 2026-08-27 | P5 delivered: the `psycho` schema with aggregate-only views and a reader role that cannot see individuals, the pure historical model (variables, inertia, deviation, confidence, forecasts), tick stage 7 behind a feature flag, Knowledge earned by discovery, and `GET /v1/forecasts` disclosed per viewer. Recorded D-35 to D-38. |
 | 0.8 | 2026-08-27 | Fixed a layering violation that had broken the `Layers` import contract since P3: the map-tile read model moved from `projections/` to `adapters/db/` (D-34). Pinned the CI interpreter to match `.python-version`. |
 | 0.7 | 2026-08-27 | P4 delivered: event promotion and the permanent Chronicle with retention, mission generation from world pressure with accept/complete commands, reputation with clamped scores, and team defection as a Universe-scope event. Recorded D-29 to D-33. The tick now runs ten stages. |

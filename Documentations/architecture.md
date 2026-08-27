@@ -5,10 +5,10 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.2 |
+| Version | 0.3 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
-| Normative source | `Documentations/game-design.md` v2.3 (cited as §n) |
+| Normative source | `Documentations/game-design.md` v2.4 (cited as §n) |
 | Companion | `Documentations/detailed-design-mvp.md` — MVP detail for phases P0–P3 |
 | Audience | Server, client and infrastructure engineers; technical reviewers |
 
@@ -999,7 +999,7 @@ Full records live in `docs/adr/`; this is the index with the essential trade-off
 | ADR-12 | Psychohistory reads aggregate views under a restricted database role | §8.4 enforced by grants rather than by code review |
 | ADR-13 | Continuity in its own schema, no inbound imports, allowlist serialisation, uniform error and timing behaviour | §9.4 becomes a testable property (13.3) instead of an aspiration |
 | ADR-14 | PostgreSQL `ltree` for the location hierarchy, plus per-level axial columns | Indexed containment queries. The ladder is fixed at six levels (§2.2), and labels use two-letter prefixes (`ga`, `re`, `sy`, `pl`, `se`, `lo`) because System and Sector collide on their first letter |
-| ADR-15 | The NPC population is simulated at two fidelities — aggregate flows in every system, individual ships only where observed, with materialisation and dissolution between them | The tick cost stops depending on world size while the galaxy still evolves everywhere (§2.7); and the aggregate layer is the same quantity psychohistory later measures (§8.5), so the two are not built twice. Costs a written-back reconciliation between tiers, tested as an invariant (13) |
+| ADR-15 | The NPC population is simulated at two fidelities — aggregate flows in every system, and individual ships in every system a player has ever visited. Materialisation is one-way: crews are never dissolved (§2.7) | The tick cost follows the *explored* world rather than the whole one, while the galaxy still evolves everywhere (§2.7); and the aggregate layer is the same quantity psychohistory later measures (§8.5), so the two are not built twice. Costs a written-back reconciliation between tiers, tested as an invariant (13), and an individual population that grows with exploration — capped per system, and revisited if R1 bites |
 | ADR-16 | Forecasts are a read model rendered per viewer, never an inventory item | §8.3 makes them a public good whose *quality* varies with the viewer's Knowledge, which is `render_for` (7.4) applied to one more payload rather than a second entitlement system |
 
 ---
@@ -1056,6 +1056,7 @@ remains, and it does not touch this architecture until teams can own things:
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.3 | 2026-08-27 | Tracks *GDD* v2.4: ADR-15 amended — materialisation is one-way and NPCs are never dissolved, so the individual population follows exploration rather than live observation. |
 | 0.2 | 2026-08-27 | Tracks *GDD* v2.3. Added the Population bounded context and driver F10, and split tick stage 4 into an O(world) aggregate half and an O(observed) individual half (ADR-15). Recorded the settled scale ladder and the two-letter `ltree` prefixes (ADR-14) and forecasts as a per-viewer read model (ADR-16). Moved the answered design questions out of section 20, leaving Q8; added risk R8 and the tier-agreement test. Renamed `PLAYER_ENTERED` to `SHIP_ENTERED`. |
 | 0.1 | 2026-08-27 | First complete architecture for the Python implementation. |
 

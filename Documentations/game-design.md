@@ -9,7 +9,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 2.3 |
+| Version | 2.4 |
 | Date | 2026-08-27 |
 | Companion | `Documentations/architecture.md` v0.2 (cited as *ARCH §n*) |
 | Companion | `Documentations/detailed-design-mvp.md` v0.2 — MVP implementation detail |
@@ -308,25 +308,28 @@ The world is simulated everywhere, but not at the same resolution everywhere. Th
 scale is separate from the rules, **simulation fidelity is separate from the world's existence**.
 
 ```text
-        No observer present                  Observer present
-        ───────────────────                  ────────────────
+        Never yet visited                    Once seen, ever after
+        ─────────────────                    ─────────────────────
         Population simulated as              Individual ships, with
         aggregate flows:                     position, cargo, hull:
           trade flow                           haulers on real routes
-          patrol strength                      patrols on real orders
-          raider pressure                      raiders hunting real cargo
-                    │                                    ▲
-                    └────────── materialise ─────────────┘
-                    ┌────────── dissolve ────────────────┐
-                    ▼                                    │
+          patrol strength      materialise     patrols on real orders
+          raider pressure      ──────────▶     raiders hunting real cargo
+                                                        │
+                                               the server keeps playing
+                                               them whether or not
+                                               anyone is watching
 ```
 
-Two rules make this honest rather than a trick:
+Three rules make this honest rather than a trick:
 
 - **The aggregate never stops.** Trade flow, patrol strength and raider pressure evolve every cycle in every system,
-  observed or not. A player returning to a system after a month finds it genuinely changed, not frozen.
-- **An observer MUST NOT be able to tell.** Individuals are materialised from the aggregate and dissolved back into
-  it, and their outcomes feed back: a hauler that completes a run moves real stock; a raider that dies lowers raider
+  visited or not. A player arriving somewhere new finds it genuinely changed, not frozen.
+- **Materialisation is one-way.** A crew that has once been seen **MUST NOT** be deleted when the last player
+  leaves: the server goes on playing it. The frontier therefore accumulates real inhabitants wherever people have
+  been, and a trader you met last month is still running their route when you come back.
+- **An observer MUST NOT be able to tell** where the boundary lies. Individuals are drawn from the aggregate and
+  their outcomes feed back into it: a hauler that completes a run moves real stock; a raider that dies lowers raider
   pressure. What a player sees is a sample of the population, never a separate reality.
 
 ### Why this shape, and not simply "simulate everything"
@@ -555,7 +558,7 @@ the method.
 | --- | --- |
 | Move | Traverse hexes at the current level |
 | Travel to | A high-level order that resolves into a multi-hex journey, possibly spanning cycles |
-| Jump | Long-range travel between systems; the expensive, strategic option |
+| Jump | Long-range travel between systems; the expensive, strategic option. Reach is limited by **both** fuel and the hull's own jump range `[BALANCE]`, so a bigger tank does not make a distant system reachable |
 | Dock / Launch | Enter or leave a station or port |
 | Scan | Reveal information about the surrounding hexes (§7.2) |
 | Deploy probe | Leave a persistent sensor behind |
@@ -618,6 +621,14 @@ Damage:             31
 Enemy counterattack:
 Damage:             18
 ```
+
+### Losing a ship
+
+A destroyed ship does not kill its pilot: the life capsule ejects and is recovered. What the pilot loses is the
+hull, its cargo, and a **salvage tax** — a percentage of their credits `[BALANCE]`, charged for the rescue.
+
+The tax is a share rather than a flat fee on purpose. A fixed sum is trivial to a veteran and ruinous to a newcomer,
+and a pilot who cannot afford to fly again has been removed from the game rather than set back in it.
 
 Two rules protect the format:
 
@@ -717,6 +728,10 @@ Universe
 | Faction, team chat, shared objectives, team missions, team reputation, shared intelligence, **MAY** hold shared assets | Ships, credits, equipment, progression, personal reputation |
 
 The team is the primary multiplayer organisation. It **MUST NOT** be able to spend an individual's AP or credits.
+
+A player need not belong to one. Until they join or found a team they are **independent**: they have no faction, no
+faction standing and no faction missions, and they answer to nobody. Independence is a legitimate way to play, not an
+unfinished registration — and it is the state every player starts in.
 
 ## 6.6 Territory and influence
 
@@ -1689,6 +1704,7 @@ should be reviewed as design decisions. Each can be reverted independently.
 | **M10** | **Eras and narrative phases separated** (§8.11 vs §9.12). | v1.0 contained two overlapping six- and seven-step progressions. They describe different things: recurring world states, and one-time community discovery. |
 | **M11** | **"Turn" replaced by "cycle"** throughout; "world day" reserved for the counter. | v1.0 used "turn" for the 24-hour period, for a mission duration and for a player's session. |
 | **M12** | **Authorial voice removed.** | v1.0 contained first- and second-person commentary ("I would make…", "your game") and duplicated conversational fragments, which read as notes rather than specification. |
+| **M14** | **Materialised NPCs persist and are played by the server** (§2.7), rather than dissolving back into the aggregate when the last observer leaves. Adds the salvage tax (§5.4), the hull's own jump range (§5.1), and states that an unteamed player is *independent* (§6.5). | Answers to the implementation questions S1–S6. Dissolution made a system's inhabitants a function of who was watching, which contradicts the persistence §2.7 is there to promise; the cost of keeping them is bounded by the systems players have actually visited. The flat destruction penalty was replaced by a share of credits because a fixed sum removes a poor pilot from the game rather than setting them back. |
 | **M13** | **The NPC population promoted to a design section (§2.7)**, with simulation fidelity tied to observation, and moved into the MVP along with cycle step 4. | v1.0 and v2.0 mentioned NPCs in six places without ever saying what they are for or how many there are. A persistent universe (§1.2) in which nothing happens unless a player causes it is not persistent, and the aggregate layer §2.7 introduces is the same quantity §8.2 will later measure. |
 
 ## 11.2 Open questions
@@ -1749,6 +1765,7 @@ For notes, issues or commits that cite the old flat numbering.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 2.4 | 2026-08-27 | Implementation questions S1–S6 answered: a wrecked pilot's capsule is recovered for a salvage tax that is a share of credits, not a flat fee (§5.4); a player may remain independent of any team (§6.5); jump range depends on the hull as well as the tank (§5.1); materialised NPCs persist and the server keeps playing them (§2.7). See §11.1 M14. |
 | 2.3 | 2026-08-27 | Q4–Q7 answered. Q4: the Continuity's budget scales with world extent, holding its reach per system constant (§9.2). Q5: the Continuity is NPC-operated from the moment it exists; player agents are recruited into a working organisation (§9.3, §10.3). Q6: half of unspent AP carries over, up to an administrator-defined ceiling (§3.2). Q7: era transitions fire on sustained threshold crossings, never by hand (§8.11). |
 | 2.2 | 2026-08-27 | Q1, Q2 and Q3 answered. Q1: the ladder is final at Galaxy → Region → System → Planet → Sector → Local; *Body* is withdrawn in favour of *Planet* and the Planet-scope channel renamed to match (§11.1 M1). Q2: forecasts are a public good of variable quality, not a commodity or a privilege (§8.3). Q3: a player commands exactly one ship (§4.2). |
 | 2.1 | 2026-08-27 | Added §2.7, promoting the NPC population from an implicit detail to a stated design pillar with an observation-dependent fidelity model; the MVP now includes it and cycle step 4. See §11.1 M13. |
