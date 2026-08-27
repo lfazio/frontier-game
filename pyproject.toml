@@ -55,6 +55,10 @@ packages = ["frontier"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
+module = ["redis.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = ["frontier.domain.*", "frontier.application.*"]
 strict = true
 disallow_any_explicit = false

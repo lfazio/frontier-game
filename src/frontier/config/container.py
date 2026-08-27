@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from frontier.adapters.bus.redis_bus import RedisBus
 from frontier.adapters.clock import SeededRng, SystemClock, UuidFactory
 from frontier.adapters.db.engine import make_engine, make_sessionmaker
 from frontier.adapters.db.uow import SqlUnitOfWork
@@ -29,6 +30,7 @@ class Container:
     world: World | None = None
     engine: AnyEngine = None
     sessions: Any = None
+    bus: RedisBus | None = None
 
 
 AnyEngine = AsyncEngine | None
@@ -78,4 +80,5 @@ def build_sql(settings: Settings | None = None) -> Container:
         registrar=SqlRegistrar(sessions, rules.ap.daily_grant),
         engine=engine,
         sessions=sessions,
+        bus=RedisBus(settings.redis_url),
     )

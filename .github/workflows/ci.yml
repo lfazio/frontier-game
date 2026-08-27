@@ -7,6 +7,7 @@ on:
 env:
   JWT_SECRET: ci-secret-at-least-thirty-two-bytes-long
   DATABASE_URL: postgresql+asyncpg://frontier:frontier@localhost:5432/frontier
+  REDIS_URL: redis://localhost:6379/0
 
 jobs:
   check:
@@ -21,6 +22,12 @@ jobs:
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U frontier" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s
           --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4

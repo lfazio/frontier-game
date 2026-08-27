@@ -1,4 +1,4 @@
-.PHONY: install check lint types imports test test-int up down demo world tick migrate
+.PHONY: install check lint types imports test test-int up down demo world tick migrate relay
 
 install:
 	uv sync --extra dev
@@ -38,3 +38,6 @@ world:
 
 tick:
 	uv run python -m frontier.cli.tick
+
+relay:
+	uv run python -m frontier.cli.relay

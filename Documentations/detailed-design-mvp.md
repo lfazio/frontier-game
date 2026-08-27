@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.4 |
+| Version | 0.5 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
@@ -678,6 +678,7 @@ alone:
 | `0001_core_identity` | P0 | accounts, players, teams, factions, world_state, commands, **ap_ledger** `[D-14]` |
 | `0002_world_tree` | P1 | locations, ltree extension, indexes |
 | `0004_fleet` | P1 | ships, journeys `[D-16]` |
+| `0005_event_spine` | P2 | `evt` schema, partitioned events, deliveries, outbox, digests |
 | `0003_tick_bookkeeping` | P1 | `hist` schema, tick_runs, tick_stages |
 | `0004_event_spine` | P2 | events (partitioned), deliveries, outbox, first partitions |
 | `0005_fleet_detail` | P3 | cargo, standing_orders |
@@ -1704,6 +1705,10 @@ mistake in this plan that would cost a rewrite.
 | D-18 | The world day lives in `core.world_state`, not in the clock. `ClockPort` provides only `now()`; callers pass the day to `RngPort`. | The day is world state: the tick advances it, and a replay must be able to set it. A clock that derives it from wall time cannot be replayed or accelerated (*ARCH §14.1*). | No |
 | D-19 | Tick stage 12 (`RebuildProjections`) is deferred to P2; P1 ships stages 1 and 11, and `GET /v1/me` reads live. | There are no projections to rebuild until the event spine exists. Building a throwaway table to fill the slot would be worse than an honest gap. | Yes |
 | D-20 | Entry points live in `frontier.cli`, a layer above `simulation` and `adapters`. | `make world` and `make tick` compose adapters, so they cannot sit inside `worldgen`, which the layer contract keeps pure. | Yes |
+| D-21 | Scope decides reach before sensors do: an event at SYSTEM scope or wider reaches everyone inside its container, and only LOCAL/PLANET events are gated by sensor range. | *GDD §7.7* makes scope the mechanism by which an event carries. Ranking sensors first would have made a system-wide announcement audible only to whoever stood nearby. | No |
+| D-22 | One Redis channel carries every event; each gateway renders per subscriber. | Filtering must happen server-side per viewer anyway (§5.5), so per-scope channels would optimise a step that cannot be skipped. Splitting by path prefix is a later change behind the same interface. | Yes |
+| D-23 | The gateway sends `{"op": "ready"}` once its subscription exists, and never awaits readiness without also watching the pump task. | A client that fetched its gap over HTTP before the subscription existed would miss events published in between. Awaiting the event alone deadlocked when the pump died first — a bug this design prevents rather than detects. | No |
+| D-24 | Stage 12/13 builds a per-player digest keyed `(player_id, world_day)`. | The daily overview must be ready before anyone logs in (*GDD §3.4*), and it is the first projection with a reader, which is what D-19 was waiting for. | Yes |
 
 ---
 
@@ -1753,6 +1758,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.5 | 2026-08-27 | P2 delivered: the payload catalogue and validation, the partitioned `evt.events` log with deliveries and a transactional outbox, `resolve_audience`/`render_for`, the Redis relay, the WebSocket gateway, `send_message`, `GET /v1/feed`, and the digest stage. Recorded D-21 to D-24; D-19 is discharged. |
 | 0.4 | 2026-08-27 | P1 delivered: the location tree on `ltree`, the world generator, SQLAlchemy repositories and unit of work, the tick runner with stages 1 and 11, and `GET /v1/me`. Recorded D-16 to D-20. Corrected the §7 sizing arithmetic (radius 8 is 217 hexes, not 169). |
 | 0.3 | 2026-08-27 | P0 delivered. Recorded the decisions it forced: in-memory repositories for P0 (D-13), `ap_ledger` moved into migration `0001` (D-14), and `EventDraft` stamping with a new `IdPort` (D-15, §5.1). Noted the Alembic schema bootstrap in §4.4. |
 | 0.2 | 2026-08-27 | Tracks *GDD* v2.3 and *ARCH* v0.2. The NPC population became a first-class MVP system: tick stage 4 (§6.5), the archetype catalogue (§10), `system_activity` and `npc_agents`, migration `0008`, and criteria A13–A14. Applied the answered design questions — the Planet/Sector ladder and two-letter `ltree` prefixes (§3.1), one ship per player (§4.2 of *GDD*), and half-carry of unspent AP with a signed `daily_reset` ledger entry (§3.4, §6.7, A15). Renamed `PLAYER_ENTERED` to `SHIP_ENTERED`. Restored decision-log ordering. |

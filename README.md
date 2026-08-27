@@ -13,9 +13,9 @@ spend a limited Action Point budget and log out.
 
 ## Status
 
-**P1 — World and time.** A generated galaxy of ~47 systems on PostgreSQL `ltree`, the command path
-on real repositories, and a resumable daily tick that settles arrivals and resets Action Points.
-`GET /v1/me` shows the daily overview. Next is P2, the event spine.
+**P2 — Event spine.** Every state change emits an event; one merged feed carries chat and world
+events, redacted per viewer by a single `render_for`. A transactional outbox relays committed
+events to Redis and out over a WebSocket. Next is P3, MVP gameplay.
 
 ## Running it
 
@@ -26,6 +26,8 @@ make migrate
 make world       # generate a galaxy
 make check          # lint, types, import boundaries, tests
 make demo           # watch a player spend a day's AP
+make tick           # advance the world one cycle
+make relay          # publish committed events to Redis
 uv run uvicorn frontier.adapters.api.app:app --reload
 ```
 
