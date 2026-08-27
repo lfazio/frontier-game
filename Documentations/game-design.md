@@ -9,7 +9,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 2.6 |
+| Version | 2.7 |
 | Date | 2026-08-27 |
 | Companion | `Documentations/architecture.md` v0.2 (cited as *ARCH §n*) |
 | Companion | `Documentations/detailed-design-mvp.md` v0.2 — MVP implementation detail |
@@ -630,11 +630,15 @@ Damage:             18
 
 ### Losing a ship
 
-A destroyed ship does not kill its pilot: the life capsule ejects and is recovered. What the pilot loses is the
+A destroyed ship does not normally kill its pilot: the life capsule ejects and is recovered. What the pilot loses is the
 hull, its cargo, and a **salvage tax** — a percentage of their credits `[BALANCE]`, charged for the rescue.
 
 The tax is a share rather than a flat fee on purpose. A fixed sum is trivial to a veteran and ruinous to a newcomer,
 and a pilot who cannot afford to fly again has been removed from the game rather than set back in it.
+
+Recovery is reliable in ordinary space and **MUST NOT** be reliable during an incursion (§8.12), when salvage is
+overwhelmed and some capsules are never found `[BALANCE]`. That is where a pilot can be lost for good, and it is
+the only place — see §9.14 for who is most exposed to it and why.
 
 Two rules protect the format:
 
@@ -1255,11 +1259,22 @@ An incursion is the largest deviation event the world can produce, and the Model
 falls sharply while one is under way (§8.3), because a galaxy under attack stops behaving like the population the
 Model was fitted to. A region that survives one returns to a *different* expected trajectory, not the old one.
 
-### The open thread
+### Who knows, and who goes first
 
-Whether the Continuity knows this is coming — whether the trajectory it defends is precisely the corridor in which
-the Harrowing does not arrive — is deliberately unresolved in the fiction, and is recorded as an open design
-question (§11.2 Q9). Players **MUST NOT** be able to settle it from any published number.
+**The Continuity knows.** The trajectory it defends is precisely the corridor in which the Harrowing does not
+arrive, and that — not tidiness, not control, not any faction's victory — is what it has been protecting all along.
+Every intervention in §9 is an attempt to keep the galaxy inside the envelope where the ships stay away.
+
+Players **MUST NOT** be able to settle this from any published number, statistic, forecast or response (§9.4). It is
+learnable only the way anything about the Continuity is learnable: from behaviour, from documents found in play, and
+eventually from an agent who chooses to say so (§9.8).
+
+Two obligations follow for the faction, and together they are the price of everything else it is given:
+
+- **Agents go first.** When an incursion begins, the Continuity is already moving toward it. Its agents are expected
+  to engage before the fleets arrive, because they are the only ones who understood what the deviation meant while
+  there was still time to act on it.
+- **Agents who die there do not come back.** See §9.14.
 
 ---
 
@@ -1306,6 +1321,11 @@ matter, and the game loses its premise.
 | act through information, markets, NPCs, missions, technology and communication | write directly to player-owned ships, credits or cargo |
 | know more than others | know everything |
 | be almost everywhere | be everywhere at once |
+
+Its advantages are also paid for. The instantaneous channel (§9.6) and the better information (§9.5) are bought
+with the obligation to go first into an incursion and the near-certainty of dying there permanently (§9.14) — which
+is the sharpest answer available to the question this section exists to answer. The Continuity is not the faction
+that cannot lose; it is the faction that loses first.
 
 Concretely, its power is bounded by `[BALANCE]` budgets: limited agents, limited interventions per cycle, limited
 resources, limited knowledge, and imperfect predictions.
@@ -1407,9 +1427,32 @@ interventions to players outside the organisation.
 > **This is a role-playing commitment and MUST NOT be implemented as a real-world legal agreement.** No enforceable
 > contract may be required to play. No real identity information may be collected for it. See §1.6.
 
+The same screen **MUST** state the price, as plainly as it states the offer (§9.14). A player accepts knowing that
+they will be expected at the front of an incursion and that dying there ends this pilot for good.
+
+```text
+CONTINUITY PROTOCOL 7 — TERMS                    [ILLUSTRATIVE]
+
+You are offered:
+  • Access to the historical model
+  • Work that is not on any board
+  • A channel that reaches anyone, anywhere, at once
+
+You accept:
+  • That you will be expected first at a crisis
+  • That your capsule will carry no beacon, and that
+    if you are lost during an incursion you will not
+    be recovered
+  • That nobody will be told why
+
+                    [ ACCEPT ]      [ DECLINE ]
+```
+
 ### Declining
 
-Declining **MUST** be entirely legitimate and **MUST NOT** be punished in or out of game. The player **MAY** be told
+Declining **MUST** be entirely legitimate and **MUST NOT** be punished in or out of game. With the price of §9.14
+on the table it is also a reasonable choice rather than a missed opportunity, which is how an invitation should
+feel. The player **MAY** be told
 the offer will not return, or it **MAY** return after a long interval `[BALANCE]`. The mystery itself is part of the
 reward for having been noticed.
 
@@ -1690,6 +1733,51 @@ The players remain the authors of history:
 
 If any proposed Continuity mechanic conflicts with this rule, the mechanic is wrong.
 
+## 9.14 What an agent stands to lose
+
+An ordinary pilot who loses a ship loses the hull, the cargo and a salvage tax; the capsule is recovered and they
+fly again (§5.4). **An agent killed during an incursion (§8.12) is not recovered.** The pilot is gone. The account
+continues as somebody new: a new callsign, a base hull, no credits, no standing with any faction, no Knowledge, no
+team — and no Continuity.
+
+### Why the recovery fails
+
+The same secrecy that protects an agent is what kills them. A life capsule is found by its rescue beacon, and a
+beacon is a registered identity: a transponder code filed with a salvage service, tied to a name, readable by
+anyone with the right equipment. An agent's capsule carries none. In ordinary space that costs them nothing —
+salvage crews recover whatever they find, because there is time and nobody is shooting. During an incursion there
+is neither, recovery is triaged by beacon, and a capsule that does not answer is a capsule nobody comes for.
+
+### The rules
+
+- **The cost MUST be disclosed before acceptance.** The protocol screen (§9.3) states it plainly, in the same
+  breath as what the invitation offers. A price a player discovers afterwards is a trap, and this design does not
+  set traps.
+- **Recovery MUST NOT be guaranteed for anyone during an incursion.** Ordinary pilots also go unrecovered, at some
+  rate `[BALANCE]`, because salvage is overwhelmed. Without this, a pilot who suddenly restarts *is* an agent, and
+  §9.4 — membership must not be inferable — is broken by the very mechanic meant to make the faction cost
+  something. The reset must remain **evidence, never proof**.
+- **Nothing may announce the reason.** The Chronicle records a pilot lost (§8.10), exactly as it records any other
+  notable death. No event, no notification, no statistic and no ledger entry distinguishes an agent's loss from
+  anyone else's.
+- **The consequence MUST be entirely in-game** (§9.7). No account penalty, no cooldown, no lockout. The player
+  starts again immediately if they wish.
+- **What survives is the player's own memory.** They know the Continuity exists, they know what it was for, and
+  they are no longer bound by anything. An ex-agent is the only person in the galaxy in that position — a genuine
+  character, and a real route by which the secret escapes (§9.8).
+
+### Why this is the right price
+
+The Continuity is given the best information in the game (§9.5) and the only channel outside physics (§9.6). §9.2
+asks what stops that from being domination, and every answer available in balance data — fewer agents, smaller
+budgets, tighter caps — is a dial that can be turned the wrong way. This is not a dial. The faction that knows what
+is coming is the faction that has to meet it first, and its members are the only players who can be permanently
+removed from the world they were trying to save.
+
+It also settles what §9.3 was quietly missing. Accepting the invitation used to be pure gain: better information,
+secret work, and a role-playing obligation. Now it is a decision with a price on it, and declining is not merely
+legitimate but sensible.
+
 ---
 
 # 10. Scope
@@ -1793,6 +1881,7 @@ should be reviewed as design decisions. Each can be reverted independently.
 | **M10** | **Eras and narrative phases separated** (§8.11 vs §9.12). | v1.0 contained two overlapping six- and seven-step progressions. They describe different things: recurring world states, and one-time community discovery. |
 | **M11** | **"Turn" replaced by "cycle"** throughout; "world day" reserved for the counter. | v1.0 used "turn" for the 24-hour period, for a mission duration and for a player's session. |
 | **M12** | **Authorial voice removed.** | v1.0 contained first- and second-person commentary ("I would make…", "your game") and duplicated conversational fragments, which read as notes rather than specification. |
+| **M17** | **Q9 answered: the Continuity knows** (§8.12). Its agents go first into an incursion, and an agent killed there is not recovered — the account continues as a new pilot (§9.14). Recovery is made unreliable for everyone during an incursion so that a reset stays evidence rather than proof. | The faction had the best information and the only channel outside physics, and §9.2's answer to "why is that not domination" was a set of balance dials, any of which can be turned the wrong way. A price that is not a dial answers it properly: they know what is coming, so they meet it first, and they are the only players who can be permanently removed. It also gives §9.3's invitation a real cost, which it lacked. The masking rule is required, not optional — without it the mechanic would identify every agent posthumously and break §9.4. |
 | **M16** | **The Continuity's channel is instantaneous and galaxy-wide** (§9.6, §7.3, §7.5), exempt from the range, relay and delay rules that bind every other channel. | The faction's stated advantage is *better information* (§9.5), and until now nothing in the design actually gave it any. A channel outside physics grants coordination without granting force, which is the only kind of power §9.2 permits it — and it hands §9.8 a genuine, observable anomaly for players to notice. |
 | **M15** | **The Harrowing added (§8.12)**: an unresolved historical crisis triggers an incursion of powerful alien vessels, which players fight to restore the balance. | Deviation was an abstraction — a number on a forecast with no visible stake. The Harrowing makes the cost of abandoning the trajectory concrete, gives the cooperative end of the game a reason to exist, and supplies §8.11's eras with something that actually ends one. Constrained hard (no exemptions, must be losable, must not be farmable, response never prescribed) so that it stays an opponent rather than weather. |
 | **M14** | **Materialised NPCs persist and are played by the server** (§2.7), rather than dissolving back into the aggregate when the last observer leaves. Adds the salvage tax (§5.4), the hull's own jump range (§5.1), and states that an unteamed player is *independent* (§6.5). | Answers to the implementation questions S1–S6. Dissolution made a system's inhabitants a function of who was watching, which contradicts the persistence §2.7 is there to promise; the cost of keeping them is bounded by the systems players have actually visited. The flat destruction penalty was replaced by a share of credits because a fixed sum removes a poor pilot from the game rather than setting them back. |
@@ -1808,7 +1897,7 @@ is recorded in §11.4 and in the section it settles. Gaps in the numbering mean 
 | # | Question | Blocks |
 | --- | --- | --- |
 | **Q8** | May teams own shared assets (§6.5), and who controls them on disband? | Team model; station ownership later |
-| **Q9** | Does the Continuity know that the trajectory it defends is the corridor in which the Harrowing (§8.12) does not arrive? | Whether §9 is a conspiracy of caretakers or of survivors; the late-game reveal in §9.10 |
+| **Q10** | May a pilot who lost everything as an agent (§9.14) ever be recruited again? | Whether the galaxy accumulates people who know and are no longer bound |
 
 ## 11.3 Section mapping, v1.0 → v2.0
 
@@ -1857,6 +1946,7 @@ For notes, issues or commits that cite the old flat numbering.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 2.7 | 2026-08-27 | Q9 answered: the Continuity knows the trajectory is the corridor in which the Harrowing does not arrive (§8.12). Agents go first into an incursion and are not recovered if they die there, continuing as a new pilot (§9.14); recovery is unreliable for everyone during an incursion so the reset cannot identify them. New open question Q10. See §11.1 M17. |
 | 2.6 | 2026-08-27 | The Continuity's communication channel is instantaneous and reaches the whole galaxy, exempt from range, relays and delay (§9.6). See §11.1 M16. |
 | 2.5 | 2026-08-27 | Added §8.12, the Harrowing: an unresolved historical crisis draws an incursion of powerful alien vessels that players fight to restore the balance, bound by the same rules as every other ship. Amended §2.7 so NPC crews spend the same daily Action Point budget as pilots. New open question Q9. See §11.1 M14, M15. |
 | 2.4 | 2026-08-27 | Implementation questions S1–S6 answered: a wrecked pilot's capsule is recovered for a salvage tax that is a share of credits, not a flat fee (§5.4); a player may remain independent of any team (§6.5); jump range depends on the hull as well as the tank (§5.1); materialised NPCs persist and the server keeps playing them (§2.7). See §11.1 M14. |

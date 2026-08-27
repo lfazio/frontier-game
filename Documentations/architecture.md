@@ -5,10 +5,10 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.5 |
+| Version | 0.6 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
-| Normative source | `Documentations/game-design.md` v2.6 (cited as §n) |
+| Normative source | `Documentations/game-design.md` v2.7 (cited as §n) |
 | Companion | `Documentations/detailed-design-mvp.md` — MVP detail for phases P0–P3 |
 | Audience | Server, client and infrastructure engineers; technical reviewers |
 
@@ -969,6 +969,7 @@ Each deferred system has a named seam, so adding it is a plug-in rather than a r
 | Communication relays and delay | `comms` already computes `deliver_at`; MVP sets delay to zero via `features.comms_delay`. The Continuity channel is exempt: it is a `CLEARANCE`-visibility event at UNIVERSE scope with `deliver_at = occurred_at`, so no relay or range calculation touches it (§9.6) |
 | Advanced economy, dynamic faction wars | Stage 4's second half — faction strategic AI — plus replacing the stage-3 implementation behind the `Stage` protocol |
 | Named, persistent NPCs (Continuity instruments, §9.5) | A `persistent` flag on `npc_agents`; nothing else, now that no crew is dissolved |
+| Permanent pilot loss (§9.14) | A pilot becomes a row distinct from the account: `players` gains a generation, and a reset writes a new pilot rather than mutating the old. The Chronicle already records a death; nothing else may distinguish the case. The anti-leak suite gains a probe comparing an agent's reset to an ordinary pilot's |
 | The Harrowing (§8.12) | A fourth NPC archetype with its own hulls, spawned by a tick stage watching crisis expiry rather than by system activity. It needs no new mechanism: incursion ships are ships, and they spend Action Points like every other crew |
 | Player-created missions | A second `MissionProvider` implementation |
 | Fleet battles | `encounter.resolve()` already takes participant *sets*; MVP restricts cardinality to 1v1 by rule, not by code |
@@ -1058,6 +1059,7 @@ remains, and it does not touch this architecture until teams can own things:
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.6 | 2026-08-27 | Tracks *GDD* v2.7: recorded the seam for permanent pilot loss, which separates pilot identity from account identity and adds a probe to the anti-leak suite. |
 | 0.5 | 2026-08-27 | Tracks *GDD* v2.6: recorded the Continuity channel's exemption from range, relay and delay. |
 | 0.4 | 2026-08-27 | Tracks *GDD* v2.5: NPC crews draw the same Action Point budget as players, so no future population can act more cheaply than a human; added the seam for the Harrowing (§8.12). |
 | 0.3 | 2026-08-27 | Tracks *GDD* v2.4: ADR-15 amended — materialisation is one-way and NPCs are never dissolved, so the individual population follows exploration rather than live observation. |

@@ -440,6 +440,11 @@ every other channel is bound by range and relays. Two client rules follow, and t
 - Nothing in the ordinary feed may reveal that a message travelled instantly: no route metadata, no latency figure,
   no "delivered" marker that differs from any other channel's.
 
+A third rule covers permanent loss (*GDD §9.14*). When a pilot is not recovered from an incursion, the interface
+that greets the new pilot **MUST** be the ordinary first-run experience, identical for an ex-agent and for anyone
+else who was not recovered. No different wording, no acknowledgement, no "you know what this was". The player
+remembers; the interface does not.
+
 The MVP client implements none of this. It is written here so that whoever builds the channel does not discover
 these constraints afterwards.
 
