@@ -1,9 +1,9 @@
-.PHONY: install check lint types imports test test-int up down world tick migrate relay soak
+.PHONY: install check lint types imports test test-int up down world tick migrate relay soak antileak
 
 install:
 	uv sync
 
-check: lint types imports test
+check: lint types imports test antileak
 
 lint:
 	uv run ruff check src tests
@@ -23,6 +23,9 @@ test-int:
 
 soak:
 	uv run pytest -q -m soak
+
+antileak:
+	uv run pytest -q tests/antileak
 
 up:
 	docker compose up -d
