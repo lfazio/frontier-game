@@ -1,0 +1,16 @@
+daily_grant = 10
+carry_over_fraction = 0.5
+carry_ceiling = 5
+
+[cost]
+move_hex = 1
+scan = 1
+trade = 1
+jump_intra_region = 4
+jump_inter_region = 6
+combat_round = 2
+repair = 2
+dock = 0
+launch = 0
+message = 0
+standing_orders = 0
