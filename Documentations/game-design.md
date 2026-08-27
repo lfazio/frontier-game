@@ -1635,6 +1635,9 @@ should be reviewed as design decisions. Each can be reverted independently.
 
 Decisions the design still owes. Each is blocking something concrete.
 
+Identifiers are stable: an answered question is removed from this table rather than renumbered, and its answer
+is recorded in §11.4 and in the section it settles. Gaps in the numbering mean *answered*, not *lost*.
+
 | # | Question | Blocks |
 | --- | --- | --- |
 | **Q4** | Does the Continuity's intervention budget scale with world size or stay fixed? | Whether §9.5 costs grow with the world |
