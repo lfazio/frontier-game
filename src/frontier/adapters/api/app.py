@@ -1,21 +1,38 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from frontier.adapters.api.errors import world_ticking_handler
-from frontier.adapters.api.routers import auth, commands
-from frontier.adapters.memory.fixture import seed_fixture_world
+from frontier.adapters.api.routers import auth, commands, me
 from frontier.application.executor import WorldTicking
-from frontier.config.container import Container, build
+from frontier.config.container import Container, build_sql
 
 
 def create_app(container: Container | None = None) -> FastAPI:
-    app = FastAPI(title="Frontier: The Seldon Era", version="0.1.0")
-    app.state.container = container or build()
-    seed_fixture_world(app.state.container.world)
+    """A container built here is used as given; otherwise one is built at startup.
+
+    The database engine must be created inside the loop that will serve requests — asyncpg
+    binds its connections to a loop — which is why the default path waits for the lifespan.
+    """
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        if getattr(app.state, "container", None) is None:
+            app.state.container = build_sql()
+        yield
+        engine = getattr(app.state.container, "engine", None)
+        if engine is not None:
+            await engine.dispose()
+
+    app = FastAPI(title="Frontier: The Seldon Era", version="0.1.0", lifespan=lifespan)
+    app.state.container = container
     app.add_exception_handler(WorldTicking, world_ticking_handler)
     app.include_router(auth.router)
     app.include_router(commands.router)
+    app.include_router(me.router)
 
     @app.get("/healthz", tags=["ops"])
     def healthz() -> dict[str, str]:
