@@ -22,6 +22,8 @@ class Ship:
     fuel_max: int
     cargo_max: int
     sensor_range: int
+    shields: int = 0
+    shields_max: int = 0
     docked_at: UUID | None = None
     in_transit: bool = False
     destroyed_on: int | None = None
