@@ -20,3 +20,8 @@ class Settings(BaseSettings):
     tick_hour_utc: int = Field(default=4, ge=0, le=23)
     world_seed: str = "p0-fixture"
     features_psychohistory: bool = False
+    features_continuity: bool = False
+    # The public surface connects as a role with no privilege on the hidden schema.
+    api_role: str = "api_role"
+    # Optional tick stages, resolved by name so nothing imports them (ARCH ADR-13).
+    extra_stages: tuple[str, ...] = ("frontier.continuity.stage:stage",)

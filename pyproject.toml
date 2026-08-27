@@ -71,6 +71,7 @@ asyncio_mode = "auto"
 markers = [
     "integration: requires a live database",
     "soak: long-running simulation, nightly rather than per-commit",
+    "antileak: the Continuity must stay unobservable; a merge blocker",
 ]
 
 [tool.importlinter]
@@ -91,6 +92,20 @@ name = "Application does not know its adapters"
 type = "forbidden"
 source_modules = ["frontier.application"]
 forbidden_modules = ["frontier.adapters", "sqlalchemy", "fastapi", "redis"]
+
+[[tool.importlinter.contracts]]
+name = "Nothing imports the Continuity"
+type = "forbidden"
+source_modules = [
+    "frontier.domain",
+    "frontier.application",
+    "frontier.adapters",
+    "frontier.simulation",
+    "frontier.cli",
+    "frontier.config",
+    "frontier.worldgen",
+]
+forbidden_modules = ["frontier.continuity"]
 
 [[tool.importlinter.contracts]]
 name = "Layers"

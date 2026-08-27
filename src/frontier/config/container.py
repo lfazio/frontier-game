@@ -35,7 +35,7 @@ AnyEngine = AsyncEngine | None
 def build_sql(settings: Settings | None = None) -> Container:
     """PostgreSQL wiring: the real world."""
     settings = settings or Settings()
-    engine = make_engine(settings.database_url)
+    engine = make_engine(settings.database_url, role=settings.api_role)
     sessions = make_sessionmaker(engine)
     clock = SystemClock()
     rules = load_ruleset(settings.ruleset_root, settings.ruleset_version)
