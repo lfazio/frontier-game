@@ -21,7 +21,8 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from frontier.adapters.db.types import AddressPath
@@ -195,3 +196,46 @@ class TickStage(Base):
     stage: Mapped[str] = mapped_column(String(48), primary_key=True)
     completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+class Event(Base):
+    __tablename__ = "events"
+    __table_args__ = ({"schema": "evt"},)
+    world_day: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    type: Mapped[str] = mapped_column(String(32))
+    origin_path: Mapped[HexAddr] = mapped_column(AddressPath)
+    scope: Mapped[int] = mapped_column(SmallInteger)
+    visibility: Mapped[str] = mapped_column(String(16))
+    clearance: Mapped[int] = mapped_column(SmallInteger, default=0)
+    severity: Mapped[int] = mapped_column(SmallInteger)
+    participants: Mapped[list[UUID]] = mapped_column(ARRAY(PgUUID(as_uuid=True)))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    ruleset_version: Mapped[str] = mapped_column(String(16))
+    causation_id: Mapped[UUID | None] = mapped_column()
+
+
+class EventDelivery(Base):
+    __tablename__ = "event_deliveries"
+    __table_args__ = ({"schema": "evt"},)
+    recipient_id: Mapped[UUID] = mapped_column(primary_key=True)
+    event_id: Mapped[UUID] = mapped_column(primary_key=True)
+    world_day: Mapped[int] = mapped_column(Integer)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class EventOutbox(Base):
+    __tablename__ = "events_outbox"
+    __table_args__ = ({"schema": "evt"},)
+    event_id: Mapped[UUID] = mapped_column(primary_key=True)
+    world_day: Mapped[int] = mapped_column(Integer)
+    queued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Digest(Base):
+    __tablename__ = "digests"
+    __table_args__ = ({"schema": "evt"},)
+    player_id: Mapped[UUID] = mapped_column(primary_key=True)
+    world_day: Mapped[int] = mapped_column(Integer, primary_key=True)
+    summary: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
