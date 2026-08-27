@@ -1,4 +1,4 @@
-.PHONY: install check lint types imports test test-int up down demo
+.PHONY: install check lint types imports test test-int up down demo world tick migrate
 
 install:
 	uv sync --extra dev
@@ -29,3 +29,12 @@ down:
 
 demo:
 	uv run python -m frontier.demo
+
+migrate:
+	uv run alembic upgrade head
+
+world:
+	uv run python -m frontier.cli.world
+
+tick:
+	uv run python -m frontier.cli.tick

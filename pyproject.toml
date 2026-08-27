@@ -87,4 +87,11 @@ forbidden_modules = ["frontier.adapters", "sqlalchemy", "fastapi", "redis"]
 [[tool.importlinter.contracts]]
 name = "Layers"
 type = "layers"
-layers = ["frontier.adapters", "frontier.application", "frontier.worldgen", "frontier.domain"]
+layers = [
+    "frontier.cli",
+    "frontier.simulation",
+    "frontier.adapters",
+    "frontier.application",
+    "frontier.worldgen",
+    "frontier.domain",
+]
