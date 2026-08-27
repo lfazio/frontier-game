@@ -224,3 +224,31 @@ def test_repair_is_refused_away_from_a_station(client, clean):
     send(client, headers, action="dock", station_id=home_station(client, headers)["id"])
     assert send(client, headers, action="repair").status_code == 202
     assert me(client, headers)["ship"]["hull"] == 100
+
+
+def test_a_jump_beyond_the_hulls_range_is_refused(client, clean):
+    """S3: a full tank does not make a distant system reachable."""
+    import asyncio
+
+    from frontier.adapters.db.engine import make_engine, make_sessionmaker
+
+    headers = register(client)
+
+    async def clip_the_range() -> None:
+        engine = make_engine(clean.database_url)
+        async with make_sessionmaker(engine)() as session, session.begin():
+            await session.execute(update(models.Ship).values(jump_range_ly=1, fuel=60))
+        await engine.dispose()
+
+    asyncio.run(clip_the_range())
+
+    position = HexAddr.parse(me(client, headers)["ship"]["position"])
+    region = position.parent().parent()
+    systems = client.get(f"/v1/map/tiles?path={region}", headers=headers).json()["entries"]
+    elsewhere = next(e for e in systems if e["path"] != str(position.parent()))
+
+    response = send(client, headers, action="jump", to_system=elsewhere["path"])
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "BEYOND_JUMP_RANGE"
+    assert me(client, headers)["ship"]["fuel"] == 60

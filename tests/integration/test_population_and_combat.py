@@ -302,3 +302,64 @@ async def test_a_player_can_attack_a_materialised_npc(sessions, clean):
 
     assert queued == 0, "NPC combat resolves live; only player-versus-player is queued"
     assert npc.hull < 30 or npc.destroyed_on is not None or attacker.hull < 100
+
+
+async def test_npcs_persist_once_their_system_has_been_seen(sessions, clean):
+    """S5: materialisation is one-way — the crews stay and the server keeps playing them."""
+    _, ship_id, spawn = await a_player(sessions)
+    async with sessions() as session, session.begin():
+        await session.execute(
+            update(models.SystemActivity)
+            .where(models.SystemActivity.system_id == spawn.parent_id)
+            .values(trade_flow=0.6, patrol_strength=0.6, raider_pressure=0.6)
+        )
+
+    tick = runner(sessions, clean)
+    await tick.run()
+    async with sessions() as session:
+        born = sorted(str(a.ship_id) for a in (await session.execute(select(models.NpcAgent))).scalars())
+    assert born
+
+    # The only observer leaves the galaxy entirely.
+    async with sessions() as session, session.begin():
+        await session.execute(update(models.Ship).where(models.Ship.id == ship_id).values(destroyed_on=1))
+    for _ in range(3):
+        report = await tick.run()
+
+    async with sessions() as session:
+        survivors = sorted(str(a.ship_id) for a in (await session.execute(select(models.NpcAgent))).scalars())
+    assert survivors == born
+    assert report.stages["npc_population"]["observed"] == 0
+    assert report.stages["npc_population"]["npcs_acted"] > 0
+
+
+async def test_a_wrecked_pilot_is_taxed_a_share_not_a_flat_fee(sessions, clean):
+    """S1: the fee recovers the life capsule, so it scales with the pilot's means."""
+    from math import floor
+
+    rich_id, rich_ship, spawn = await a_player(sessions)
+    poor_id, poor_ship, _ = await a_player(sessions, hull=1, posture="defend")
+    async with sessions() as session, session.begin():
+        await session.execute(update(models.Player).where(models.Player.id == poor_id).values(credits=200))
+        await session.execute(
+            update(models.Player).where(models.Player.id == rich_id).values(credits=100_000)
+        )
+        session.add(
+            models.EncounterQueue(
+                id=uuid4(),
+                world_day=1,
+                attacker_id=rich_ship,
+                defender_id=poor_ship,
+                at_path=spawn.path,
+                intent="attack",
+            )
+        )
+
+    rules = load_ruleset(clean.ruleset_root, clean.ruleset_version)
+    await runner(sessions, clean).run()
+
+    async with sessions() as session:
+        poor = (await session.execute(select(models.Player).where(models.Player.id == poor_id))).scalar_one()
+    expected = 200 - floor(200 * rules.combat.rescue_tax_fraction)
+    assert poor.credits in (200, expected)
+    assert poor.credits > 0
