@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.8 |
+| Version | 0.9 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
@@ -684,6 +684,8 @@ alone:
 | `0008_population` | P3 | system_activity, npc_agents |
 | `0009_chronicle` | P4 | `hist.chronicle` |
 | `0010_missions_and_reputation` | P4 | missions, mission_assignments, reputation, `teams.defected_on` |
+| `0011_psychohistory` | P5 | `psycho` schema: aggregate views, history_variables, forecasts, the `psycho_reader` role |
+| `0012_knowledge` | P5 | `players.knowledge` |
 | `0003_tick_bookkeeping` | P1 | `hist` schema, tick_runs, tick_stages |
 | `0004_event_spine` | P2 | events (partitioned), deliveries, outbox, first partitions |
 | `0006_economy` | P3 | markets |
@@ -1722,6 +1724,10 @@ mistake in this plan that would cost a rewrite.
 | D-31 | Missions are generated from where the world is under strain (raider pressure plus trade flow), not from a script. | *GDD §5.5*: the same situation should produce different work for different factions, without anyone authoring the conflict. | Yes |
 | D-32 | Reputation is clamped to ±100 in SQL on every write. | It is a standing, not a currency: an unbounded score would make late players permanently unreachable and early ones untouchable. | Yes |
 | D-33 | Defection moves the whole team, is a Universe-scope `HISTORIC` event, and costs 25 standing with the faction left behind. | *GDD §6.7* requires a major political event rather than a menu operation; the reputation cost is what makes it a decision. | Yes |
+| D-35 | The Model reads only `psycho` views, and the `psycho_reader` role holds no privilege on `core` or `evt`. | *GDD §8.4* — populations, never individuals — becomes a property of the grants rather than of every future author remembering it (*ARCH ADR-12*). Proved by tests that assert `permission denied` for players, ships, events and reputation. | No |
+| D-36 | `Observation` carries no identifying field, and a test asserts its exact field set. | The database boundary stops a query; this stops a *signature* from ever being widened to accept a player in the first place. | No |
+| D-37 | Psychohistory ships behind `FEATURES_PSYCHOHISTORY`, default off, and `/v1/forecasts` returns 404 while dark. | *GDD §10.3*: the variables cannot be tuned against a world with no history. A 404 rather than a 403 keeps the unbuilt system from advertising itself. | Yes |
+| D-38 | Forecast *access* is universal; only resolution varies with Knowledge (headline → narrowed → precise → reasoned). | Design Q2. Gating access would make forecasts purchasable content, which §8.3 forbids; gating precision keeps Knowledge worth accumulating. | No |
 | D-34 | Read models live in `adapters/db/` beside the repositories, not in a separate `projections/` package. | Every MVP read model is built by querying the database, so a package layered *below* `adapters` inverts the real dependency — and because the API routers call the read models, the two packages formed an import cycle that `import-linter` rejected. Diverges from the sketch in *ARCH §16*, which should be amended. | Yes |
 
 ---
@@ -1772,6 +1778,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.9 | 2026-08-27 | P5 delivered: the `psycho` schema with aggregate-only views and a reader role that cannot see individuals, the pure historical model (variables, inertia, deviation, confidence, forecasts), tick stage 7 behind a feature flag, Knowledge earned by discovery, and `GET /v1/forecasts` disclosed per viewer. Recorded D-35 to D-38. |
 | 0.8 | 2026-08-27 | Fixed a layering violation that had broken the `Layers` import contract since P3: the map-tile read model moved from `projections/` to `adapters/db/` (D-34). Pinned the CI interpreter to match `.python-version`. |
 | 0.7 | 2026-08-27 | P4 delivered: event promotion and the permanent Chronicle with retention, mission generation from world pressure with accept/complete commands, reputation with clamped scores, and team defection as a Universe-scope event. Recorded D-29 to D-33. The tick now runs ten stages. |
 | 0.6 | 2026-08-27 | P3 delivered: cargo, dock/launch, markets and buy/sell, jump and journeys, scan and discovery, the encounter resolver with live NPC combat and queued player encounters, standing orders, teams, territory, the two-tier NPC population with archetype behaviour, map tiles with ETags, and the nightly soak. Recorded D-25 to D-28. |

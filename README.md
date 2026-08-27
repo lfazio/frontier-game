@@ -13,10 +13,11 @@ spend a limited Action Point budget and log out.
 
 ## Status
 
-**P4 — Depth.** The world now remembers: local violence accumulates into system-wide events and
-permanent Chronicle entries, missions are generated from where the world is under strain,
-reputation follows the player across factions, and a team can defect — loudly. Next is P5, the
-historical model.
+**P5 — History.** A psychohistorical model watches the world through aggregate views it cannot
+see individuals through — the reader role holds no privilege on player tables at all — and
+publishes probabilistic forecasts. Anyone may read one; Knowledge buys resolution, never access.
+It ships dark behind `FEATURES_PSYCHOHISTORY` until the world is old enough to tune it. Next is
+P6, the Continuity.
 
 ## Running it
 
@@ -29,6 +30,8 @@ make check          # lint, types, import boundaries, tests
 make tick           # advance the world one cycle
 make relay          # publish committed events to Redis
 make soak           # 60-cycle simulation, nightly rather than per-commit
+
+# The historical model ships dark; enable it with FEATURES_PSYCHOHISTORY=true.
 uv run uvicorn frontier.adapters.api.app:app --reload
 ```
 
