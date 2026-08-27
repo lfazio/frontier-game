@@ -166,6 +166,7 @@ class Ship(Base):
     fuel_max: Mapped[int] = mapped_column(Integer)
     cargo_max: Mapped[int] = mapped_column(Integer)
     sensor_range: Mapped[int] = mapped_column(Integer)
+    jump_range_ly: Mapped[int] = mapped_column(Integer, default=8)
     system_id: Mapped[UUID] = mapped_column(ForeignKey("core.locations.id"))
     position_path: Mapped[HexAddr] = mapped_column(AddressPath)
     docked_at: Mapped[UUID | None] = mapped_column(ForeignKey("core.locations.id"))

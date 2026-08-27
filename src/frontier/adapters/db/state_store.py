@@ -478,4 +478,5 @@ def to_domain(row: models.Ship) -> Ship:
         destroyed_on=row.destroyed_on,
         shields=row.shields,
         shields_max=row.shields_max,
+        jump_range_ly=row.jump_range_ly,
     )
