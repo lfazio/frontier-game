@@ -56,6 +56,7 @@ class Team(Base):
     name: Mapped[str] = mapped_column(String(64), unique=True)
     faction_id: Mapped[int] = mapped_column(ForeignKey("core.factions.id"))
     founded_on: Mapped[int] = mapped_column(Integer)
+    defected_on: Mapped[int | None] = mapped_column(Integer)
 
 
 class Player(Base):
@@ -317,3 +318,49 @@ class NpcAgent(Base):
     route: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     materialised_on: Mapped[int] = mapped_column(Integer)
     last_seen_on: Mapped[int] = mapped_column(Integer)
+
+
+class Chronicle(Base):
+    __tablename__ = "chronicle"
+    __table_args__ = ({"schema": "hist"},)
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    world_day: Mapped[int] = mapped_column(Integer)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    scope: Mapped[int] = mapped_column(SmallInteger)
+    origin_path: Mapped[HexAddr] = mapped_column(AddressPath)
+    type: Mapped[str] = mapped_column(String(32))
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    causation_id: Mapped[UUID | None] = mapped_column()
+
+
+class Mission(Base):
+    __tablename__ = "missions"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    faction_id: Mapped[int] = mapped_column(SmallInteger)
+    kind: Mapped[str] = mapped_column(String(24))
+    system_id: Mapped[UUID] = mapped_column(ForeignKey("core.locations.id"))
+    target_id: Mapped[UUID | None] = mapped_column(ForeignKey("core.locations.id"))
+    brief: Mapped[str] = mapped_column(String(300))
+    terms: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    reward_credits: Mapped[int] = mapped_column(Integer)
+    reward_reputation: Mapped[int] = mapped_column(Integer, default=1)
+    offered_on: Mapped[int] = mapped_column(Integer)
+    expires_on: Mapped[int] = mapped_column(Integer)
+
+
+class MissionAssignment(Base):
+    __tablename__ = "mission_assignments"
+    mission_id: Mapped[UUID] = mapped_column(ForeignKey("core.missions.id"), primary_key=True)
+    player_id: Mapped[UUID] = mapped_column(ForeignKey("core.players.id"), primary_key=True)
+    stage: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    accepted_on: Mapped[int] = mapped_column(Integer)
+    closed_on: Mapped[int | None] = mapped_column(Integer)
+
+
+class Reputation(Base):
+    __tablename__ = "reputation"
+    player_id: Mapped[UUID] = mapped_column(ForeignKey("core.players.id"), primary_key=True)
+    faction_id: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    score: Mapped[int] = mapped_column(Integer, default=0)
