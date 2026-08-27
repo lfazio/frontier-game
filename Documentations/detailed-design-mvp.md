@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.2 |
+| Version | 0.3 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
@@ -675,9 +675,9 @@ alone:
 
 | Revision | Phase | Contents |
 | --- | --- | --- |
-| `0001_core_identity` | P0 | accounts, players, teams, factions, world_state, commands |
+| `0001_core_identity` | P0 | accounts, players, teams, factions, world_state, commands, **ap_ledger** `[D-14]` |
 | `0002_world_tree` | P1 | locations, ltree extension, indexes |
-| `0003_ap_and_time` | P1 | ap_ledger, tick_runs, tick_stages |
+| `0003_ap_and_time` | P1 | tick_runs, tick_stages |
 | `0004_event_spine` | P2 | events (partitioned), deliveries, outbox, first partitions |
 | `0005_fleet` | P3 | ships, cargo, standing_orders, journeys |
 | `0006_economy` | P3 | markets |
@@ -686,6 +686,10 @@ alone:
 
 A partition-creation job runs monthly ahead of need; the MVP pre-creates twelve partitions so a forgotten job cannot
 stop the tick.
+
+Alembic's `alembic_version` table lives in `core`, so `alembic/env.py` creates the schema before Alembic bootstraps
+it, and `0001`'s downgrade leaves the schema in place. Downgrades exist to make a revision reviewable, not to be run
+in production: migrations are forward-only.
 
 ---
 
@@ -701,6 +705,9 @@ class ClockPort(Protocol):
 class RngPort(Protocol):
     def for_(self, *parts: str | int) -> random.Random: ...
 
+class IdPort(Protocol):
+    def new(self) -> UUID: ...
+
 class EventBusPort(Protocol):
     def emit(self, event: Event) -> None: ...
 
@@ -708,6 +715,10 @@ class PlayerRepo(Protocol):
     async def get_for_update(self, player_id: UUID) -> PlayerAggregate: ...
     async def save(self, aggregate: PlayerAggregate) -> None: ...
 ```
+
+Commands emit `EventDraft`s carrying only what the rules decide — type, origin, scope, visibility,
+participants, payload. The executor stamps identity, time, world day and ruleset version onto each draft to make an
+`Event`. That is what keeps ids and clocks out of the domain, and it is why `IdPort` exists alongside `ClockPort`.
 
 `RngPort.for_` returns a generator seeded by `blake2b(world_seed | world_day | parts)` (*ARCH §9.3*). No module-level
 `random` and no `datetime.now()` exists anywhere below `adapters/`; both are banned by a `ruff` rule so the ban
@@ -1681,6 +1692,9 @@ mistake in this plan that would cost a rewrite.
 | D-10 | The `psycho` and `cont` schemas are not created in the MVP. | An empty schema for an unbuilt feature attracts content. | Yes |
 | D-11 | Tick stage 4 enters the MVP, restricted to its NPC half. | *GDD* Pillar 1 is false without it: a persistent universe in which nothing happens unless a player causes it is not persistent. | No |
 | D-12 | `civilian_traffic` is an aggregate that never materialises. | It colours the system view and feeds density without adding a fourth archetype to build, balance and test. | Yes |
+| D-13 | P0 runs the command path against in-memory repositories; the SQLAlchemy ones arrive with their tables in P1 and P3. | P0's job is to prove the ports, the layering and the command template. Building `locations` and `ships` repositories before the world tree and the fleet exist would mean writing them twice. | Yes — the ports do not change |
+| D-14 | `ap_ledger` moves from migration `0003` into `0001`. | The command template cannot be demonstrated without the AP debit, and the ledger belongs with `commands` in any case: both are the command path's audit trail. | Yes |
+| D-15 | Commands emit `EventDraft`s; the executor stamps id, time, world day and ruleset version. | Keeps clocks and identity generation out of the domain, so a command's `apply` stays pure and directly testable (§5.1). | No |
 
 ---
 
@@ -1730,6 +1744,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.3 | 2026-08-27 | P0 delivered. Recorded the decisions it forced: in-memory repositories for P0 (D-13), `ap_ledger` moved into migration `0001` (D-14), and `EventDraft` stamping with a new `IdPort` (D-15, §5.1). Noted the Alembic schema bootstrap in §4.4. |
 | 0.2 | 2026-08-27 | Tracks *GDD* v2.3 and *ARCH* v0.2. The NPC population became a first-class MVP system: tick stage 4 (§6.5), the archetype catalogue (§10), `system_activity` and `npc_agents`, migration `0008`, and criteria A13–A14. Applied the answered design questions — the Planet/Sector ladder and two-letter `ltree` prefixes (§3.1), one ship per player (§4.2 of *GDD*), and half-carry of unspent AP with a signed `daily_reset` ledger entry (§3.4, §6.7, A15). Renamed `PLAYER_ENTERED` to `SHIP_ENTERED`. Restored decision-log ordering. |
 | 0.1 | 2026-08-27 | First detailed design for phases P0–P3. |
 
