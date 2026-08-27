@@ -5,10 +5,11 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.1 |
+| Version | 0.2 |
 | Date | 2026-08-27 |
+| Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
-| Depends on | `Documentations/game-design.md` v2.0, `Documentations/architecture.md` v0.1 |
+| Depends on | `Documentations/game-design.md` v2.3, `Documentations/architecture.md` v0.2 |
 
 ### Reference convention
 
@@ -70,6 +71,7 @@ test in §14 and is verified in CI, not by inspection.
 | A12 | A full tick over the generated world completes in under 60 seconds on a developer machine. |
 | A13 | A system no player has visited since generation has different market stock after seven cycles — the aggregate population moved goods. |
 | A14 | Entering an unobserved system materialises NPCs deterministically: the same system on the same world day yields identical NPCs however often it is observed. |
+| A15 | A player ending a cycle with 7 unspent AP starts the next with `daily_grant + 3`, capped by `carry_ceiling`, and the ledger still reconciles exactly. |
 
 ## 1.3 Explicitly not in the MVP
 
@@ -1595,6 +1597,7 @@ drift becomes visible before players find it.
 | A12 | Simulation soak |
 | A13 | Tick: aggregate liveliness |
 | A14 | Tick: materialisation |
+| A15 | Tick: AP carry-over; property `test_ap_never_negative` |
 
 ---
 
@@ -1673,11 +1676,11 @@ mistake in this plan that would cost a rewrite.
 | D-5 | Public API responses are explicit allowlists from the first commit, not ORM dumps. | The MVP has no secrets to leak, but the discipline is what prevents leaking later (*ARCH §12.1*). | No — this is a standing rule |
 | D-6 | NPCs share `core.ships`, the player command handlers and the combat resolver; they differ only by an `npc_agents` row and an action budget instead of AP. | A second rule engine for NPCs is a second set of bugs and guaranteed drift between what players see and what the world does. | No |
 | D-7 | The NPC population is simulated at two fidelities: aggregate flows everywhere, individual ships only where observed, with materialisation and dissolution between them. | Keeps the tick independent of world size while letting the galaxy evolve everywhere; and the aggregate layer is the same quantity psychohistory will later measure (*GDD §2.7*, §8.5). | Yes, at the cost of either an empty galaxy or an unbounded tick |
-| D-11 | Tick stage 4 enters the MVP, restricted to its NPC half. | *GDD* Pillar 1 is false without it: a persistent universe in which nothing happens unless a player causes it is not persistent. | No |
-| D-12 | `civilian_traffic` is an aggregate that never materialises. | It colours the system view and feeds density without adding a fourth archetype to build, balance and test. | Yes |
 | D-8 | One `POST /v1/commands` endpoint with a discriminated union, plus a batch variant. | Locking, idempotency and ledger writes exist once. | Yes |
 | D-9 | Prices are computed inside the transaction from current stock; a client-sent price is ignored, not validated. | Validating a client price implies the client has one (*GDD* C1). | No |
 | D-10 | The `psycho` and `cont` schemas are not created in the MVP. | An empty schema for an unbuilt feature attracts content. | Yes |
+| D-11 | Tick stage 4 enters the MVP, restricted to its NPC half. | *GDD* Pillar 1 is false without it: a persistent universe in which nothing happens unless a player causes it is not persistent. | No |
+| D-12 | `civilian_traffic` is an aggregate that never materialises. | It colours the system view and feeds density without adding a fourth archetype to build, balance and test. | Yes |
 
 ---
 
@@ -1718,7 +1721,17 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 | Teams, three factions, team chat, local communication (*GDD §7.3*) | §5.4, §8.3 | A1 |
 | Local/Planet/System/Universe events, unified feed | §3.5, §5.5, §9.3 | A9 |
 | Cycle steps 1–5, 11, 12 | §6 | A4, A10, A12, A13 |
+| Half of unspent AP carries over to a ceiling (*GDD §3.2*) | §3.4, §6.7 | A15 |
 | Design constraints C1–C10 (*GDD §10.4*) | C1 §5.2/§8.1 · C2 §6.1 · C3 §3.5 · C4 §5.5 · C5 §9.1 · C6 §6.3/§6.9 · C7 §3.4 · C8, C9 not applicable (D-10) · C10 not applicable | A3, A9, A10 |
+
+---
+
+# 19. Change log
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 0.2 | 2026-08-27 | Tracks *GDD* v2.3 and *ARCH* v0.2. The NPC population became a first-class MVP system: tick stage 4 (§6.5), the archetype catalogue (§10), `system_activity` and `npc_agents`, migration `0008`, and criteria A13–A14. Applied the answered design questions — the Planet/Sector ladder and two-letter `ltree` prefixes (§3.1), one ship per player (§4.2 of *GDD*), and half-carry of unspent AP with a signed `daily_reset` ledger entry (§3.4, §6.7, A15). Renamed `PLAYER_ENTERED` to `SHIP_ENTERED`. Restored decision-log ordering. |
+| 0.1 | 2026-08-27 | First detailed design for phases P0–P3. |
 
 ---
 

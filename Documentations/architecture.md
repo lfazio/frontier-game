@@ -5,10 +5,11 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.1 |
+| Version | 0.2 |
 | Date | 2026-08-27 |
-| Supersedes | — |
-| Normative source | `Documentations/game-design.md` v2.0 (cited as §n) |
+| Supersedes | 0.1 |
+| Normative source | `Documentations/game-design.md` v2.3 (cited as §n) |
+| Companion | `Documentations/detailed-design-mvp.md` — MVP detail for phases P0–P3 |
 | Audience | Server, client and infrastructure engineers; technical reviewers |
 
 ### How to read this document
@@ -35,6 +36,7 @@ realise them.
 | F7 | Psychohistory predicts populations, never individuals | §8.2–§8.4 | A bounded context whose only inputs are aggregates, enforced at the database-role level |
 | F8 | A fourth faction exists whose membership must not be publicly discoverable | §9 | Clearance-based authorisation, separate schema, and a dedicated anti-leak test suite |
 | F9 | Balance values (AP costs, prices, ranges) change constantly | §3.2 | Versioned rule data outside code, stamped onto every event for replay fidelity |
+| F10 | The galaxy is populated and keeps evolving where nobody is looking | §2.7 | Two-tier population: aggregate flows everywhere, individual NPCs only where observed |
 
 ## 1.2 Quality attributes
 
@@ -540,10 +542,14 @@ player as events plus a digest entry, which is the notification arrow in §3.5's
 
 ## 9.5 Cost and duration
 
-Stages 3, 5 and 7 are O(world) and are the only real CPU consumers. They are written against NumPy arrays loaded by
-bulk query, not per-row ORM traversal: the economy step is a matrix relaxation over (station × commodity), and the
-psychohistory step is a vector update over (region × variable). Stages 2, 4 and 6 are O(active players) and stay in
-ordinary Python. See risk R1 for what happens if this stops being enough.
+Stages 3, 4a, 5, 7 and 8 are O(world) and are the only real CPU consumers. They are written against NumPy arrays
+loaded by bulk query, not per-row ORM traversal: the economy step is a matrix relaxation over (station × commodity),
+the population step a coupled update over (system × flow variable), and the psychohistory step a vector update over
+(region × variable). Stages 2, 4b and 6 are O(active players or observed systems) and stay in ordinary Python.
+
+Stage 4 is deliberately split at that boundary (ADR-15): its aggregate half is O(world) and vectorised, its
+individual half is O(observed), so the cost of a populated galaxy does not grow with the parts of it nobody is
+looking at. See risk R1 for what happens if this stops being enough.
 
 ---
 
@@ -666,6 +672,7 @@ visibility implementation. `[ADR-7]`
 | Two commands, one player | `SELECT ... FOR UPDATE` on `players` | Prevents double-spend of AP; the natural serialisation point |
 | Two players, one target | Lock both player rows, ascending UUID | Deterministic order avoids deadlock |
 | Market price under concurrent trades | Row lock on `markets` + `CHECK (stock >= 0)` | Prices are per-station; contention is naturally low |
+| NPC commands inside the tick | None needed — the tick already holds the world exclusively |
 | Tick versus live commands | Advisory lock + a short `world_state = TICKING` window | Commands during the window get `503 Retry-After`; the window is seconds, and the client shows "the galaxy is turning" |
 | Outbox relay instances | `FOR UPDATE SKIP LOCKED` | Safe at-least-once with more than one relay |
 
@@ -780,6 +787,7 @@ and it is used only for the daily digest (§3.4).
 | Integration | Repositories, migrations, locking, `ltree` queries | pytest + testcontainers PostgreSQL | Every commit |
 | Contract | OpenAPI schema vs the TypeScript client | schemathesis + generated client build | Every commit |
 | Anti-leak | Continuity non-observability | pytest, dedicated suite | **Merge blocker** |
+| Tier agreement | Observed NPC outcomes and aggregate attrition move the same quantities the same way | pytest + seeded world | Every commit |
 | Simulation | 365-day headless soak | pytest marker, nightly | Nightly |
 
 The domain core is pure, so the fast layers carry most of the weight. A rule change should be provable without a
@@ -902,7 +910,7 @@ frontier/
 │   │   ├── hex/{coordinates,geometry}.py
 │   │   ├── events/{model,types,scope}.py
 │   │   ├── rules/{ruleset,ap,combat,economy}.py
-│   │   ├── fleet/  world/  economy/  encounter/  polity/  missions/
+│   │   ├── fleet/  world/  economy/  encounter/  polity/  missions/  npc/
 │   ├── application/
 │   │   ├── commands/              # one module per player intent
 │   │   ├── ports.py               # Protocols: repos, ClockPort, RngPort, BusPort
@@ -958,7 +966,8 @@ Each deferred system has a named seam, so adding it is a plug-in rather than a r
 | Bounty system | Event subscriber on `SHIP_DESTROYED` + a `polity` ledger |
 | Player-owned stations, colonisation | New `locations.kind` values with owner attribution; the tree already supports them |
 | Communication relays and delay | `comms` already computes `deliver_at`; MVP sets delay to zero via `features.comms_delay` |
-| Advanced economy, dynamic faction wars | Replace the tick stage implementation behind the `Stage` protocol |
+| Advanced economy, dynamic faction wars | Stage 4's second half — faction strategic AI — plus replacing the stage-3 implementation behind the `Stage` protocol |
+| Named, persistent NPCs (Continuity instruments, §9.5) | `npc_agents` gains a `persistent` flag and is exempted from dissolution |
 | Player-created missions | A second `MissionProvider` implementation |
 | Fleet battles | `encounter.resolve()` already takes participant *sets*; MVP restricts cardinality to 1v1 by rule, not by code |
 | Historical archives, prediction, crises, eras | The `hist` and `psycho` schemas exist from P1; only the stages and read models are added |
@@ -989,7 +998,9 @@ Full records live in `docs/adr/`; this is the index with the essential trade-off
 | ADR-11 | Transactional outbox for event publication | No dual-write anomaly; at-least-once delivery with client-side de-duplication |
 | ADR-12 | Psychohistory reads aggregate views under a restricted database role | §8.4 enforced by grants rather than by code review |
 | ADR-13 | Continuity in its own schema, no inbound imports, allowlist serialisation, uniform error and timing behaviour | §9.4 becomes a testable property (13.3) instead of an aspiration |
-| ADR-14 | PostgreSQL `ltree` for the location hierarchy, plus per-level axial columns | Indexed containment queries; label encoding constrains coordinate serialisation |
+| ADR-14 | PostgreSQL `ltree` for the location hierarchy, plus per-level axial columns | Indexed containment queries. The ladder is fixed at six levels (§2.2), and labels use two-letter prefixes (`ga`, `re`, `sy`, `pl`, `se`, `lo`) because System and Sector collide on their first letter |
+| ADR-15 | The NPC population is simulated at two fidelities — aggregate flows in every system, individual ships only where observed, with materialisation and dissolution between them | The tick cost stops depending on world size while the galaxy still evolves everywhere (§2.7); and the aggregate layer is the same quantity psychohistory later measures (§8.5), so the two are not built twice. Costs a written-back reconciliation between tiers, tested as an invariant (13) |
+| ADR-16 | Forecasts are a read model rendered per viewer, never an inventory item | §8.3 makes them a public good whose *quality* varies with the viewer's Knowledge, which is `render_for` (7.4) applied to one more payload rather than a second entitlement system |
 
 ---
 
@@ -1004,26 +1015,14 @@ Full records live in `docs/adr/`; this is the index with the essential trade-off
 | R5 | Balance changes invalidate historical replay | Disputes become unanswerable | `ruleset_version` on every event; replay loads the historical ruleset |
 | R6 | The daily tick is a single point of failure | A missed day is highly visible to every player | Resumable stages, alerting on `tick_runs` without `finished_at`, and a documented manual re-run procedure |
 | R7 | AP as the sole throttle may not deter multi-accounting | Unfair advantage, world distortion | Detection data collected from P1; policy response, not an architectural one |
+| R8 | The two population tiers drift apart, so what a player observes contradicts what the aggregate believes | The world stops being self-consistent, and psychohistory later measures a fiction | Individual outcomes are written back to the aggregate, never computed twice; a tier-agreement invariant runs on every commit (13) and in the soak |
 
-Design questions that were open against this architecture have all been answered, and are now settled architecture:
+Every design question that was open against version 0.1 has been answered; the architectural consequences are
+recorded in the ADR log and in section 22, and the settled rules they produced are listed there. One design question
+remains, and it does not touch this architecture until teams can own things:
 
-- **The Continuity's intervention budget scales with world extent** (§9.2), so tick stage 8 is **O(world)**, not
-  O(agents). It is written against the same region-shardable pattern as stages 3–6, which is what keeps R1's
-  mitigation applicable to it.
-- **The Continuity is NPC-operated before it recruits players** (§9.3), so its first release needs a working agent
-  AI and its tick stage, but no recruitment, clearance UI or secret channel. The anti-leak suite (13.3) is still
-  required from that first release, because NPC agents have covers to blow just as player agents do.
-- **Era transitions fire on sustained threshold crossings** (§8.11), never by operator action. There is therefore no
-  admin endpoint to advance an era, and the transition is a tick-stage output like any other.
-- **Unspent Action Points half-carry to a ceiling** (§3.2), so the daily grant is a *reset to a computed value*
-  rather than an addition; the ledger entry may be negative and the reconciliation in 7.3 must allow it.
-- **The scale ladder is final** at Galaxy → Region → System → Planet → Sector → Local (§2.2). `Level` is fixed at six
-  members and the `ltree` label prefixes follow it.
-- **Forecasts are a public good of variable quality** (§8.3), so they are a **read model rendered per viewer**, never
-  an inventory item. Quality is a function of the viewer's Knowledge, which makes forecast rendering one more case
-  for `render_for` (7.4, ADR-7) rather than a second entitlement system.
-- **A player commands exactly one ship** (§4.2), so `ships.player_id` carries a partial unique index and the command
-  layer never needs to disambiguate which ship is acting.
+- **Q8** — may teams own shared assets (§6.5), and who controls them on disband? Decides whether `core.teams` becomes
+  an owning party in the location and market models, or stays a pure membership construct.
 
 ---
 
@@ -1048,7 +1047,17 @@ Design questions that were open against this architecture have all been answered
 | §10.1 MVP | Delivery phases P0–P3 (17) |
 | §10.2 Future features | Extension points (18) |
 | §9 The Continuity | `cont` schema, clearance, anti-leak suite (12.1, 13.3) |
+| §2.7 The inhabited world | Population context (6), tick stage 4 (9.2, 9.5), ADR-15 |
 | §9.13 Push, never force | Capability-limited intervention stage (12.1) |
+
+---
+
+# 22. Change log
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 0.2 | 2026-08-27 | Tracks *GDD* v2.3. Added the Population bounded context and driver F10, and split tick stage 4 into an O(world) aggregate half and an O(observed) individual half (ADR-15). Recorded the settled scale ladder and the two-letter `ltree` prefixes (ADR-14) and forecasts as a per-viewer read model (ADR-16). Moved the answered design questions out of section 20, leaving Q8; added risk R8 and the tier-agreement test. Renamed `PLAYER_ENTERED` to `SHIP_ENTERED`. |
+| 0.1 | 2026-08-27 | First complete architecture for the Python implementation. |
 
 ---
 
