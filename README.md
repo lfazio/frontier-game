@@ -13,16 +13,17 @@ spend a limited Action Point budget and log out.
 
 ## Status
 
-**P0 — Skeleton.** The layering, the rule loader, the command execution path and one command (`move`)
-work end to end over HTTP. Persistence for ships and locations is in-memory; the SQLAlchemy
-repositories arrive with their tables in P1 and P3.
+**P1 — World and time.** A generated galaxy of ~47 systems on PostgreSQL `ltree`, the command path
+on real repositories, and a resumable daily tick that settles arrivals and resets Action Points.
+`GET /v1/me` shows the daily overview. Next is P2, the event spine.
 
 ## Running it
 
 ```sh
 make install        # uv sync
 make up             # postgres + redis
-uv run alembic upgrade head
+make migrate
+make world       # generate a galaxy
 make check          # lint, types, import boundaries, tests
 make demo           # watch a player spend a day's AP
 uv run uvicorn frontier.adapters.api.app:app --reload

@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.3 |
+| Version | 0.4 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
@@ -677,9 +677,10 @@ alone:
 | --- | --- | --- |
 | `0001_core_identity` | P0 | accounts, players, teams, factions, world_state, commands, **ap_ledger** `[D-14]` |
 | `0002_world_tree` | P1 | locations, ltree extension, indexes |
-| `0003_ap_and_time` | P1 | tick_runs, tick_stages |
+| `0004_fleet` | P1 | ships, journeys `[D-16]` |
+| `0003_tick_bookkeeping` | P1 | `hist` schema, tick_runs, tick_stages |
 | `0004_event_spine` | P2 | events (partitioned), deliveries, outbox, first partitions |
-| `0005_fleet` | P3 | ships, cargo, standing_orders, journeys |
+| `0005_fleet_detail` | P3 | cargo, standing_orders |
 | `0006_economy` | P3 | markets |
 | `0007_conflict` | P3 | encounter_queue, territory, player_discoveries |
 | `0008_population` | P3 | npc_agents, system_activity; `ships.player_id` made nullable |
@@ -1223,7 +1224,7 @@ indistinguishable from a hand-authored one.
 | --- | --- |
 | Regions | 4 |
 | Systems per region | 10–14 |
-| System hex map radius | 8 (169 hexes) |
+| System hex map radius | 8 (217 hexes) |
 | Planets per system | 3–8 |
 | Stations per system | 1–3 |
 | Commodities | 8 |
@@ -1242,9 +1243,12 @@ indistinguishable from a hand-authored one.
 Every step draws from `Rng.for_("worldgen", step, index)`, so a seed reproduces a world exactly — which is what makes
 the simulation soak test (§14.5) meaningful.
 
-Sizing check: 48 systems × 169 hexes = 8 112 addressable system hexes and roughly 250 planets. Small enough to
-generate in seconds and to inspect by hand, large enough that map streaming (§9.1) is genuinely exercised rather
+Sizing check: roughly 47 systems × 217 hexes ≈ 10 200 addressable system hexes and about 250 planets. Small enough
+to generate in seconds and to inspect by hand, large enough that map streaming (§9.1) is genuinely exercised rather
 than accidentally satisfied.
+
+**Every in-system hex is a row**, `kind = 'void'` where nothing sits there `[D-17]`. A destination check is then a
+lookup rather than a radius calculation, and there is one source of truth for what exists.
 
 ---
 
@@ -1695,6 +1699,11 @@ mistake in this plan that would cost a rewrite.
 | D-13 | P0 runs the command path against in-memory repositories; the SQLAlchemy ones arrive with their tables in P1 and P3. | P0's job is to prove the ports, the layering and the command template. Building `locations` and `ships` repositories before the world tree and the fleet exist would mean writing them twice. | Yes — the ports do not change |
 | D-14 | `ap_ledger` moves from migration `0003` into `0001`. | The command template cannot be demonstrated without the AP debit, and the ledger belongs with `commands` in any case: both are the command path's audit trail. | Yes |
 | D-15 | Commands emit `EventDraft`s; the executor stamps id, time, world day and ruleset version. | Keeps clocks and identity generation out of the domain, so a command's `apply` stays pure and directly testable (§5.1). | No |
+| D-16 | `ships` and `journeys` move from migration `0005` into `0004`, in P1. | A unit of work spanning Postgres for locations and memory for ships would be a worse intermediate architecture than reordering two migrations — and tick stage 1 needs journeys to settle. | Yes |
+| D-17 | Every in-system hex is a `locations` row, `kind = 'void'` where empty. | A destination check becomes a lookup instead of a radius rule held in two places. About 10 200 rows, which is nothing. | Yes |
+| D-18 | The world day lives in `core.world_state`, not in the clock. `ClockPort` provides only `now()`; callers pass the day to `RngPort`. | The day is world state: the tick advances it, and a replay must be able to set it. A clock that derives it from wall time cannot be replayed or accelerated (*ARCH §14.1*). | No |
+| D-19 | Tick stage 12 (`RebuildProjections`) is deferred to P2; P1 ships stages 1 and 11, and `GET /v1/me` reads live. | There are no projections to rebuild until the event spine exists. Building a throwaway table to fill the slot would be worse than an honest gap. | Yes |
+| D-20 | Entry points live in `frontier.cli`, a layer above `simulation` and `adapters`. | `make world` and `make tick` compose adapters, so they cannot sit inside `worldgen`, which the layer contract keeps pure. | Yes |
 
 ---
 
@@ -1744,6 +1753,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.4 | 2026-08-27 | P1 delivered: the location tree on `ltree`, the world generator, SQLAlchemy repositories and unit of work, the tick runner with stages 1 and 11, and `GET /v1/me`. Recorded D-16 to D-20. Corrected the §7 sizing arithmetic (radius 8 is 217 hexes, not 169). |
 | 0.3 | 2026-08-27 | P0 delivered. Recorded the decisions it forced: in-memory repositories for P0 (D-13), `ap_ledger` moved into migration `0001` (D-14), and `EventDraft` stamping with a new `IdPort` (D-15, §5.1). Noted the Alembic schema bootstrap in §4.4. |
 | 0.2 | 2026-08-27 | Tracks *GDD* v2.3 and *ARCH* v0.2. The NPC population became a first-class MVP system: tick stage 4 (§6.5), the archetype catalogue (§10), `system_activity` and `npc_agents`, migration `0008`, and criteria A13–A14. Applied the answered design questions — the Planet/Sector ladder and two-letter `ltree` prefixes (§3.1), one ship per player (§4.2 of *GDD*), and half-carry of unspent AP with a signed `daily_reset` ledger entry (§3.4, §6.7, A15). Renamed `PLAYER_ENTERED` to `SHIP_ENTERED`. Restored decision-log ordering. |
 | 0.1 | 2026-08-27 | First detailed design for phases P0–P3. |
