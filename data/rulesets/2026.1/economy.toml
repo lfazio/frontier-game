@@ -1,0 +1,36 @@
+elasticity = 0.6
+price_floor_ratio = 0.35
+price_ceiling_ratio = 3.0
+relaxation_rate = 0.15
+spread = 0.08
+shift_report_threshold = 0.10
+
+[commodities]
+grain = 40
+water = 20
+ore = 60
+alloys = 140
+fuel_cells = 90
+machinery = 220
+medicine = 300
+luxuries = 480
+
+[station_type.agricultural]
+produces = "grain"
+consumes = "machinery"
+
+[station_type.industrial]
+produces = "machinery"
+consumes = "alloys"
+
+[station_type.mining]
+produces = "ore"
+consumes = "fuel_cells"
+
+[station_type.refinery]
+produces = "alloys"
+consumes = "ore"
+
+[station_type.trade_hub]
+produces = "luxuries"
+consumes = "grain"

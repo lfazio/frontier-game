@@ -1,0 +1,9 @@
+base_hit_chance = 0.70
+sensor_hit_bonus_per_point = 0.02
+shield_absorb_ratio = 0.60
+escape_base_chance = 0.45
+max_rounds_per_encounter = 5
+destroyed_cargo_drop_ratio = 0.50
+weapon_damage_min = 12
+weapon_damage_max = 20
+respawn_credit_penalty = 1000

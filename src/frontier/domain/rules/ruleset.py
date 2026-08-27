@@ -61,17 +61,59 @@ class WorldRules:
 
 
 @dataclass(frozen=True, slots=True)
+class CombatRules:
+    base_hit_chance: float
+    sensor_hit_bonus_per_point: float
+    shield_absorb_ratio: float
+    escape_base_chance: float
+    max_rounds_per_encounter: int
+    destroyed_cargo_drop_ratio: float
+    weapon_damage_min: int
+    weapon_damage_max: int
+    respawn_credit_penalty: int
+
+
+@dataclass(frozen=True, slots=True)
+class EconomyRules:
+    elasticity: float
+    price_floor_ratio: float
+    price_ceiling_ratio: float
+    relaxation_rate: float
+    spread: float
+    shift_report_threshold: float
+    commodities: Mapping[str, int]
+    station_type: Mapping[str, Mapping[str, str]]
+
+
+@dataclass(frozen=True, slots=True)
+class NpcRules:
+    trade_relax: float
+    patrol_relax: float
+    raider_relax: float
+    diffusion: float
+    k_trade: float
+    k_raider: float
+    haul_capacity: int
+    dissolve_after_cycles: int
+    per_flow_unit: Mapping[str, int]
+    actions_per_cycle: Mapping[str, int]
+
+
+@dataclass(frozen=True, slots=True)
 class RuleSet:
     version: str
     ap: ApRules
     world: WorldRules
+    combat: CombatRules
+    economy: EconomyRules
+    npc: NpcRules
 
     def ap_cost(self, action: ActionKind) -> int:
         return self.ap.cost[action.value]
 
     @classmethod
     def from_mapping(cls, version: str, files: Mapping[str, Mapping[str, Any]]) -> RuleSet:
-        known = {"ap_costs", "world"}
+        known = {"ap_costs", "world", "combat", "economy", "npc"}
         unknown = set(files) - known
         if unknown:
             raise RuleSetError(f"unknown ruleset file(s): {', '.join(sorted(unknown))}")
@@ -88,8 +130,32 @@ class RuleSet:
         world_keys = {f for f in WorldRules.__dataclass_fields__}
         world_fields = _take(files["world"], world_keys, "world")
 
+        economy_raw = dict(files["economy"])
+        commodities = economy_raw.pop("commodities", {})
+        station_type = economy_raw.pop("station_type", {})
+        economy_fields = _take(
+            economy_raw,
+            {f for f in EconomyRules.__dataclass_fields__} - {"commodities", "station_type"},
+            "economy",
+        )
+        npc_raw = dict(files["npc"])
+        per_flow = npc_raw.pop("per_flow_unit", {})
+        actions = npc_raw.pop("actions_per_cycle", {})
+        npc_fields = _take(
+            npc_raw,
+            {f for f in NpcRules.__dataclass_fields__} - {"per_flow_unit", "actions_per_cycle"},
+            "npc",
+        )
+
         return cls(
             version=version,
             ap=ApRules(cost=dict(costs), **ap_fields),
             world=WorldRules(**world_fields),
+            combat=CombatRules(**_take(files["combat"], set(CombatRules.__dataclass_fields__), "combat")),
+            economy=EconomyRules(
+                commodities=dict(commodities),
+                station_type={k: dict(v) for k, v in station_type.items()},
+                **economy_fields,
+            ),
+            npc=NpcRules(per_flow_unit=dict(per_flow), actions_per_cycle=dict(actions), **npc_fields),
         )

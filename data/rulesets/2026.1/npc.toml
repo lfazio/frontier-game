@@ -1,0 +1,18 @@
+trade_relax = 0.20
+patrol_relax = 0.15
+raider_relax = 0.18
+diffusion = 0.10
+k_trade = 1.2
+k_raider = 0.9
+haul_capacity = 20
+dissolve_after_cycles = 1
+
+[per_flow_unit]
+hauler = 6
+patrol = 4
+raider = 4
+
+[actions_per_cycle]
+hauler = 4
+patrol = 3
+raider = 3
