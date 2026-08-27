@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -10,6 +11,7 @@ from sqlalchemy import delete, func, select, update
 from frontier.adapters.clock import SeededRng, SystemClock
 from frontier.adapters.db import models
 from frontier.adapters.rules_loader import load_ruleset
+from frontier.domain.hex.coordinates import HexAddr
 from frontier.simulation.stages.grant_ap import GrantActionPoints
 from frontier.simulation.stages.settle_travel import SettleTravel
 from frontier.simulation.tick import TickRunner
@@ -77,7 +79,7 @@ async def test_every_stage_is_checkpointed(sessions, clean):
             .scalars()
             .all()
         )
-    assert stages == ["grant_action_points", "settle_travel"]
+    assert stages == ["build_digests", "grant_action_points", "settle_travel"]
 
 
 async def test_a_completed_stage_is_skipped_on_a_resumed_run(sessions, clean):
@@ -190,3 +192,47 @@ async def test_a_two_cycle_journey_lands_on_the_second_tick(sessions, clean):
     assert landed.position_path == destination.path
     assert landed.system_id == destination.parent_id
     assert journey.settled is True
+
+
+async def test_the_tick_builds_a_digest_for_every_player(sessions, clean):
+    """Stage 12/13: the daily overview is ready before anyone logs in — GDD §3.4."""
+    player_id, _, _ = await make_player(sessions)
+
+    await runner(sessions, clean).run()
+
+    async with sessions() as session:
+        digest = (
+            await session.execute(select(models.Digest).where(models.Digest.player_id == player_id))
+        ).scalar_one()
+    assert digest.world_day == 1
+    assert digest.summary == {"events": {}, "total": 0}
+
+
+async def test_a_digest_counts_what_reached_the_player(sessions, clean):
+    player_id, _, _ = await make_player(sessions)
+    async with sessions() as session, session.begin():
+        event_id = uuid4()
+        session.add(
+            models.Event(
+                id=event_id,
+                world_day=1,
+                occurred_at=datetime(2026, 8, 27, tzinfo=UTC),
+                type="MESSAGE",
+                origin_path=HexAddr.parse("ga0_0"),
+                scope=0,
+                visibility="participants",
+                severity=0,
+                participants=[player_id],
+                payload={"text": "x", "channel": "team"},
+                ruleset_version="test",
+            )
+        )
+        session.add(models.EventDelivery(recipient_id=player_id, event_id=event_id, world_day=1))
+
+    await runner(sessions, clean).run()
+
+    async with sessions() as session:
+        digest = (
+            await session.execute(select(models.Digest).where(models.Digest.player_id == player_id))
+        ).scalar_one()
+    assert digest.summary == {"events": {"MESSAGE": 1}, "total": 1}

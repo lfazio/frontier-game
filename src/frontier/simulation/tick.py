@@ -13,6 +13,7 @@ from frontier.adapters.clock import SystemClock
 from frontier.adapters.db import models
 from frontier.domain.rules.ruleset import RuleSet
 from frontier.simulation.stages.base import Stage, TickContext
+from frontier.simulation.stages.digests import BuildDigests
 from frontier.simulation.stages.grant_ap import GrantActionPoints
 from frontier.simulation.stages.settle_travel import SettleTravel
 
@@ -23,6 +24,7 @@ LOCK_KEY = "frontier:tick"
 MVP_STAGES: tuple[Stage, ...] = (
     SettleTravel(),  # ARCH stage 1
     GrantActionPoints(),  # ARCH stage 11
+    BuildDigests(),  # ARCH stages 12-13
 )
 
 
