@@ -25,7 +25,7 @@ def runner(sessions, settings) -> TickRunner:
     )
 
 
-async def a_player(sessions, hull: int = 100, posture: str = "evade"):
+async def a_player(sessions, hull: int = 100, posture: str = "evade", ap: int = 0):
     async with sessions() as session, session.begin():
         spawn = (
             await session.execute(
@@ -36,7 +36,7 @@ async def a_player(sessions, hull: int = 100, posture: str = "evade"):
             )
         ).scalar_one()
         account = models.Account(id=uuid4(), email=f"{uuid4().hex}@x.io", password_hash="x")
-        player = models.Player(id=uuid4(), account_id=account.id, callsign=uuid4().hex[:12])
+        player = models.Player(id=uuid4(), account_id=account.id, callsign=uuid4().hex[:12], ap_balance=ap)
         ship = models.Ship(
             id=uuid4(),
             player_id=player.id,
@@ -223,11 +223,81 @@ async def test_a_full_tick_stays_well_inside_its_budget(sessions, clean):
 
     assert elapsed < 60
     assert set(report.stages) == {
-        "settle_travel",
-        "resolve_encounters",
-        "economy",
-        "npc_population",
-        "territory",
-        "grant_action_points",
         "build_digests",
+        "chronicle",
+        "economy",
+        "event_promotion",
+        "grant_action_points",
+        "missions",
+        "npc_population",
+        "resolve_encounters",
+        "settle_travel",
+        "territory",
     }
+
+
+async def test_a_player_can_attack_a_materialised_npc(sessions, clean):
+    """The live combat path, end to end: an NPC beside a player resolves inside the command."""
+    from functools import partial
+
+    from frontier.adapters.clock import UuidFactory
+    from frontier.adapters.db.uow import SqlUnitOfWork
+    from frontier.application.commands.combat import AttackCommand
+    from frontier.application.executor import Executor
+
+    player_id, ship_id, spawn = await a_player(sessions, ap=10)
+    async with sessions() as session, session.begin():
+        npc_ship = models.Ship(
+            id=uuid4(),
+            player_id=None,
+            hull=30,
+            hull_max=90,
+            shields=0,
+            shields_max=30,
+            fuel=100,
+            fuel_max=100,
+            cargo_max=20,
+            sensor_range=1,
+            system_id=spawn.parent_id,
+            position_path=spawn.path,
+        )
+        session.add(npc_ship)
+        await session.flush()
+        session.add(
+            models.NpcAgent(
+                ship_id=npc_ship.id,
+                system_id=spawn.parent_id,
+                archetype="raider",
+                slot=0,
+                faction_id=3,
+                route={},
+                materialised_on=0,
+                last_seen_on=0,
+            )
+        )
+
+    clock = SystemClock()
+    rules = load_ruleset(clean.ruleset_root, clean.ruleset_version)
+    executor = Executor(
+        uow_factory=partial(SqlUnitOfWork, sessions),
+        clock=clock,
+        rng=SeededRng(clean.world_seed),
+        ids=UuidFactory(clock),
+        rules=rules,
+    )
+
+    result = await executor.execute(
+        AttackCommand(id=uuid4(), idempotency_key=uuid4(), target_ship_id=npc_ship.id), player_id
+    )
+
+    types = [e.type.value for e in result.events]
+    assert result.status == "accepted", result.rejection
+    assert "COMBAT_STARTED" in types and "COMBAT_RESOLVED" in types
+
+    async with sessions() as session:
+        queued = (await session.execute(select(func.count()).select_from(models.EncounterQueue))).scalar_one()
+        npc = (await session.execute(select(models.Ship).where(models.Ship.id == npc_ship.id))).scalar_one()
+        attacker = (await session.execute(select(models.Ship).where(models.Ship.id == ship_id))).scalar_one()
+
+    assert queued == 0, "NPC combat resolves live; only player-versus-player is queued"
+    assert npc.hull < 30 or npc.destroyed_on is not None or attacker.hull < 100
