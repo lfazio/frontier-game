@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -15,6 +16,7 @@ from sqlalchemy import (
     Index,
     Integer,
     MetaData,
+    Numeric,
     SmallInteger,
     String,
     UniqueConstraint,
@@ -239,3 +241,79 @@ class Digest(Base):
     player_id: Mapped[UUID] = mapped_column(primary_key=True)
     world_day: Mapped[int] = mapped_column(Integer, primary_key=True)
     summary: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+class Cargo(Base):
+    __tablename__ = "cargo"
+    ship_id: Mapped[UUID] = mapped_column(ForeignKey("core.ships.id"), primary_key=True)
+    commodity: Mapped[str] = mapped_column(String(24), primary_key=True)
+    qty: Mapped[int] = mapped_column(Integer)
+    avg_unit_cost: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class StandingOrders(Base):
+    __tablename__ = "standing_orders"
+    player_id: Mapped[UUID] = mapped_column(ForeignKey("core.players.id"), primary_key=True)
+    posture: Mapped[str] = mapped_column(String(20), default="evade")
+    engage_hostile: Mapped[bool] = mapped_column(Boolean, default=False)
+    engage_above_cargo: Mapped[int | None] = mapped_column(Integer)
+    retreat_at_hull_pct: Mapped[int] = mapped_column(Integer, default=50)
+    auto_reply: Mapped[str | None] = mapped_column(String(200))
+
+
+class Market(Base):
+    __tablename__ = "markets"
+    station_id: Mapped[UUID] = mapped_column(ForeignKey("core.locations.id"), primary_key=True)
+    commodity: Mapped[str] = mapped_column(String(24), primary_key=True)
+    stock: Mapped[int] = mapped_column(Integer)
+    target_stock: Mapped[int] = mapped_column(Integer)
+    base_price: Mapped[int] = mapped_column(Integer)
+
+
+class EncounterQueue(Base):
+    __tablename__ = "encounter_queue"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    world_day: Mapped[int] = mapped_column(Integer)
+    attacker_id: Mapped[UUID] = mapped_column(ForeignKey("core.ships.id"))
+    defender_id: Mapped[UUID] = mapped_column(ForeignKey("core.ships.id"))
+    at_path: Mapped[HexAddr] = mapped_column(AddressPath)
+    intent: Mapped[str] = mapped_column(String(16), default="attack")
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class Territory(Base):
+    __tablename__ = "territory"
+    system_id: Mapped[UUID] = mapped_column(ForeignKey("core.locations.id"), primary_key=True)
+    faction_id: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    influence: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=0)
+
+
+class PlayerDiscovery(Base):
+    __tablename__ = "player_discoveries"
+    player_id: Mapped[UUID] = mapped_column(ForeignKey("core.players.id"), primary_key=True)
+    location_id: Mapped[UUID] = mapped_column(ForeignKey("core.locations.id"), primary_key=True)
+    seen_on: Mapped[int] = mapped_column(Integer)
+
+
+class SystemActivity(Base):
+    __tablename__ = "system_activity"
+    system_id: Mapped[UUID] = mapped_column(ForeignKey("core.locations.id"), primary_key=True)
+    trade_flow: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=0)
+    patrol_strength: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=0)
+    raider_pressure: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=0)
+    civilian_traffic: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=0)
+    patrol_losses: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=0)
+    raider_losses: Mapped[Decimal] = mapped_column(Numeric(6, 4), default=0)
+    last_simulated_on: Mapped[int] = mapped_column(Integer, default=-1)
+
+
+class NpcAgent(Base):
+    __tablename__ = "npc_agents"
+    ship_id: Mapped[UUID] = mapped_column(ForeignKey("core.ships.id"), primary_key=True)
+    system_id: Mapped[UUID] = mapped_column(ForeignKey("core.locations.id"))
+    archetype: Mapped[str] = mapped_column(String(16))
+    slot: Mapped[int] = mapped_column(SmallInteger)
+    faction_id: Mapped[int | None] = mapped_column(SmallInteger)
+    route: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    materialised_on: Mapped[int] = mapped_column(Integer)
+    last_seen_on: Mapped[int] = mapped_column(Integer)
