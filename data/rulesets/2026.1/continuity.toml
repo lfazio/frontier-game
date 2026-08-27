@@ -1,0 +1,7 @@
+# Budgets scale with the extent of the world, never with the number of players (design Q4):
+# a bigger galaxy does not slip the Continuity's grip, and a popular one does not tighten it.
+systems_per_intervention = 12
+systems_per_agent = 16
+max_magnitude = 0.06
+deviation_floor = 0.02
+agent_cover_factions = [1, 2, 3]

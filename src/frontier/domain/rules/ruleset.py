@@ -118,6 +118,21 @@ class EventRules:
 
 
 @dataclass(frozen=True, slots=True)
+class ContinuityRules:
+    systems_per_intervention: int
+    systems_per_agent: int
+    max_magnitude: float
+    deviation_floor: float
+    agent_cover_factions: list[int]
+
+    def interventions_for(self, systems: int) -> int:
+        return max(1, systems // max(1, self.systems_per_intervention))
+
+    def agents_for(self, systems: int) -> int:
+        return max(1, systems // max(1, self.systems_per_agent))
+
+
+@dataclass(frozen=True, slots=True)
 class RuleSet:
     version: str
     ap: ApRules
@@ -126,13 +141,14 @@ class RuleSet:
     economy: EconomyRules
     npc: NpcRules
     events: EventRules
+    continuity: ContinuityRules
 
     def ap_cost(self, action: ActionKind) -> int:
         return self.ap.cost[action.value]
 
     @classmethod
     def from_mapping(cls, version: str, files: Mapping[str, Mapping[str, Any]]) -> RuleSet:
-        known = {"ap_costs", "world", "combat", "economy", "npc", "events"}
+        known = {"ap_costs", "world", "combat", "economy", "npc", "events", "continuity"}
         unknown = set(files) - known
         if unknown:
             raise RuleSetError(f"unknown ruleset file(s): {', '.join(sorted(unknown))}")
@@ -183,6 +199,9 @@ class RuleSet:
                     {f for f in EventRules.__dataclass_fields__} - {"promotion_threshold"},
                     "events",
                 ),
+            ),
+            continuity=ContinuityRules(
+                **_take(files["continuity"], set(ContinuityRules.__dataclass_fields__), "continuity")
             ),
             npc=NpcRules(per_flow_unit=dict(per_flow), **npc_fields),
         )
