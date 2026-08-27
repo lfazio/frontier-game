@@ -50,6 +50,11 @@ REQUIRED_KEYS: dict[EventType, frozenset[str]] = {
     EventType.AP_GRANTED: frozenset({"amount", "balance"}),
     EventType.TEAM_JOINED: frozenset({"player_id", "team_id"}),
     EventType.TEAM_LEFT: frozenset({"player_id", "team_id"}),
+    EventType.HISTORICAL_EVENT: frozenset({"weight", "caused_by"}),
+    EventType.MISSION_ACCEPTED: frozenset({"mission_id", "kind"}),
+    EventType.MISSION_COMPLETED: frozenset({"mission_id", "kind", "reward"}),
+    EventType.REPUTATION_CHANGED: frozenset({"faction_id", "delta", "score"}),
+    EventType.TEAM_DEFECTED: frozenset({"team_id", "from_faction", "to_faction"}),
 }
 
 DEFAULT_SCOPE: dict[EventType, tuple[Scope, Visibility]] = {
@@ -68,6 +73,11 @@ DEFAULT_SCOPE: dict[EventType, tuple[Scope, Visibility]] = {
     EventType.AP_GRANTED: (Scope.LOCAL, Visibility.PARTICIPANTS),
     EventType.TEAM_JOINED: (Scope.LOCAL, Visibility.TEAM),
     EventType.TEAM_LEFT: (Scope.LOCAL, Visibility.TEAM),
+    EventType.HISTORICAL_EVENT: (Scope.SYSTEM, Visibility.PUBLIC),
+    EventType.MISSION_ACCEPTED: (Scope.LOCAL, Visibility.PARTICIPANTS),
+    EventType.MISSION_COMPLETED: (Scope.SYSTEM, Visibility.PUBLIC),
+    EventType.REPUTATION_CHANGED: (Scope.LOCAL, Visibility.PARTICIPANTS),
+    EventType.TEAM_DEFECTED: (Scope.UNIVERSE, Visibility.PUBLIC),
 }
 
 

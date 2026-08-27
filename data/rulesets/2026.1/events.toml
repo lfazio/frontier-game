@@ -1,0 +1,10 @@
+promotion_window_cycles = 1
+retention_local_days = 3
+retention_planet_days = 14
+retention_system_days = 60
+chronicle_min_severity = 3
+
+[promotion_threshold]
+local_to_system = 6
+system_to_region = 14
+region_to_universe = 30

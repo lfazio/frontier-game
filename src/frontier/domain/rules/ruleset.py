@@ -20,6 +20,7 @@ class ActionKind(StrEnum):
     LAUNCH = "launch"
     MESSAGE = "message"
     STANDING_ORDERS = "standing_orders"
+    MISSION_STAGE = "mission_stage"
 
 
 class RuleSetError(ValueError):
@@ -100,6 +101,24 @@ class NpcRules:
 
 
 @dataclass(frozen=True, slots=True)
+class EventRules:
+    promotion_window_cycles: int
+    retention_local_days: int
+    retention_planet_days: int
+    retention_system_days: int
+    chronicle_min_severity: int
+    promotion_threshold: Mapping[str, int]
+
+    def retention_days(self, scope: int) -> int | None:
+        """Local noise expires; anything promoted to region or wider is kept — GDD §7.8."""
+        return {
+            0: self.retention_local_days,
+            1: self.retention_planet_days,
+            2: self.retention_system_days,
+        }.get(scope)
+
+
+@dataclass(frozen=True, slots=True)
 class RuleSet:
     version: str
     ap: ApRules
@@ -107,13 +126,14 @@ class RuleSet:
     combat: CombatRules
     economy: EconomyRules
     npc: NpcRules
+    events: EventRules
 
     def ap_cost(self, action: ActionKind) -> int:
         return self.ap.cost[action.value]
 
     @classmethod
     def from_mapping(cls, version: str, files: Mapping[str, Mapping[str, Any]]) -> RuleSet:
-        known = {"ap_costs", "world", "combat", "economy", "npc"}
+        known = {"ap_costs", "world", "combat", "economy", "npc", "events"}
         unknown = set(files) - known
         if unknown:
             raise RuleSetError(f"unknown ruleset file(s): {', '.join(sorted(unknown))}")
@@ -138,6 +158,7 @@ class RuleSet:
             {f for f in EconomyRules.__dataclass_fields__} - {"commodities", "station_type"},
             "economy",
         )
+        events_raw = dict(files["events"])
         npc_raw = dict(files["npc"])
         per_flow = npc_raw.pop("per_flow_unit", {})
         actions = npc_raw.pop("actions_per_cycle", {})
@@ -156,6 +177,14 @@ class RuleSet:
                 commodities=dict(commodities),
                 station_type={k: dict(v) for k, v in station_type.items()},
                 **economy_fields,
+            ),
+            events=EventRules(
+                promotion_threshold=dict(events_raw.pop("promotion_threshold", {})),
+                **_take(
+                    events_raw,
+                    {f for f in EventRules.__dataclass_fields__} - {"promotion_threshold"},
+                    "events",
+                ),
             ),
             npc=NpcRules(per_flow_unit=dict(per_flow), actions_per_cycle=dict(actions), **npc_fields),
         )

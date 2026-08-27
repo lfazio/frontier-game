@@ -14,3 +14,4 @@ dock = 0
 launch = 0
 message = 0
 standing_orders = 0
+mission_stage = 1
