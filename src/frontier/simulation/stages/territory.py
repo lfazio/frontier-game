@@ -9,6 +9,8 @@ from uuid import UUID
 from sqlalchemy import select
 
 from frontier.adapters.db import models
+from frontier.domain.events.model import EventDraft, Scope, Severity, Visibility
+from frontier.domain.events.types import EventType
 from frontier.domain.polity.territory import blend, controller, normalise
 from frontier.simulation.stages.base import TickContext
 
@@ -26,17 +28,15 @@ class TerritoryRecompute:
             (row.system_id, row.faction_id): row
             for row in (await ctx.session.execute(select(models.Territory))).scalars()
         }
-        systems = (
-            (
-                await ctx.session.execute(
-                    select(models.Location.id)
-                    .where(models.Location.kind == "system")
-                    .order_by(models.Location.path)
-                )
+        rows = (
+            await ctx.session.execute(
+                select(models.Location.id, models.Location.path)
+                .where(models.Location.kind == "system")
+                .order_by(models.Location.path)
             )
-            .scalars()
-            .all()
-        )
+        ).all()
+        systems = [row[0] for row in rows]
+        paths = {row[0]: row[1] for row in rows}
 
         changes = 0
         for system_id in systems:
@@ -55,8 +55,23 @@ class TerritoryRecompute:
                     )
                 else:
                     row.influence = Decimal(f"{value:.4f}")
-            if controller(after, ctx.rules.world) != controller(before, ctx.rules.world):
+            was, now = controller(before, ctx.rules.world), controller(after, ctx.rules.world)
+            if was != now:
                 changes += 1
+                ctx.emit(
+                    EventDraft(
+                        type=EventType.TERRITORY_CHANGE,
+                        origin=paths[system_id],
+                        scope=Scope.SYSTEM,
+                        visibility=Visibility.PUBLIC,
+                        severity=Severity.NOTABLE,
+                        payload={
+                            "system_id": str(system_id),
+                            "from_faction": was,
+                            "to_faction": now,
+                        },
+                    )
+                )
         return {"systems": len(systems), "controller_changes": changes}
 
     async def _presence(self, ctx: TickContext) -> dict[UUID, dict[int, float]]:

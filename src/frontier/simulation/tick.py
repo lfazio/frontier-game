@@ -9,8 +9,9 @@ from typing import Any
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from frontier.adapters.clock import SystemClock
+from frontier.adapters.clock import SystemClock, UuidFactory
 from frontier.adapters.db import models
+from frontier.domain.events.payloads import validate
 from frontier.domain.rules.ruleset import RuleSet
 from frontier.simulation.stages.base import Features, Stage, TickContext
 from frontier.simulation.stages.chronicle import ChronicleAndRetention
@@ -71,6 +72,7 @@ class TickRunner:
         self._rng_for = rng_for
         self._features = features or Features()
         self._extra = extra_stages
+        self._ids = UuidFactory(clock)
 
     async def run(self, stages: tuple[Stage, ...] | None = None) -> TickReport:
         stages = TICK_STAGES + self._extra if stages is None else stages
@@ -94,6 +96,33 @@ class TickRunner:
             await session.execute(update(models.WorldState).values(phase="open"))
             await session.commit()
         return TickReport(world_day=day, stages=report, resumed=resumed)
+
+    async def _write_events(self, session: AsyncSession, ctx: TickContext) -> None:
+        """Stamp and persist whatever the stage raised, in the stage's own transaction."""
+        if not ctx.drafts:
+            return
+        now = self._clock.now()
+        for draft in ctx.drafts:
+            validate(draft)
+            event_id = self._ids.new()
+            session.add(
+                models.Event(
+                    id=event_id,
+                    world_day=ctx.world_day,
+                    occurred_at=now,
+                    type=draft.type.value,
+                    origin_path=draft.origin,
+                    scope=int(draft.scope),
+                    visibility=draft.visibility.value,
+                    clearance=0,
+                    severity=int(draft.severity),
+                    participants=sorted(draft.participants),
+                    payload=draft.payload,
+                    ruleset_version=self._rules.version,
+                )
+            )
+            session.add(models.EventOutbox(event_id=event_id, world_day=ctx.world_day))
+        ctx.drafts.clear()
 
     async def _acquire(self, session: AsyncSession) -> bool:
         held = await session.execute(
@@ -152,6 +181,7 @@ class TickRunner:
             metrics = await stage.run(ctx)
             if role:
                 await session.execute(text("RESET ROLE"))
+            await self._write_events(session, ctx)
             session.add(models.TickStage(world_day=day, stage=stage.name, metrics=metrics))
             await session.commit()
             log.info("tick stage complete", extra={"stage": stage.name, "world_day": day})

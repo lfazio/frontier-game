@@ -12,6 +12,8 @@ from sqlalchemy import func, select, update
 
 from frontier.adapters.db import models
 from frontier.domain.encounter.resolution import Combatant, Outcome, resolve
+from frontier.domain.events.model import EventDraft, Scope, Severity, Visibility
+from frontier.domain.events.types import EventType
 from frontier.domain.fleet.standing_orders import Posture, StandingOrders
 from frontier.simulation.stages.base import TickContext
 
@@ -54,6 +56,28 @@ class ResolveEncounters:
                     )
                 )
             destroyed += sum(1 for side in (attacker, defender) if side.destroyed)
+            ctx.emit(
+                EventDraft(
+                    type=EventType.COMBAT_RESOLVED,
+                    origin=row.at_path,
+                    scope=Scope.LOCAL,
+                    visibility=Visibility.PUBLIC,
+                    severity=Severity.NOTABLE,
+                    payload={"outcome": result.outcome.value, "rounds": result.rounds, "seed": result.seed},
+                )
+            )
+            for side in (attacker, defender):
+                if side.destroyed:
+                    ctx.emit(
+                        EventDraft(
+                            type=EventType.SHIP_DESTROYED,
+                            origin=row.at_path,
+                            scope=Scope.SYSTEM,
+                            visibility=Visibility.PUBLIC,
+                            severity=Severity.MAJOR,
+                            payload={"ship_id": str(side.ship_id)},
+                        )
+                    )
             if result.outcome in (Outcome.ATTACKER_WON, Outcome.DEFENDER_WON):
                 await self._respawn(ctx, attacker if attacker.destroyed else defender)
             await self._close(ctx, row.id)

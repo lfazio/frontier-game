@@ -6,6 +6,7 @@ from typing import Any, Protocol
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from frontier.adapters.clock import SystemClock
+from frontier.domain.events.model import EventDraft
 from frontier.domain.rules.ruleset import RuleSet
 
 
@@ -25,7 +26,14 @@ class TickContext:
     clock: SystemClock
     rng_for: Any
     features: Features = field(default_factory=Features)
+    # Drafts raised by a stage; the runner stamps and writes them once the stage commits,
+    # so "no state change without an event" (ARCH §3.2) holds for the tick as well as for
+    # commands.
+    drafts: list[EventDraft] = field(default_factory=list)
     metrics: dict[str, int] = field(default_factory=dict)
+
+    def emit(self, draft: EventDraft) -> None:
+        self.drafts.append(draft)
 
 
 class Stage(Protocol):

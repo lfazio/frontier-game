@@ -23,5 +23,6 @@ class Settings(BaseSettings):
     features_continuity: bool = False
     # The public surface connects as a role with no privilege on the hidden schema.
     api_role: str = "api_role"
+    features_watch: bool = True
     # Optional tick stages, resolved by name so nothing imports them (ARCH ADR-13).
     extra_stages: tuple[str, ...] = ("frontier.continuity.stage:stage",)

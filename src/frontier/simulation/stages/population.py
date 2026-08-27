@@ -59,8 +59,8 @@ class NpcPopulation:
     role: str | None = None
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
-        flows = await self._aggregate(ctx)
-        moved = await self._move_unobserved_goods(ctx, flows)
+        flows, advanced = await self._aggregate(ctx)
+        moved = await self._move_unobserved_goods(ctx, flows, advanced)
         observed = await self._observed_systems(ctx)
         created = await self._materialise(ctx, flows, observed)
         acted = await self._act(ctx)
@@ -72,7 +72,7 @@ class NpcPopulation:
             "npcs_acted": acted,
         }
 
-    async def _aggregate(self, ctx: TickContext) -> dict[UUID, models.SystemActivity]:
+    async def _aggregate(self, ctx: TickContext) -> tuple[dict[UUID, models.SystemActivity], set[UUID]]:
         """Predator and prey: rich trade with thin patrols is what raises raider pressure."""
         npc = ctx.rules.npc
         rows = {
@@ -86,7 +86,15 @@ class NpcPopulation:
         control = await self._control(ctx)
         gradients = await self._price_gradients(ctx)
 
+        # Advance only what today has not advanced yet. Flows are cumulative, so a stage
+        # re-run after a crash must not move them twice (SDD §6.1).
+        advanced: set[UUID] = set()
         for system_id, row in rows.items():
+            # Exactly today, not "today or later": a world day can be rewound (a restored
+            # snapshot, a replay), and a `>=` guard would freeze the population for good.
+            if row.last_simulated_on == ctx.world_day:
+                continue
+            advanced.add(system_id)
             trade_target = _clamp(
                 npc.k_trade * gradients.get(system_id, 0.0) * (1 - float(row.raider_pressure))
             )
@@ -105,7 +113,7 @@ class NpcPopulation:
             row.patrol_losses = Decimal(f"{attrition:.4f}")
             row.raider_losses = Decimal(f"{attrition:.4f}")
             row.last_simulated_on = ctx.world_day
-        return rows
+        return rows, advanced
 
     async def _control(self, ctx: TickContext) -> dict[UUID, float]:
         rows = (await ctx.session.execute(select(models.Territory))).scalars().all()
@@ -128,10 +136,18 @@ class NpcPopulation:
             totals[system_id].append(abs(stock - target) / max(1, target))
         return {k: min(1.0, sum(v) / len(v)) for k, v in totals.items() if v}
 
-    async def _move_unobserved_goods(self, ctx: TickContext, flows: dict[UUID, models.SystemActivity]) -> int:
-        """Trade happens where nobody is watching — GDD §2.7, criterion A13."""
+    async def _move_unobserved_goods(
+        self, ctx: TickContext, flows: dict[UUID, models.SystemActivity], advanced: set[UUID]
+    ) -> int:
+        """Trade happens where nobody is watching — GDD §2.7, criterion A13.
+
+        Only for systems whose flows moved this pass: goods are cumulative, so a re-run of the
+        stage must not carry the same cargo twice.
+        """
         moved = 0
         for system_id, row in flows.items():
+            if system_id not in advanced:
+                continue
             volume = round(float(row.trade_flow) * ctx.rules.npc.haul_capacity)
             if volume <= 0:
                 continue
