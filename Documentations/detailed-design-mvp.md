@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.11 |
+| Version | 0.12 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
@@ -689,6 +689,7 @@ alone:
 | `0012_knowledge` | P5 | `players.knowledge` |
 | `0013_jump_range` | P5 | `ships.jump_range_ly` |
 | `0014_npc_action_points` | P6 | `npc_agents.ap_balance`, `last_grant_day` |
+| `0015_continuity` | P6 | `cont` schema: cells, agents, interventions, budget; the `api_role` and `cont_role` grants |
 | `0003_tick_bookkeeping` | P1 | `hist` schema, tick_runs, tick_stages |
 | `0004_event_spine` | P2 | events (partitioned), deliveries, outbox, first partitions |
 | `0006_economy` | P3 | markets |
@@ -1730,6 +1731,9 @@ mistake in this plan that would cost a rewrite.
 | D-39 | The wreck fee is `floor(credits × rescue_tax_fraction)`, not a flat sum, and is framed as salvage for the life capsule. | S1. A flat penalty is noise to a veteran and ruin to a newcomer; a share scales with means and can never leave a pilot unable to fly. The fraction is `[BALANCE]` inside a 3–10 % band. | Yes |
 | D-40 | A jump is bounded by the hull's `jump_range_ly` as well as by fuel, refused with `BEYOND_JUMP_RANGE`. | S3. Range becomes a property of the ship a player chose, so hulls differ in reach and not merely in tank size. | Yes |
 | D-41 | Materialised NPCs are never dissolved; every agent acts each cycle, observed or not. | S5. Dissolution made a system's inhabitants a function of who was watching, contradicting the persistence *GDD §2.7* promises. Cost now scales with the *explored* world; the per-system archetype caps bound it, and R1 is the trigger to revisit. | Yes |
+| D-44 | The public API connects as `api_role`, which holds no grant on `cont`; the Continuity's stage runs as `cont_role`, which may read the world, write its own records and update `core.system_activity` — and nothing else. | *ARCH ADR-13* and *GDD §9.13*. A serialisation mistake cannot leak what the connection cannot read, and "push, never force" becomes a privilege the database withholds rather than a rule this code remembers. | No |
+| D-45 | The role is re-assumed with `SET LOCAL ROLE` on every transaction, not once per connection. | `SET ROLE` issued inside a transaction is undone when that transaction rolls back, so a pooled connection silently reverts to the owning user after the first failure — found by the anti-leak suite, which now asserts the effective role on every probe. | No |
+| D-46 | Optional stages are resolved by dotted path at runtime (`frontier.simulation.extensions`), and an import contract forbids anything importing `frontier.continuity`. | A system whose existence must not be inferable cannot appear in the import graph of the thing that runs it, nor in a stack trace pasted into a public bug report (*GDD §9.4*). | No |
 | D-43 | NPC crews hold an AP balance on `npc_agents`, granted by tick stage 11 under the same rule and the same numbers as players, and spent through `RuleSet.ap_cost`. | *GDD §2.7*: an NPC is a ship with a pilot who happens to be a program. A separate `actions_per_cycle` budget was a second economy that could drift from the players' — and it would have let the Continuity's NPC agents act without limit, which is exactly what §9.2 forbids. | No |
 | D-42 | A player may hold no team; `players.team_id` and `faction_id` stay nullable and paired by a CHECK. | S2. Independence is a way to play, not an unfinished registration — so `leave_team` remains, and a player without a faction simply sees no faction missions. | No |
 | D-35 | The Model reads only `psycho` views, and the `psycho_reader` role holds no privilege on `core` or `evt`. | *GDD §8.4* — populations, never individuals — becomes a property of the grants rather than of every future author remembering it (*ARCH ADR-12*). Proved by tests that assert `permission denied` for players, ships, events and reputation. | No |
@@ -1795,6 +1799,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.12 | 2026-08-27 | P6 delivered: the `cont` schema, capability-bounded `api_role` and `cont_role`, the Continuity's tick stage loaded by name and running under its own role, budgets that scale with world extent, and the anti-leak suite as a merge blocker. Recorded D-44 to D-46. |
 | 0.11 | 2026-08-27 | NPC crews now draw and spend the same Action Point budget as players (D-43), replacing `actions_per_cycle`; migration `0014`. The Harrowing (*GDD §8.12*) is named in §1.3 as out of MVP scope. |
 | 0.10 | 2026-08-27 | Design answers S1–S6 applied: salvage tax as a share of credits, hull-bound jump range, NPC persistence replacing dissolution, and independence confirmed for unteamed players. §17 is now empty. Recorded D-39 to D-42. |
 | 0.9 | 2026-08-27 | P5 delivered: the `psycho` schema with aggregate-only views and a reader role that cannot see individuals, the pure historical model (variables, inertia, deviation, confidence, forecasts), tick stage 7 behind a feature flag, Knowledge earned by discovery, and `GET /v1/forecasts` disclosed per viewer. Recorded D-35 to D-38. |

@@ -13,11 +13,14 @@ spend a limited Action Point budget and log out.
 
 ## Status
 
-**P5 — History.** A psychohistorical model watches the world through aggregate views it cannot
-see individuals through — the reader role holds no privilege on player tables at all — and
-publishes probabilistic forecasts. Anyone may read one; Knowledge buys resolution, never access.
-It ships dark behind `FEATURES_PSYCHOHISTORY` until the world is old enough to tune it. Next is
-P6, the Continuity.
+**P6 — The Continuity.** A hidden fourth faction, NPC-operated, that reads the world's deviation
+and leans on population flows to correct it. Its secrecy is structural rather than careful: it
+lives in its own schema, nothing imports it, the public API connects as a role with no grant on
+that schema, and its own role cannot write to a player's ship or credits at all. `make antileak`
+is a merge gate.
+
+Both the historical model and the Continuity ship dark, behind `FEATURES_PSYCHOHISTORY` and
+`FEATURES_CONTINUITY`.
 
 ## Running it
 

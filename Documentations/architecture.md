@@ -5,10 +5,10 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.4 |
+| Version | 0.5 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
-| Normative source | `Documentations/game-design.md` v2.5 (cited as §n) |
+| Normative source | `Documentations/game-design.md` v2.6 (cited as §n) |
 | Companion | `Documentations/detailed-design-mvp.md` — MVP detail for phases P0–P3 |
 | Audience | Server, client and infrastructure engineers; technical reviewers |
 
@@ -966,7 +966,7 @@ Each deferred system has a named seam, so adding it is a plug-in rather than a r
 | Mining, smuggling | New `Command` classes + `RuleSet` entries; no new infrastructure |
 | Bounty system | Event subscriber on `SHIP_DESTROYED` + a `polity` ledger |
 | Player-owned stations, colonisation | New `locations.kind` values with owner attribution; the tree already supports them |
-| Communication relays and delay | `comms` already computes `deliver_at`; MVP sets delay to zero via `features.comms_delay` |
+| Communication relays and delay | `comms` already computes `deliver_at`; MVP sets delay to zero via `features.comms_delay`. The Continuity channel is exempt: it is a `CLEARANCE`-visibility event at UNIVERSE scope with `deliver_at = occurred_at`, so no relay or range calculation touches it (§9.6) |
 | Advanced economy, dynamic faction wars | Stage 4's second half — faction strategic AI — plus replacing the stage-3 implementation behind the `Stage` protocol |
 | Named, persistent NPCs (Continuity instruments, §9.5) | A `persistent` flag on `npc_agents`; nothing else, now that no crew is dissolved |
 | The Harrowing (§8.12) | A fourth NPC archetype with its own hulls, spawned by a tick stage watching crisis expiry rather than by system activity. It needs no new mechanism: incursion ships are ships, and they spend Action Points like every other crew |
@@ -1058,6 +1058,7 @@ remains, and it does not touch this architecture until teams can own things:
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.5 | 2026-08-27 | Tracks *GDD* v2.6: recorded the Continuity channel's exemption from range, relay and delay. |
 | 0.4 | 2026-08-27 | Tracks *GDD* v2.5: NPC crews draw the same Action Point budget as players, so no future population can act more cheaply than a human; added the seam for the Harrowing (§8.12). |
 | 0.3 | 2026-08-27 | Tracks *GDD* v2.4: ADR-15 amended — materialisation is one-way and NPCs are never dissolved, so the individual population follows exploration rather than live observation. |
 | 0.2 | 2026-08-27 | Tracks *GDD* v2.3. Added the Population bounded context and driver F10, and split tick stage 4 into an O(world) aggregate half and an O(observed) individual half (ADR-15). Recorded the settled scale ladder and the two-letter `ltree` prefixes (ADR-14) and forecasts as a per-viewer read model (ADR-16). Moved the answered design questions out of section 20, leaving Q8; added risk R8 and the tier-agreement test. Renamed `PLAYER_ENTERED` to `SHIP_ENTERED`. |

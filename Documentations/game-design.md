@@ -9,7 +9,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 2.5 |
+| Version | 2.6 |
 | Date | 2026-08-27 |
 | Companion | `Documentations/architecture.md` v0.2 (cited as *ARCH §n*) |
 | Companion | `Documentations/detailed-design-mvp.md` v0.2 — MVP implementation detail |
@@ -816,7 +816,7 @@ not to display (§10.4).
 | **Team** | Organisational | Team members, wherever they are |
 | **Faction** | Organisational | Faction members, subject to rank and infrastructure |
 | **Universe** | Universe | Announcements and major historical events |
-| **Continuity** | Clearance | Invisible to everyone else (§9.6) |
+| **Continuity** | Universe | Instantaneous and galaxy-wide, bounded only by clearance. Invisible to everyone else (§9.6) |
 
 Sending a message costs no AP at any scope (§5.6). Communication is how a 15-minute session becomes a social game.
 
@@ -848,6 +848,10 @@ Estimated delivery: 3 h 14 m
 
 Delay is off in the MVP and enabled later (§10.2). The design **MUST** keep delay optional per channel, because a
 delayed team chat is a worse game, while delayed intelligence is a better one.
+
+One channel is exempt outright: the Continuity's (§9.6) carries no delay anywhere in the galaxy. Whatever delay
+model is eventually chosen, it **MUST NOT** apply there — that exemption is the faction's defining advantage, and
+the reason its agents can act together while everyone else is still waiting to hear.
 
 ## 7.6 The event model
 
@@ -1542,7 +1546,23 @@ NODE 17:  Proceed with JANUS.
 MODEL:    Trajectory confidence 81.4 %
 ```
 
-Messages **MAY** be delayed, routed through special infrastructure, or restricted by clearance.
+**The channel reaches the whole galaxy and carries no delay.** Wherever two agents stand, a message between them
+arrives the moment it is sent — no range, no relay, no light-lag, no infrastructure to capture or destroy. Every
+other channel in the game is bounded by physics and equipment (§7.4, §7.5); this one is not.
+
+That asymmetry is the Continuity's real weapon, and it is deliberately the *only* kind of weapon §9.2 allows it:
+
+- It buys **coordination**, not force. Agents on opposite sides of the galaxy can act on the same information in the
+  same cycle, while an Empire fleet is still waiting for a courier. Nothing about the channel moves a ship, spends a
+  credit or wins a fight.
+- It is **still bounded by clearance** (§9.6). Reach is universal; what any given agent is permitted to read is not,
+  and no agent sees the membership list.
+- It is **evidence**. Coordination faster than the galaxy's own physics allows is exactly the kind of anomaly §9.8
+  is built from: a player who notices two apparently unconnected crews reacting to the same event in the same cycle
+  has noticed something true. The design **MUST** allow that inference from *observed behaviour* — and **MUST NOT**
+  permit it from any response, error, timing difference, statistic or ledger entry (§9.4).
+
+Messages **MAY** additionally be restricted by clearance tier.
 
 ## 9.7 Betrayal and exposure
 
@@ -1773,6 +1793,7 @@ should be reviewed as design decisions. Each can be reverted independently.
 | **M10** | **Eras and narrative phases separated** (§8.11 vs §9.12). | v1.0 contained two overlapping six- and seven-step progressions. They describe different things: recurring world states, and one-time community discovery. |
 | **M11** | **"Turn" replaced by "cycle"** throughout; "world day" reserved for the counter. | v1.0 used "turn" for the 24-hour period, for a mission duration and for a player's session. |
 | **M12** | **Authorial voice removed.** | v1.0 contained first- and second-person commentary ("I would make…", "your game") and duplicated conversational fragments, which read as notes rather than specification. |
+| **M16** | **The Continuity's channel is instantaneous and galaxy-wide** (§9.6, §7.3, §7.5), exempt from the range, relay and delay rules that bind every other channel. | The faction's stated advantage is *better information* (§9.5), and until now nothing in the design actually gave it any. A channel outside physics grants coordination without granting force, which is the only kind of power §9.2 permits it — and it hands §9.8 a genuine, observable anomaly for players to notice. |
 | **M15** | **The Harrowing added (§8.12)**: an unresolved historical crisis triggers an incursion of powerful alien vessels, which players fight to restore the balance. | Deviation was an abstraction — a number on a forecast with no visible stake. The Harrowing makes the cost of abandoning the trajectory concrete, gives the cooperative end of the game a reason to exist, and supplies §8.11's eras with something that actually ends one. Constrained hard (no exemptions, must be losable, must not be farmable, response never prescribed) so that it stays an opponent rather than weather. |
 | **M14** | **Materialised NPCs persist and are played by the server** (§2.7), rather than dissolving back into the aggregate when the last observer leaves. Adds the salvage tax (§5.4), the hull's own jump range (§5.1), and states that an unteamed player is *independent* (§6.5). | Answers to the implementation questions S1–S6. Dissolution made a system's inhabitants a function of who was watching, which contradicts the persistence §2.7 is there to promise; the cost of keeping them is bounded by the systems players have actually visited. The flat destruction penalty was replaced by a share of credits because a fixed sum removes a poor pilot from the game rather than setting them back. |
 | **M13** | **The NPC population promoted to a design section (§2.7)**, with simulation fidelity tied to observation, and moved into the MVP along with cycle step 4. | v1.0 and v2.0 mentioned NPCs in six places without ever saying what they are for or how many there are. A persistent universe (§1.2) in which nothing happens unless a player causes it is not persistent, and the aggregate layer §2.7 introduces is the same quantity §8.2 will later measure. |
@@ -1836,6 +1857,7 @@ For notes, issues or commits that cite the old flat numbering.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 2.6 | 2026-08-27 | The Continuity's communication channel is instantaneous and reaches the whole galaxy, exempt from range, relays and delay (§9.6). See §11.1 M16. |
 | 2.5 | 2026-08-27 | Added §8.12, the Harrowing: an unresolved historical crisis draws an incursion of powerful alien vessels that players fight to restore the balance, bound by the same rules as every other ship. Amended §2.7 so NPC crews spend the same daily Action Point budget as pilots. New open question Q9. See §11.1 M14, M15. |
 | 2.4 | 2026-08-27 | Implementation questions S1–S6 answered: a wrecked pilot's capsule is recovered for a salvage tax that is a share of credits, not a flat fee (§5.4); a player may remain independent of any team (§6.5); jump range depends on the hull as well as the tank (§5.1); materialised NPCs persist and the server keeps playing them (§2.7). See §11.1 M14. |
 | 2.3 | 2026-08-27 | Q4–Q7 answered. Q4: the Continuity's budget scales with world extent, holding its reach per system constant (§9.2). Q5: the Continuity is NPC-operated from the moment it exists; player agents are recruited into a working organisation (§9.3, §10.3). Q6: half of unspent AP carries over, up to an administrator-defined ceiling (§3.2). Q7: era transitions fire on sustained threshold crossings, never by hand (§8.11). |
