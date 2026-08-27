@@ -8,7 +8,6 @@ from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from frontier.adapters.db import models
-from frontier.domain.events.model import Event
 from frontier.domain.fleet.ship import Ship
 from frontier.domain.hex.coordinates import HexAddr
 
@@ -166,13 +165,3 @@ class WorldStateRepo:
         row = await self._row()
         await self._s.execute(update(models.WorldState).values(world_day=row.world_day + 1))
         return row.world_day + 1
-
-
-class LoggingEventSink:
-    """P1 holds events in memory and logs them; `evt.events` arrives with the spine in P2."""
-
-    def __init__(self) -> None:
-        self.collected: list[Event] = []
-
-    async def append(self, events: list[Event]) -> None:
-        self.collected.extend(events)

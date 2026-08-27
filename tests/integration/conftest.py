@@ -19,11 +19,16 @@ RULESET_ROOT = Path(__file__).resolve().parents[2] / "data" / "rulesets"
 # Deleted in dependency order rather than truncated: `locations.discovered_by` references
 # `players`, so TRUNCATE ... CASCADE would take the generated world with it.
 PLAYER_TABLES = (
+    "evt.events_outbox",
+    "evt.event_deliveries",
+    "evt.events",
+    "evt.digests",
     "core.ap_ledger",
     "core.commands",
     "core.journeys",
     "core.ships",
     "core.players",
+    "core.teams",
     "core.accounts",
     "hist.tick_stages",
     "hist.tick_runs",

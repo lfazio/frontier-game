@@ -4,10 +4,10 @@ from types import TracebackType
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from frontier.adapters.db.event_sink import SqlEventSink
 from frontier.adapters.db.repositories import (
     CommandLog,
     LocationRepo,
-    LoggingEventSink,
     PlayerRepo,
     ShipRepo,
     WorldStateRepo,
@@ -28,7 +28,7 @@ class SqlUnitOfWork:
         self.ships = ShipRepo(self.session)
         self.locations = LocationRepo(self.session)
         self.commands = CommandLog(self.session)
-        self.events = LoggingEventSink()
+        self.events = SqlEventSink(self.session)
         self.world = WorldStateRepo(self.session)
         return self
 
