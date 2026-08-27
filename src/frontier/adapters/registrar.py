@@ -14,9 +14,17 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from frontier.adapters.api.security import hash_password, verify_password
 from frontier.adapters.db import models
-from frontier.adapters.memory.store import Account, MemoryPlayer, World
-from frontier.domain.fleet.ship import Ship
-from frontier.worldgen.fixture import STARTING_SHIP, starting_position
+
+STARTING_SHIP = {
+    "hull": 100,
+    "hull_max": 100,
+    "shields": 40,
+    "shields_max": 40,
+    "fuel": 60,
+    "fuel_max": 60,
+    "cargo_max": 20,
+    "sensor_range": 3,
+}
 
 
 class Taken(Exception):
@@ -27,32 +35,6 @@ class Taken(Exception):
 class Registrar(Protocol):
     async def register(self, email: str, password: str, callsign: str) -> UUID: ...
     async def authenticate(self, email: str, password: str) -> UUID | None: ...
-
-
-class MemoryRegistrar:
-    def __init__(self, world: World, daily_grant: int) -> None:
-        self._w = world
-        self._grant = daily_grant
-
-    async def register(self, email: str, password: str, callsign: str) -> UUID:
-        if any(a.email == email for a in self._w.accounts.values()):
-            raise Taken("email")
-        if any(p.callsign == callsign for p in self._w.players.values()):
-            raise Taken("callsign")
-        player = MemoryPlayer(id=uuid4(), callsign=callsign, ap_balance=self._grant)
-        self._w.players[player.id] = player
-        self._w.accounts[player.id] = Account(
-            id=uuid4(), email=email, password_hash=hash_password(password), player_id=player.id
-        )
-        ship = Ship(id=uuid4(), player_id=player.id, position=starting_position(), **STARTING_SHIP)
-        self._w.ships[ship.id] = ship
-        return player.id
-
-    async def authenticate(self, email: str, password: str) -> UUID | None:
-        account = next((a for a in self._w.accounts.values() if a.email == email), None)
-        if account is None or not verify_password(account.password_hash, password):
-            return None
-        return account.player_id
 
 
 class SqlRegistrar:
@@ -84,7 +66,16 @@ class SqlRegistrar:
                 position_path=spawn.path,
                 **STARTING_SHIP,
             )
-            session.add_all([account, player, ship])
+            session.add_all(
+                [
+                    account,
+                    player,
+                    ship,
+                    models.StandingOrders(player_id=player.id),
+                ]
+            )
+            await session.flush()
+            await self._reveal_home(session, player.id, spawn)
             return player.id
 
     async def authenticate(self, email: str, password: str) -> UUID | None:
@@ -115,3 +106,22 @@ class SqlRegistrar:
         if row is None:
             raise RuntimeError("no spawn point: run `make world` first")
         return row
+
+    async def _reveal_home(self, session: AsyncSession, player_id: UUID, spawn: models.Location) -> None:
+        """The star chart is public; what is inside a system is not.
+
+        A new player knows every galaxy, region and system — that is the map anyone can buy —
+        plus everything inside their own home system. Planets, stations and wrecks elsewhere are
+        found by scanning (GDD §5.2).
+        """
+        home_system = spawn.path.parent()
+        assert home_system is not None
+        await session.execute(
+            text(
+                "INSERT INTO core.player_discoveries (player_id, location_id, seen_on) "
+                "SELECT :player, id, 0 FROM core.locations "
+                "WHERE kind IN ('galaxy', 'region', 'system') "
+                "   OR (path <@ CAST(:system AS ltree) AND kind <> 'void') "
+                "ON CONFLICT DO NOTHING"
+            ).bindparams(player=player_id, system=home_system.ltree())
+        )

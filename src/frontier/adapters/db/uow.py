@@ -12,6 +12,7 @@ from frontier.adapters.db.repositories import (
     ShipRepo,
     WorldStateRepo,
 )
+from frontier.adapters.db.state_store import SqlStateStore
 
 
 class SqlUnitOfWork:
@@ -30,6 +31,7 @@ class SqlUnitOfWork:
         self.commands = CommandLog(self.session)
         self.events = SqlEventSink(self.session)
         self.world = WorldStateRepo(self.session)
+        self.state = SqlStateStore(self.session)
         return self
 
     async def __aexit__(
