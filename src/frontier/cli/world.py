@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from typing import Any
 
 from sqlalchemy import delete, func, select
 
 from frontier.adapters.clock import SeededRng
 from frontier.adapters.db import models
 from frontier.adapters.db.engine import make_engine, make_sessionmaker
+from frontier.adapters.rules_loader import load_ruleset
 from frontier.config.settings import Settings
-from frontier.worldgen.generator import generate, summarise
+from frontier.domain.rules.ruleset import RuleSet
+from frontier.worldgen.generator import GeneratedLocation, generate, summarise
 
 
 async def build_world(settings: Settings, force: bool = False) -> dict[str, int]:
@@ -24,6 +27,13 @@ async def build_world(settings: Settings, force: bool = False) -> dict[str, int]
                 raise SystemExit(f"world already has {existing} locations; use --force")
             if existing:
                 # Dependency order: journeys reference ships, ships reference locations.
+                await session.execute(delete(models.PlayerDiscovery))
+                await session.execute(delete(models.Cargo))
+                await session.execute(delete(models.EncounterQueue))
+                await session.execute(delete(models.NpcAgent))
+                await session.execute(delete(models.SystemActivity))
+                await session.execute(delete(models.Market))
+                await session.execute(delete(models.Territory))
                 await session.execute(delete(models.Journey))
                 await session.execute(delete(models.Ship))
                 await session.execute(delete(models.Location))
@@ -46,6 +56,9 @@ async def build_world(settings: Settings, force: bool = False) -> dict[str, int]
                     for r in rows
                 ]
             )
+            rules = load_ruleset(settings.ruleset_root, settings.ruleset_version)
+            session.add_all(seed_markets(rows, rules, SeededRng(settings.world_seed).for_))
+            session.add_all(seed_activity(rows))
             state = (await session.execute(select(models.WorldState))).scalar_one_or_none()
             if state is None:
                 session.add(
@@ -60,6 +73,37 @@ def main() -> None:
     summary = asyncio.run(build_world(Settings(), force="--force" in sys.argv))
     for key in sorted(summary):
         print(f"  {key:<10} {summary[key]}")
+
+
+def seed_markets(rows: list[GeneratedLocation], rules: RuleSet, rng_for: Any) -> list[models.Market]:
+    """Each station trades everything, but is long what it makes and short what it consumes."""
+    economy = rules.economy
+    out: list[models.Market] = []
+    for row in rows:
+        if row.kind != "station":
+            continue
+        profile = economy.station_type.get(str(row.attrs.get("station_type", "")), {})
+        rng = rng_for("market", str(row.id))
+        for commodity, base_price in economy.commodities.items():
+            target = rng.randint(60, 140)
+            if commodity == profile.get("produces"):
+                target *= 3
+            elif commodity == profile.get("consumes"):
+                target = max(10, target // 3)
+            out.append(
+                models.Market(
+                    station_id=row.id,
+                    commodity=commodity,
+                    stock=max(1, round(target * rng.uniform(0.7, 1.3))),
+                    target_stock=target,
+                    base_price=base_price,
+                )
+            )
+    return out
+
+
+def seed_activity(rows: list[GeneratedLocation]) -> list[models.SystemActivity]:
+    return [models.SystemActivity(system_id=r.id) for r in rows if r.kind == "system"]
 
 
 if __name__ == "__main__":
