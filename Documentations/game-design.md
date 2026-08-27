@@ -11,7 +11,8 @@
 | Status | Draft for review |
 | Version | 2.3 |
 | Date | 2026-08-27 |
-| Companion | `Documentations/architecture.md` (cited as *ARCH §n*) |
+| Companion | `Documentations/architecture.md` v0.2 (cited as *ARCH §n*) |
+| Companion | `Documentations/detailed-design-mvp.md` v0.2 — MVP implementation detail |
 | Audience | Designers, engineers, writers, reviewers |
 
 ---
