@@ -24,6 +24,7 @@ class RejectionCode(StrEnum):
     TARGET_DOCKED = "TARGET_DOCKED"
     OUT_OF_RANGE = "OUT_OF_RANGE"
     UNKNOWN_DESTINATION = "UNKNOWN_DESTINATION"
+    MALFORMED_MESSAGE = "MALFORMED_MESSAGE"
 
 
 @dataclass(frozen=True, slots=True)

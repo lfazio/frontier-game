@@ -40,4 +40,11 @@ class MoveBody(BaseModel):
         return value
 
 
-CommandBody = Annotated[MoveBody, Field(discriminator="action")]
+class SendMessageBody(BaseModel):
+    action: Literal["send_message"]
+    channel: Literal["local", "system", "team"]
+    text: str = Field(min_length=1, max_length=500)
+    idempotency_key: UUID
+
+
+CommandBody = Annotated[MoveBody | SendMessageBody, Field(discriminator="action")]
