@@ -314,7 +314,8 @@ Balance data lives in `data/rulesets/<version>/*.toml`, loaded once at startup i
 ```toml
 # data/rulesets/2026.1/ap_costs.toml
 daily_grant = 10
-carry_over_max = 0            # GDD Q6 open; MVP does not carry over
+carry_over_fraction = 0.5     # GDD §3.2: half of unspent AP survives the boundary
+carry_ceiling = 5
 
 [cost]
 move_hex = 1
@@ -1165,13 +1166,17 @@ tiles (§9.1).
 
 ```text
 for player in active players where last_grant_day < world_day:
-    carry  = min(ap_balance, carry_over_max)            # MVP: carry_over_max = 0
-    grant  = daily_grant + carry - ap_balance
-    insert ap_ledger(delta=grant, reason='daily_grant')
-    ap_balance    := daily_grant + carry
+    carry       = min(floor(ap_balance × carry_over_fraction), carry_ceiling)
+    new_balance = daily_grant + carry
+    insert ap_ledger(delta = new_balance - ap_balance, reason='daily_reset')
+    ap_balance     := new_balance
     last_grant_day := world_day
     emit AP_GRANTED (participants)
 ```
+
+The ledger delta is **signed**: a player who ends a cycle holding more than `daily_grant + carry` records a negative
+entry. That keeps `sum(delta) = ap_balance` exact (criterion A3), which a separate "expiry" row would not, and it is
+why the reason is `daily_reset` rather than `daily_grant` — the stage computes a balance, it does not add to one.
 
 The `last_grant_day` guard makes the stage idempotent. It runs after encounters and the economy so that a player
 logging in immediately after the tick acts against a fully simulated world (*GDD §3.3*).
@@ -1550,6 +1555,7 @@ That last test is the enforcement of *ARCH §3.2*'s first principle, and it is c
 | Journey landing | A two-cycle jump lands on day *N+2*, not *N+1* or *N+3* (A4) |
 | Offline defence | An offline defender's standing orders drive the outcome, and the result reaches their feed (A6) |
 | Ordering | Cargo destroyed in stage 2 is reflected in stage 3 prices |
+| AP carry-over | 7 unspent AP carries 3, capped at `carry_ceiling`; the ledger delta is signed and reconciles |
 | Aggregate liveliness | Seven cycles with no players change market stock in unvisited systems (A13) |
 | Materialisation | Observing a system twice on one world day yields identical NPCs; re-running stage 4b is a no-op (A14) |
 | Dissolution | An NPC dissolved mid-route hands its cargo to the aggregate; total goods are conserved |
@@ -1677,12 +1683,11 @@ mistake in this plan that would cost a rewrite.
 
 # 17. Open questions
 
-Blocking, with the MVP's working assumption. Q6 is the one remaining *GDD §11.2* question that reaches the MVP;
-Q1, Q2 and Q3 were answered in *GDD* v2.2 and are settled here.
+Blocking, with the MVP's working assumption. Every *GDD §11.2* question that reaches the MVP has now been
+answered; what remains are questions this document raised.
 
 | # | Question | MVP assumption | Blocks |
 | --- | --- | --- | --- |
-| Q6 | Is unspent AP carried over? | No — `carry_over_max = 0` | Stage 11 |
 | S1 | What does a destroyed player lose? | Respawn at faction home, base hull, empty cargo, credit penalty `[BALANCE]` | Task 3.5 |
 | S2 | Can a player exist without a team? | No — registration requires creating or joining one | Task 3.7, faction denormalisation |
 | S3 | Is jump range limited by fuel alone, or also by a maximum per jump? | Fuel alone in the MVP | Task 3.2 |
