@@ -363,3 +363,60 @@ async def test_a_wrecked_pilot_is_taxed_a_share_not_a_flat_fee(sessions, clean):
     expected = 200 - floor(200 * rules.combat.rescue_tax_fraction)
     assert poor.credits in (200, expected)
     assert poor.credits > 0
+
+
+async def test_a_crew_gets_the_same_daily_budget_as_a_pilot(sessions, clean):
+    """GDD §2.7: nothing an NPC does is cheaper for it than for a human."""
+    _, _, spawn = await a_player(sessions)
+    async with sessions() as session, session.begin():
+        await session.execute(
+            update(models.SystemActivity)
+            .where(models.SystemActivity.system_id == spawn.parent_id)
+            .values(trade_flow=0.6, patrol_strength=0.6)
+        )
+
+    rules = load_ruleset(clean.ruleset_root, clean.ruleset_version)
+    tick = runner(sessions, clean)
+    await tick.run()
+    await tick.run()
+
+    async with sessions() as session:
+        crews = (await session.execute(select(models.NpcAgent))).scalars().all()
+    assert crews
+    for crew in crews:
+        assert crew.ap_balance <= rules.ap.daily_grant + rules.ap.carry_ceiling
+        assert crew.ap_balance >= 0
+
+
+async def test_a_crew_cannot_act_beyond_its_budget(sessions, clean):
+    """A starved crew sits still, exactly as a spent pilot would."""
+    _, _, spawn = await a_player(sessions)
+    async with sessions() as session, session.begin():
+        await session.execute(
+            update(models.SystemActivity)
+            .where(models.SystemActivity.system_id == spawn.parent_id)
+            .values(trade_flow=0.6, patrol_strength=0.6)
+        )
+    tick = runner(sessions, clean)
+    await tick.run()
+
+    async with sessions() as session, session.begin():
+        await session.execute(update(models.NpcAgent).values(ap_balance=0, last_grant_day=99))
+        positions = {
+            row.id: str(row.position_path)
+            for row in (
+                await session.execute(select(models.Ship).where(models.Ship.player_id.is_(None)))
+            ).scalars()
+        }
+
+    report = await tick.run(stages=(NpcPopulation(),))
+
+    async with sessions() as session:
+        after = {
+            row.id: str(row.position_path)
+            for row in (
+                await session.execute(select(models.Ship).where(models.Ship.player_id.is_(None)))
+            ).scalars()
+        }
+    assert report.stages["npc_population"]["npcs_acted"] == 0
+    assert after == positions
