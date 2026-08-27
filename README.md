@@ -13,10 +13,10 @@ spend a limited Action Point budget and log out.
 
 ## Status
 
-**P3 — MVP gameplay.** The first playable world: markets and trade, jumps that span cycles,
-scanning and discovery, combat against NPCs and queued player encounters resolved from standing
-orders, teams and territory, and an NPC population simulated as aggregate flows everywhere and as
-individual ships wherever a player is looking. Next is P4, depth.
+**P4 — Depth.** The world now remembers: local violence accumulates into system-wide events and
+permanent Chronicle entries, missions are generated from where the world is under strain,
+reputation follows the player across factions, and a team can defect — loudly. Next is P5, the
+historical model.
 
 ## Running it
 
