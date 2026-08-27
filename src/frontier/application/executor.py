@@ -15,6 +15,7 @@ from frontier.application.commands.base import Command, State
 from frontier.application.ports import ClockPort, IdPort, RngPort, UnitOfWork
 from frontier.domain.decisions import Accepted, Rejected
 from frontier.domain.events.model import Event
+from frontier.domain.events.payloads import validate
 from frontier.domain.rules.ruleset import RuleSet
 
 
@@ -98,6 +99,8 @@ class Executor:
 
     def _stamp(self, drafts: list[Any], day: int) -> list[Event]:
         now = self.clock.now()
+        for draft in drafts:
+            validate(draft)
         return [
             Event(
                 id=self.ids.new(),
