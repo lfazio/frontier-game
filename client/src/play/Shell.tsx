@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { play, Refused, type Me } from "../api";
+import type { Rules } from "./commands";
 import { MapView } from "./MapView";
 import { Overview } from "./Overview";
 
@@ -10,6 +11,8 @@ export function Shell({ token, onSignOut }: { token: string; onSignOut: () => vo
   const [me, setMe] = useState<Me | null>(null);
   const [where, setWhere] = useState<Where>("overview");
   const [failure, setFailure] = useState<string | null>(null);
+  // Costs are balance data, so the client reads them rather than knowing them (GDD §10.4 C4).
+  const [rules, setRules] = useState<Rules | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -20,6 +23,10 @@ export function Shell({ token, onSignOut }: { token: string; onSignOut: () => vo
       setFailure("Cannot reach the server.");
     }
   }, [token, onSignOut]);
+
+  useEffect(() => {
+    play.rules(token).then(setRules).catch(() => setRules(null));
+  }, [token]);
 
   useEffect(() => {
     void refresh();
@@ -60,14 +67,22 @@ export function Shell({ token, onSignOut }: { token: string; onSignOut: () => vo
           ))}
         </nav>
         <section className="panel">
-          {where === "overview" ? <Overview me={me} /> : <MapView token={token} me={me} />}
+          {where === "overview" ? (
+            <Overview me={me} />
+          ) : (
+            <MapView token={token} me={me} rules={rules} onActed={() => void refresh()} />
+          )}
         </section>
       </main>
 
       <footer className="statusbar">
         <code className="num">{me.ship.position}</code>
         <span className="dim">·</span>
-        <span>{me.ship.docked ? "docked" : "in flight"}</span>
+        <span>{me.ship.in_transit ? "in transit" : me.ship.docked ? "docked" : "in flight"}</span>
+        <span className="dim">·</span>
+        <span className="num">{me.ship.fuel} fuel</span>
+        <span className="dim">·</span>
+        <span className="num">hull {me.ship.hull}</span>
         <span className="spacer" />
         {failure && <span className="hurt">{failure}</span>}
       </footer>

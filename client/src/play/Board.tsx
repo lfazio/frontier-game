@@ -28,10 +28,11 @@ interface Cell {
   steps: number;
 }
 
-export function Board({ view, onSelect, selected }: {
+export function Board({ view, onSelect, selected, route }: {
   view: SystemView;
   onSelect: (cell: Cell | null) => void;
   selected: Cell | null;
+  route?: { q: number; r: number }[];
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [focus, setFocus] = useState<Cell | null>(null);
@@ -40,11 +41,14 @@ export function Board({ view, onSelect, selected }: {
   const reach = view.you.sensor_range;
 
   // Only hexes inside sight are cells at all. Charted places outside it are marks, not cells:
-  // the player may know a station is there, but not what is standing on it.
+  // the player may know a station is there, but not what is standing on it. Sight is also
+  // clipped to the system's own rim — past it there is no place to fly to, so none is offered.
   const cells: Cell[] = [];
   for (let dq = -reach; dq <= reach; dq += 1) {
     for (let dr = Math.max(-reach, -dq - reach); dr <= Math.min(reach, -dq + reach); dr += 1) {
-      cells.push({ q: me.q + dq, r: me.r + dr, steps: hexDistance({ q: 0, r: 0 }, { q: dq, r: dr }) });
+      const at = { q: me.q + dq, r: me.r + dr };
+      if (hexDistance(at, { q: 0, r: 0 }) > view.system.radius) continue;
+      cells.push({ ...at, steps: hexDistance({ q: 0, r: 0 }, { q: dq, r: dr }) });
     }
   }
 
@@ -86,6 +90,25 @@ export function Board({ view, onSelect, selected }: {
       context.stroke();
     }
 
+    // The path is drawn before it is flown, and this is the path submitted (UX §5.3).
+    if (route && route.length > 1) {
+      context.beginPath();
+      route.forEach((hop, i) => {
+        const { x, y } = toPixel(hop.q, hop.r);
+        i === 0 ? context.moveTo(x + ox, y + oy) : context.lineTo(x + ox, y + oy);
+      });
+      context.strokeStyle = "#e8c07d";
+      context.lineWidth = 2;
+      context.stroke();
+      for (const hop of route.slice(1)) {
+        const { x, y } = toPixel(hop.q, hop.r);
+        context.beginPath();
+        context.arc(x + ox, y + oy, 3, 0, Math.PI * 2);
+        context.fillStyle = "#e8c07d";
+        context.fill();
+      }
+    }
+
     for (const body of view.bodies) {
       const { x, y } = toPixel(body.q, body.r);
       const px = x + ox;
@@ -123,7 +146,7 @@ export function Board({ view, onSelect, selected }: {
     context.closePath();
     context.fillStyle = "#e8c07d";
     context.fill();
-  }, [view, selected, focus, cells, me.q, me.r, reach]);
+  }, [view, selected, focus, cells, route, me.q, me.r, reach]);
 
   function pick(index: number) {
     const cell = cells[index];

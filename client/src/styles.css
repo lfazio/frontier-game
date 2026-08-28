@@ -140,3 +140,73 @@ main.play { display: grid; grid-template-columns: 160px minmax(0, 1fr); flex: 1;
 }
 .tag.warn { color: #c2603f; border-color: #3a2b25; }
 .selected { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+
+/* --- acting (UX §5): a cost, a confirm, an answer ------------------------- */
+
+.actions {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0;
+  flex-wrap: wrap;
+}
+.actions button {
+  flex: 1 1 auto;
+}
+
+.plan {
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 10px 12px;
+  background: #171c1a;
+}
+.plan > b {
+  display: block;
+  margin-bottom: 8px;
+}
+.plan .cost {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+.plan .buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.beads {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.beads i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.75;
+}
+
+button.go {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+button.go:hover:not(:disabled) {
+  background: #251f14;
+}
+
+/* A refusal is an answer, so it reads like one: no red, no alarm (UX §5.4). */
+.said {
+  border-left: 2px solid var(--accent);
+  padding: 8px 12px;
+  margin: 8px 0;
+  background: var(--panel);
+  font-size: 13px;
+}
+button.link {
+  border: 0;
+  background: none;
+  color: var(--dim);
+  text-decoration: underline;
+  padding: 0 0 0 6px;
+  cursor: pointer;
+}
