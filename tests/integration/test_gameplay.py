@@ -575,3 +575,70 @@ def test_the_repair_quote_is_what_is_charged(client, clean):
     assert after["you"]["hull"] == after["you"]["hull_max"]
     assert after["you"]["credits"] == before - quoted["you"]["repair_cost"]
     assert after["you"]["repair_cost"] == 0
+
+
+def test_a_player_can_find_a_crew_to_join(client, clean):
+    """`join_team` needs an id, so there must be a way to learn one — GDD §6."""
+    founder = register(client)
+    send(client, founder, action="create_team", name="The Long Haul", faction_id=2)
+
+    joiner = register(client)
+    listing = client.get("/v1/teams", headers=joiner).json()
+
+    crew = next(t for t in listing["teams"] if t["name"] == "The Long Haul")
+    assert listing["yours"] is None
+    assert crew["faction_id"] == 2 and crew["members"] == 1
+
+    assert send(client, joiner, action="join_team", team_id=crew["id"]).status_code == 202
+    after = me(client, joiner)["player"]
+    assert after["team_id"] == crew["id"]
+    assert after["team_name"] == "The Long Haul"
+    assert client.get("/v1/teams", headers=joiner).json()["yours"] == crew["id"]
+
+
+def test_an_independent_player_has_no_crew_and_no_faction(client, clean):
+    """A player is independent until they join something — GDD §6, decision S2."""
+    headers = register(client)
+
+    player = me(client, headers)["player"]
+
+    assert player["team_id"] is None
+    assert player["team_name"] is None
+    assert player["faction_id"] is None
+
+
+def test_every_event_is_stamped_with_the_channel_it_arrived_on(client, clean):
+    """The client filters by channel, so the server must say which one — UX §7."""
+    headers = register(client)
+    send(client, headers, action="send_message", channel="local", text="Anyone out here?")
+
+    events = client.get("/v1/feed", headers=headers).json()["events"]
+
+    assert events, "a message the player just sent must be in their own feed"
+    assert all("channel" in event for event in events)
+    spoken = next(e for e in events if e["type"] == "MESSAGE")
+    assert spoken["channel"] in {"local", "system", "personal", "team", "universe"}
+
+
+def test_a_message_carries_to_a_pilot_standing_alongside(client, clean):
+    headers = register(client)
+    neighbour = register(client)
+
+    send(client, headers, action="send_message", channel="local", text="Mind the rocks.")
+
+    heard = client.get("/v1/feed", headers=neighbour).json()["events"]
+    assert any(e["type"] == "MESSAGE" for e in heard)
+
+
+def test_a_message_names_who_said_it(client, clean):
+    """A chat line with no speaker is not chat — UX §7."""
+    headers = register(client)
+    mine = me(client, headers)["player"]["callsign"]
+
+    send(client, headers, action="send_message", channel="local", text="Rocks ahead.")
+
+    spoken = next(
+        e for e in client.get("/v1/feed", headers=headers).json()["events"] if e["type"] == "MESSAGE"
+    )
+    assert spoken["payload"]["from"] == mine
+    assert spoken["payload"]["text"] == "Rocks ahead."
