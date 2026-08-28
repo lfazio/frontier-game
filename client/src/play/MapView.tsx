@@ -130,9 +130,14 @@ export function MapView({ token, me, rules, onActed }: {
   const stationHere =
     view?.bodies.find((b) => b.kind === "station" && b.q === here.q && b.r === here.r) ?? null;
 
+  // Each zoom is reachable from every other: where the current path is too shallow to name a
+  // level, the player's own position supplies it. Otherwise zooming out would strand you.
   const crumbs: string[] = [];
-  for (let cut = 1; cut <= Math.min(depth, 3); cut += 1) {
-    crumbs.push(path.split("/").slice(0, cut).join("/"));
+  for (let cut = 1; cut <= 3; cut += 1) {
+    const here = path.split("/").slice(0, cut);
+    crumbs.push(
+      here.length === cut ? here.join("/") : systemPath.split("/").slice(0, cut).join("/"),
+    );
   }
 
   return (
@@ -142,7 +147,7 @@ export function MapView({ token, me, rules, onActed }: {
           <button
             key={label}
             className={i === depth - 1 ? "on" : ""}
-            disabled={i >= crumbs.length}
+            disabled={!crumbs[i]}
             onClick={() => setPath(crumbs[i] ?? path)}
           >
             {label}
@@ -174,6 +179,11 @@ export function MapView({ token, me, rules, onActed }: {
               <p className="dim small">
                 Sight {view.you.sensor_range} hexes · {view.contacts.length}{" "}
                 {view.contacts.length === 1 ? "contact" : "contacts"}
+              </p>
+              <p className="legend small">
+                <span className="key berth" /> station
+                <span className="key body" /> planet or star
+                <span className="key ship" /> contact
               </p>
 
               <ActionBar
@@ -269,7 +279,10 @@ export function MapView({ token, me, rules, onActed }: {
                     <span className={b.in_sight ? "tag" : "tag dim"}>
                       {b.in_sight ? "in sight" : `charted d${b.charted_on ?? "?"}`}
                     </span>{" "}
-                    {b.name ?? b.kind}
+                    <span className={b.kind === "station" ? "berth" : undefined}>
+                      {b.name ?? b.kind}
+                    </span>
+                    {b.kind === "station" && <span className="dim small"> · station</span>}
                   </li>
                 ))}
               </ul>
@@ -305,15 +318,12 @@ export function MapView({ token, me, rules, onActed }: {
           {chosen && (
             <div className="detail">
               <b>{chosen.name ?? chosen.kind}</b> · {chosen.kind} · <code>{chosen.path}</code>
-              {chosen.kind === "system" && (
-                <>
-                  <button onClick={() => setPath(chosen.path)}>Look inside</button>
-                  {chosen.path !== systemPath && (
-                    <button className="go" disabled={!rules || me.ship.docked} onClick={() => planJump(chosen)}>
-                      Jump here
-                    </button>
-                  )}
-                </>
+              {/* A region and a system both contain something, so both can be opened. */}
+              <button onClick={() => setPath(chosen.path)}>Look inside</button>
+              {chosen.kind === "system" && chosen.path !== systemPath && (
+                <button className="go" disabled={!rules || me.ship.docked} onClick={() => planJump(chosen)}>
+                  Jump here
+                </button>
               )}
             </div>
           )}
