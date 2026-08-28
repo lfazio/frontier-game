@@ -108,9 +108,13 @@ async def system(system_id: UUID, player_id: CurrentPlayer, c: ContainerDep) -> 
             contacts.append(
                 {
                     "quality": "full",
+                    # The id is what `attack` targets, so it is given only where the contact is
+                    # resolved: a partial sighting must not hand out a durable handle on a ship.
+                    "ship_id": str(other.id),
                     "position": str(other.position_path),
                     "name": callsigns.get(other.player_id) if other.player_id else None,
                     "kind": crews.get(other.id, "ship"),
+                    "docked": other.docked_at is not None,
                 }
             )
         else:
@@ -119,9 +123,11 @@ async def system(system_id: UUID, player_id: CurrentPlayer, c: ContainerDep) -> 
             contacts.append(
                 {
                     "quality": "partial",
+                    "ship_id": None,
                     "position": str(parent),
                     "name": None,
                     "kind": None,
+                    "docked": None,
                 }
             )
 
