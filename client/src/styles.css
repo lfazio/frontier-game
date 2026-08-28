@@ -330,3 +330,83 @@ ul.rows {
   padding: 0;
   margin: 8px 0;
 }
+
+/* --- feed, work and crew (UX §7) ----------------------------------------- */
+
+.channels {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 8px;
+}
+.channels button {
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.link-state {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.link-state.live {
+  color: #6fae7d;
+}
+
+.composer {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.composer input {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--ground);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font: inherit;
+}
+
+ul.cards {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 18px;
+  display: grid;
+  gap: 8px;
+}
+.mission {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px 12px;
+  background: var(--panel);
+}
+.missionhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mission p {
+  margin: 4px 0 8px;
+}
+
+.found {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.found input,
+.found select {
+  padding: 6px 10px;
+  background: var(--ground);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font: inherit;
+}

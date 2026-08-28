@@ -3,11 +3,21 @@ import { play, Refused, type Me } from "../api";
 import type { Rules } from "./commands";
 import { MapView } from "./MapView";
 import { Overview } from "./Overview";
+import { Crew } from "./Crew";
+import { FeedView } from "./FeedView";
+import { Missions } from "./Missions";
 import { Hold, Station } from "./Station";
 
 const POLL_MS = 10000;
-const LABEL: Record<string, string> = { overview: "Overview", map: "Map", hold: "Hold" };
-type Where = "overview" | "map" | "station" | "hold";
+const LABEL: Record<string, string> = {
+  overview: "Overview",
+  map: "Map",
+  hold: "Hold",
+  feed: "Feed",
+  missions: "Work",
+  crew: "Crew",
+};
+type Where = "overview" | "map" | "station" | "hold" | "feed" | "missions" | "crew";
 
 export function Shell({ token, onSignOut }: { token: string; onSignOut: () => void }) {
   const [me, setMe] = useState<Me | null>(null);
@@ -56,13 +66,14 @@ export function Shell({ token, onSignOut }: { token: string; onSignOut: () => vo
             {me.player.ap} / 10
           </b>
         </span>
+        {me.unread > 0 && <span className="tag warn">{me.unread} new</span>}
         <span className="day num">DAY {me.world_day}</span>
         <button onClick={onSignOut}>Sign out</button>
       </header>
 
       <main className="play">
         <nav className="rail">
-          {(["overview", "map", "station", "hold"] as Where[]).map((item) => (
+          {(["overview", "map", "feed", "missions", "station", "hold", "crew"] as Where[]).map((item) => (
             <button
               key={item}
               className={where === item ? "on" : ""}
@@ -84,6 +95,11 @@ export function Shell({ token, onSignOut }: { token: string; onSignOut: () => vo
             <Station token={token} me={me} rules={rules} onActed={() => void refresh()} />
           )}
           {where === "hold" && <Hold me={me} />}
+          {where === "feed" && <FeedView token={token} me={me} />}
+          {where === "missions" && (
+            <Missions token={token} me={me} rules={rules} onActed={() => void refresh()} />
+          )}
+          {where === "crew" && <Crew token={token} me={me} onActed={() => void refresh()} />}
         </section>
       </main>
 
