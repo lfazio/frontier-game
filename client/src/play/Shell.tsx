@@ -3,9 +3,11 @@ import { play, Refused, type Me } from "../api";
 import type { Rules } from "./commands";
 import { MapView } from "./MapView";
 import { Overview } from "./Overview";
+import { Hold, Station } from "./Station";
 
 const POLL_MS = 10000;
-type Where = "overview" | "map";
+const LABEL: Record<string, string> = { overview: "Overview", map: "Map", hold: "Hold" };
+type Where = "overview" | "map" | "station" | "hold";
 
 export function Shell({ token, onSignOut }: { token: string; onSignOut: () => void }) {
   const [me, setMe] = useState<Me | null>(null);
@@ -60,18 +62,28 @@ export function Shell({ token, onSignOut }: { token: string; onSignOut: () => vo
 
       <main className="play">
         <nav className="rail">
-          {(["overview", "map"] as Where[]).map((item) => (
-            <button key={item} className={where === item ? "on" : ""} onClick={() => setWhere(item)}>
-              {item === "overview" ? "Overview" : "Map"}
+          {(["overview", "map", "station", "hold"] as Where[]).map((item) => (
+            <button
+              key={item}
+              className={where === item ? "on" : ""}
+              // The berth is named rather than greyed out: a disabled control with no reason is
+              // worse than one that says what it is waiting for (UX §5.4).
+              title={item === "station" && !me.ship.docked ? "Dock at a station first" : undefined}
+              onClick={() => setWhere(item)}
+            >
+              {item === "station" ? (me.ship.docked ? "Station" : "Station · undocked") : LABEL[item]}
             </button>
           ))}
         </nav>
         <section className="panel">
-          {where === "overview" ? (
-            <Overview me={me} />
-          ) : (
+          {where === "overview" && <Overview me={me} />}
+          {where === "map" && (
             <MapView token={token} me={me} rules={rules} onActed={() => void refresh()} />
           )}
+          {where === "station" && (
+            <Station token={token} me={me} rules={rules} onActed={() => void refresh()} />
+          )}
+          {where === "hold" && <Hold me={me} />}
         </section>
       </main>
 
@@ -82,7 +94,11 @@ export function Shell({ token, onSignOut }: { token: string; onSignOut: () => vo
         <span className="dim">·</span>
         <span className="num">{me.ship.fuel} fuel</span>
         <span className="dim">·</span>
-        <span className="num">hull {me.ship.hull}</span>
+        <span className="num">hull {me.ship.hull}/{me.ship.hull_max}</span>
+        <span className="dim">·</span>
+        <span className="num">hold {me.cargo.reduce((sum, c) => sum + c.qty, 0)}/{me.ship.cargo_max}</span>
+        <span className="dim">·</span>
+        <span className="num">{me.player.credits} cr</span>
         <span className="spacer" />
         {failure && <span className="hurt">{failure}</span>}
       </footer>

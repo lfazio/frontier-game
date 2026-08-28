@@ -210,3 +210,123 @@ button.link {
   padding: 0 0 0 6px;
   cursor: pointer;
 }
+
+/* --- station and market (UX §6) ------------------------------------------ */
+
+.stationhead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.marketgrid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: start;
+  margin: 12px 0;
+}
+@media (max-width: 720px) {
+  .marketgrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+table.market {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+table.market caption {
+  text-align: left;
+  padding-bottom: 6px;
+}
+table.market th,
+table.market td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  font-weight: 400;
+}
+table.market thead th {
+  color: var(--dim);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+table.market .n {
+  text-align: right;
+}
+table.market tbody tr {
+  cursor: pointer;
+}
+table.market tbody tr:hover {
+  background: #141a20;
+}
+table.market tbody tr.on {
+  background: #1b2129;
+  outline: 1px solid var(--accent);
+}
+
+.ledger {
+  min-width: 170px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px 12px;
+  background: var(--panel);
+}
+.ledger p {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.trade {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.sides {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.stepper input {
+  width: 5.5em;
+  padding: 5px 8px;
+  background: var(--ground);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font: inherit;
+  text-align: right;
+}
+button.plain {
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+ul.rows {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
