@@ -89,6 +89,20 @@ def scope_container(origin: HexAddr, scope: Scope) -> HexAddr:
     return HexAddr(origin.steps[:depth])
 
 
+def sensor_quality(steps: int, sensor_range: int) -> Quality:
+    """How well a thing `steps` hexes away is seen — UX §4.2.
+
+    The single ladder for sensor resolution. Events read it through
+    `observation_quality`, and contacts read it directly, so a ship can never be more or less
+    visible than the events it generates.
+    """
+    if steps * 2 <= sensor_range:
+        return Quality.FULL
+    if steps <= sensor_range:
+        return Quality.PARTIAL
+    return Quality.NONE
+
+
 def observation_quality(viewer: ViewerContext, event: Event) -> Quality:
     """The MVP sensor model. Every row of this table is covered by a test."""
     if viewer.player_id in event.participants:
@@ -111,11 +125,7 @@ def observation_quality(viewer: ViewerContext, event: Event) -> Quality:
 
     if event.type is EventType.MESSAGE and steps <= viewer.radio_range:
         return Quality.FULL
-    if steps * 2 <= viewer.sensor_range:
-        return Quality.FULL
-    if steps <= viewer.sensor_range:
-        return Quality.PARTIAL
-    return Quality.NONE
+    return sensor_quality(steps, viewer.sensor_range)
 
 
 def render_public(event: Event) -> EventView | None:
