@@ -131,6 +131,14 @@ export function refusalText(code: string, context: Record<string, unknown> = {})
       return `You are carrying ${have ?? "fewer"}, not ${need ?? "that many"}.`;
     case "COMMODITY_UNAVAILABLE":
       return "This station does not deal in that.";
+    case "ALREADY_IN_TEAM":
+      return "You are already in a crew. Leave it before joining another.";
+    case "NOT_IN_TEAM":
+      return "You are not in a crew.";
+    case "UNKNOWN_TEAM":
+      return "That crew no longer exists.";
+    case "MALFORMED_MESSAGE":
+      return "That message cannot be sent as written.";
     case "TARGET_NOT_VISIBLE":
       return "Nothing there now. Your last sighting is older than the world.";
     case "TARGET_UNKNOWN":
@@ -194,6 +202,18 @@ export const act = {
     send("/v1/commands", token, { action: "sell", commodity, qty, idempotency_key: key }),
   repair: (token: string, key: string) =>
     send("/v1/commands", token, { action: "repair", idempotency_key: key }),
+  say: (token: string, channel: string, text: string, key: string) =>
+    send("/v1/commands", token, { action: "send_message", channel, text, idempotency_key: key }),
+  acceptMission: (token: string, mission_id: string, key: string) =>
+    send("/v1/commands", token, { action: "accept_mission", mission_id, idempotency_key: key }),
+  completeMission: (token: string, mission_id: string, key: string) =>
+    send("/v1/commands", token, { action: "complete_mission", mission_id, idempotency_key: key }),
+  createTeam: (token: string, name: string, faction_id: number, key: string) =>
+    send("/v1/commands", token, { action: "create_team", name, faction_id, idempotency_key: key }),
+  joinTeam: (token: string, team_id: string, key: string) =>
+    send("/v1/commands", token, { action: "join_team", team_id, idempotency_key: key }),
+  leaveTeam: (token: string, key: string) =>
+    send("/v1/commands", token, { action: "leave_team", idempotency_key: key }),
 };
 
 export function outcomeText(outcome: Outcome, arrivedAt: string): string {

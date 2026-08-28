@@ -37,6 +37,7 @@ export interface FeedEvent {
   origin: string;
   scope: number;
   quality: string;
+  channel: string;
   payload: Record<string, unknown>;
 }
 
@@ -78,6 +79,9 @@ export interface Me {
     ap: number;
     credits: number;
     knowledge: number;
+    faction_id: number | null;
+    team_id: string | null;
+    team_name: string | null;
   };
   ship: {
     id: string;
@@ -158,6 +162,34 @@ export interface MarketView {
   cargo: CargoItem[];
 }
 
+export interface Mission {
+  id: string;
+  kind: string;
+  faction_id: number;
+  brief: string;
+  system: string;
+  system_name: string | null;
+  reward_credits: number;
+  reward_reputation: number;
+  expires_on: number;
+}
+
+export interface MissionBoard {
+  faction_id: number | null;
+  reputation: Record<number, number>;
+  mine: Mission[];
+  offers: Mission[];
+}
+
+export interface TeamRow {
+  id: string;
+  name: string;
+  faction_id: number;
+  founded_on: number;
+  members: number;
+  defected_on: number | null;
+}
+
 export class Refused extends Error {
   constructor(readonly status: number, readonly code: string) {
     super(code);
@@ -185,6 +217,13 @@ export const play = {
   rules: (token: string) => authed<Rules>("/v1/rules", token),
   market: (token: string, stationId: string) =>
     authed<MarketView>(`/v1/stations/${stationId}/market`, token),
+  feed: (token: string, after?: string) =>
+    authed<{ events: FeedEvent[]; cursor: string | null }>(
+      after ? `/v1/feed?after=${after}` : "/v1/feed",
+      token,
+    ),
+  missions: (token: string) => authed<MissionBoard>("/v1/missions", token),
+  teams: (token: string) => authed<{ yours: string | null; teams: TeamRow[] }>("/v1/teams", token),
 };
 
 async function post(url: string, body: unknown): Promise<string> {
