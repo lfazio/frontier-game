@@ -717,3 +717,39 @@ def test_firing_on_yourself_is_refused(client, clean):
     own = me(client, headers)["ship"]["id"]
 
     assert send(client, headers, action="attack", target_ship_id=own).json()["code"] == "SELF_TARGET"
+
+
+def test_a_player_never_sees_less_of_the_chart_than_a_spectator(client, clean):
+    """Watch mode must stay strictly weaker than any player's view — UX §9."""
+    headers = register(client)
+
+    for path in ("ga0_0", "ga0_0/re0_n1"):
+        spectator = client.get("/v1/watch/map", params={"path": path}).json()
+        player = client.get("/v1/map/tiles", params={"path": path}, headers=headers).json()
+
+        seen_by_anyone = {e["path"] for e in spectator["entries"]}
+        seen_by_player = {e["path"] for e in player["entries"]}
+        assert seen_by_anyone, f"the spectator chart of {path} is empty"
+        assert seen_by_anyone <= seen_by_player, f"a spectator sees more of {path} than a player"
+
+
+def test_the_galaxy_map_offers_its_regions(client, clean):
+    """You cannot navigate into a level the tile does not mention."""
+    headers = register(client)
+
+    tile = client.get("/v1/map/tiles", params={"path": "ga0_0"}, headers=headers).json()
+
+    assert tile["entries"], "the galaxy map was empty, so there was nothing to click"
+    assert {e["kind"] for e in tile["entries"]} == {"region"}
+
+
+def test_what_is_inside_a_system_still_needs_discovering(client, clean):
+    """The chart is public; what is in a system is not."""
+    headers = register(client)
+    system = HexAddr.parse(me(client, headers)["ship"]["position"]).parent()
+    assert system is not None
+
+    inside = client.get("/v1/map/tiles", params={"path": str(system)}, headers=headers).json()
+
+    assert all(e["kind"] in {"station", "planet", "star"} for e in inside["entries"])
+    assert client.get("/v1/watch/map", params={"path": str(system)}).json()["entries"] == []
