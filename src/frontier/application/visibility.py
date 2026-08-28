@@ -57,6 +57,7 @@ class EventView:
     origin: str
     scope: int
     quality: Quality
+    channel: str
     payload: dict[str, Any]
 
 
@@ -145,8 +146,26 @@ def render_public(event: Event) -> EventView | None:
         origin=str(event.origin),
         scope=int(event.scope),
         quality=Quality.PARTIAL,
+        channel=channel_of(event),
         payload=_redact(event),
     )
+
+
+def channel_of(event: Event) -> str:
+    """Which stream an event belongs to.
+
+    The one definition: the socket filters subscriptions with it and every view is stamped with
+    it, so the channel a client filters by is the channel the server delivered on.
+    """
+    if event.visibility is Visibility.TEAM:
+        return "team"
+    if event.visibility is Visibility.PARTICIPANTS:
+        return "personal"
+    if event.scope >= Scope.REGION:
+        return "universe"
+    if event.scope >= Scope.SYSTEM:
+        return "system"
+    return "local"
 
 
 def render_for(viewer: ViewerContext, event: Event) -> EventView | None:
@@ -163,6 +182,7 @@ def render_for(viewer: ViewerContext, event: Event) -> EventView | None:
         origin=str(event.origin if quality is Quality.FULL else _fuzz(event.origin)),
         scope=int(event.scope),
         quality=quality,
+        channel=channel_of(event),
         payload=payload,
     )
 
@@ -188,5 +208,6 @@ def stamp_view(view: EventView) -> dict[str, Any]:
         "origin": view.origin,
         "scope": view.scope,
         "quality": view.quality.name.lower(),
+        "channel": view.channel,
         "payload": view.payload,
     }

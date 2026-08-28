@@ -19,7 +19,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 from frontier.adapters.api.security import read_token
 from frontier.adapters.db.feed import viewer_for
-from frontier.application.visibility import render_for, stamp_view
+from frontier.application.visibility import channel_of, render_for, stamp_view
 from frontier.domain.events.model import Event, Scope, Severity, Visibility
 from frontier.domain.events.types import EventType
 from frontier.domain.hex.coordinates import HexAddr
@@ -44,18 +44,6 @@ def from_wire(message: dict[str, Any]) -> Event:
         payload=message["payload"],
         ruleset_version=message["ruleset_version"],
     )
-
-
-def channel_of(event: Event) -> str:
-    if event.visibility is Visibility.TEAM:
-        return "team"
-    if event.visibility is Visibility.PARTICIPANTS:
-        return "personal"
-    if event.scope >= Scope.REGION:
-        return "universe"
-    if event.scope >= Scope.SYSTEM:
-        return "system"
-    return "local"
 
 
 @router.websocket("/v1/stream")
