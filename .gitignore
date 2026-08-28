@@ -21,3 +21,4 @@ htmlcov/
 client/node_modules/
 client/dist/
 design/frontier-mvp-client.html
+client/tsconfig.tsbuildinfo
