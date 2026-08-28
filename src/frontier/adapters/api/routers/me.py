@@ -45,6 +45,17 @@ async def me(player_id: CurrentPlayer, c: ContainerDep) -> dict[str, Any]:
                 )
             ).scalar_one_or_none()
             digest = row.summary if row else None
+    team_name: str | None = None
+    if c.sessions is not None:
+        async with c.sessions() as session:
+            team_name = (
+                await session.execute(
+                    select(models.Team.name)
+                    .join(models.Player, models.Player.team_id == models.Team.id)
+                    .where(models.Player.id == player_id)
+                )
+            ).scalar_one_or_none()
+
     async with c.executor.uow_factory() as uow:
         player = await uow.players.get_for_update(player_id)
         ship = await uow.ships.of_player(player_id)
@@ -57,6 +68,9 @@ async def me(player_id: CurrentPlayer, c: ContainerDep) -> dict[str, Any]:
                 "ap": player.ap_balance,
                 "credits": player.credits,
                 "knowledge": player.knowledge,
+                "faction_id": player.faction_id,
+                "team_id": str(player.team_id) if player.team_id else None,
+                "team_name": team_name,
             },
             "cargo": hold,
             "unread": unread,

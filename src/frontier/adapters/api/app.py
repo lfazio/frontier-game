@@ -17,6 +17,7 @@ from frontier.adapters.api.routers import (
     rules,
     stations,
     systems,
+    teams,
     watch,
 )
 from frontier.adapters.ws.gateway import router as stream_router
@@ -55,6 +56,7 @@ def create_app(container: Container | None = None) -> FastAPI:
     app.include_router(forecasts.router)
     app.include_router(rules.router)
     app.include_router(stations.router)
+    app.include_router(teams.router)
     app.include_router(systems.router)
     app.include_router(watch.router)
     app.include_router(stream_router)
