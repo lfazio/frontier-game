@@ -28,6 +28,13 @@ Sign in at the client and you get the shell: a permanent Action Point counter, t
 overview built from the server's digest, and the map at three magnifications — galaxy and
 region from tiles, and your own system as a top-down board bounded by what your sensors reach.
 
+From there you can fly. Click a hex inside the sight boundary and the client plots a route with
+the server's own hex-line rule, prices the whole journey from `GET /v1/rules`, and submits it as
+one batch: a journey is one decision, even though the server still charges every hop. If the
+Action Points run out partway the answer says so and names where the ship actually is — that is
+a result, not an error. Jump between systems from the region chart, and scan, dock and launch
+from the system view. Refusals are written as answers: what is true, then what would help.
+
 ## Watching a world
 
 The quickest way to see the game is watch mode — a spectator view of a real server, no account

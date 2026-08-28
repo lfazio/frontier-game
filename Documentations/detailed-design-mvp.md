@@ -5,8 +5,8 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.14 |
-| Date | 2026-08-27 |
+| Version | 0.15 |
+| Date | 2026-08-28 |
 | Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
 | Depends on | `Documentations/game-design.md` v2.3, `Documentations/architecture.md` v0.2 |
@@ -1735,6 +1735,11 @@ mistake in this plan that would cost a rewrite.
 | D-48 | World generation seeds `core.territory` so each faction holds its home from the first cycle. | *SDD §7* step 6 specified it and the implementation omitted it, so a new galaxy was uncontrolled everywhere and took seven cycles of blending to show a single border. | Yes |
 | D-51 | `sensor_quality(steps, range)` is one shared ladder: events read it through `observation_quality`, contacts read it directly. | A ship must never be more or less visible than the events it generates. Two ladders would drift, and the drift would be a leak in whichever direction was looser (*UX §4.2*). | No |
 | D-52 | `GET /v1/systems/{id}` answers `404` for a system the player is not in — the same answer as for one that does not exist. | Distinguishing "not yours" from "not there" would let a player probe the galaxy by status code. | No |
+| D-53 | `POST /v1/commands:batch` runs a sequence and stops at the first refusal, returning how many hops were accepted, why it stopped and the events of those that succeeded. | A route is one decision for the player (*UX §5.3*) but stays one evaluation per hop for the server, so AP and fuel keep their meaning. A partial route is a result, not a failure. | No |
+| D-54 | Batches are capped at 20 commands. | A route is a journey, not a scripting interface; an unbounded batch would be a way to spend a whole cycle in one uninterruptible transaction. | No |
+| D-55 | `GET /v1/rules` serves AP costs and fuel rates to signed-in players; combat, NPC, economy and Continuity tuning are withheld. | The client must show a cost before commitment (*UX §5*) without holding a balance literal (*GDD §10.4 C4*). It needs what an action costs, not how the world is tuned. | No |
+| D-56 | `GET /v1/systems/{id}` reports `system.radius`, and the client clips the board to it. | Only generated locations are valid move targets. Without the rim the board would offer hexes beyond the system, earning the player a refusal they had no way to foresee. | No |
+| D-57 | The client reimplements the server's hex-line rule rather than asking the server to plot the route. | The path must be drawn before it is flown (*UX §5.3*), so it has to exist client-side; a cross-check over 3 000 random pairs holds the two implementations to the same answer. | No |
 | D-50 | The population's flow advance is guarded by `last_simulated_on == world_day`, not `>=`, and goods move only for systems advanced in that pass. | Flows and stock are cumulative, so a re-run must not move them twice. `>=` looked equivalent and is not: a world day can be rewound — a restored snapshot, a replay, a test fixture — and a `>=` guard would freeze the population permanently. | No |
 | D-49 | Watch mode is served by its own `/v1/watch/*` routes rather than by relaxing the player endpoints. | A spectator's entitlement is different in kind, not degree: no ship, no sensors, public system-or-wider events only. Separate routes make "strictly weaker than any player" a property that can be tested rather than an argument about parameters. | No |
 | D-44 | The public API connects as `api_role`, which holds no grant on `cont`; the Continuity's stage runs as `cont_role`, which may read the world, write its own records and update `core.system_activity` — and nothing else. | *ARCH ADR-13* and *GDD §9.13*. A serialisation mistake cannot leak what the connection cannot read, and "push, never force" becomes a privilege the database withholds rather than a rule this code remembers. | No |
@@ -1805,6 +1810,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.15 | 2026-08-28 | Client slice C3: `POST /v1/commands:batch` for routes (D-53, D-54), `GET /v1/rules` so costs stay balance data on the client too (D-55), and `system.radius` so the board cannot offer a hex that is not a place (D-56, D-57). `GET /v1/me` now carries the ship's own jump range, transit state and berth. |
 | 0.14 | 2026-08-28 | `GET /v1/systems/{id}` built for client slice C2: bodies in sight or charted, contacts graded by the shared sensor ladder (D-51), and a uniform `404` for any system the player is not in (D-52). |
 | 0.13 | 2026-08-27 | Watch mode delivered (*UX §9*, client slice C1): `/v1/watch/*`, the public tile projection, and a browser client. Closed two real gaps found by building it — tick stages never emitted events (D-47) and world generation never seeded home territory (D-48). |
 | 0.12 | 2026-08-27 | P6 delivered: the `cont` schema, capability-bounded `api_role` and `cont_role`, the Continuity's tick stage loaded by name and running under its own role, budgets that scale with world extent, and the anti-leak suite as a merge blocker. Recorded D-44 to D-46. |

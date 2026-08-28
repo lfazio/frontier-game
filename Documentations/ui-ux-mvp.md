@@ -5,10 +5,10 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.4 |
-| Date | 2026-08-27 |
+| Version | 0.5 |
+| Date | 2026-08-28 |
 | Scope | The MVP client (*GDD §10.1*) and a spectator mode for demonstrating a running world |
-| Depends on | `game-design.md` v2.9, `architecture.md` v0.7, `detailed-design-mvp.md` v0.12 |
+| Depends on | `game-design.md` v2.9, `architecture.md` v0.8, `detailed-design-mvp.md` v0.15 |
 | Audience | Client engineers, designers, anyone building or reviewing the front end |
 
 ### How to read this document
@@ -522,11 +522,13 @@ provides is a server change, not a client workaround.
 | --- | --- |
 | Sign in / register | `POST /v1/auth/register`, `POST /v1/auth/login` |
 | Daily overview | `GET /v1/me` |
-| Map | `GET /v1/map/tiles?path=…` |
+| Map | `GET /v1/map/tiles?path=…`, `GET /v1/systems/{id}` |
 | Ship, station, market | `GET /v1/me`, `GET /v1/stations/{id}/market` |
 | Feed | `GET /v1/feed`, `WS /v1/stream` |
 | Missions | `GET /v1/missions` |
 | Any action | `POST /v1/commands` |
+| A route | `POST /v1/commands:batch` |
+| Costs shown before commitment | `GET /v1/rules` |
 | Watch mode | `GET /v1/map/tiles`, `GET /v1/feed`, `WS /v1/stream` |
 
 The gaps this document opened, both since closed:
@@ -535,6 +537,9 @@ The gaps this document opened, both since closed:
 | --- | --- | --- |
 | ~~`GET /v1/systems/{id}`~~ | Contacts and bodies in the current system | **Built**: bodies in sight or charted, contacts graded by the shared sensor ladder |
 | ~~Spectator scope~~ | Watch mode | **Built**: `/v1/watch/overview`, `/v1/watch/map`, `/v1/watch/feed`, unauthenticated and behind `FEATURES_WATCH` |
+| ~~`POST /v1/commands:batch`~~ | A route as one decision (§5.3) | **Built**: stops at the first refusal and reports how far it got |
+| ~~`GET /v1/rules`~~ | Showing a cost before commitment (§5) | **Built**: AP costs and fuel rates only — no combat, NPC or Continuity tuning |
+| ~~System extent~~ | Clipping the board to the rim (§4.1) | **Built**: `system.radius`, so no hex is offered that is not a place |
 
 ---
 
@@ -547,7 +552,7 @@ The client is built in the order that makes each slice independently demonstrabl
 | **C0** ✅ | Shell, auth, `GET /v1/me` | "A player can log in and see their day". Built |
 | **C1** ✅ | Watch mode: galaxy and region maps on canvas, universe feed, textual chart | "Here is a living world" — no account needed. Built |
 | **C2** ✅ | Map at three zooms, contacts, selection | "Here is where I am and what is near me". Built |
-| **C3** | Commands: move, jump, dock, launch, scan | "I can fly" |
+| **C3** ✅ | Commands: move, jump, dock, launch, scan | "I can fly". Built |
 | **C4** | Market, cargo, repair | "I can trade" |
 | **C5** | Feed, chat, missions, team | "I can talk and take work" |
 | **C6** | Combat, standing orders | "I can fight, and I can be fought while away" |
@@ -576,6 +581,7 @@ redaction — and it is the artefact to show anyone who asks what the game is.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.5 | 2026-08-28 | Slice C3 built: move, route, jump, dock, launch and scan. The route is one decision submitted as `POST /v1/commands:batch`, drawn with the server's own hex-line rule and reported honestly when it stops partway. `GET /v1/rules` supplies costs so the client never holds a balance literal, and the board clips to the system's rim so it cannot offer a hex that is not a place. |
 | 0.4 | 2026-08-28 | Slices C0 and C2 built: sign-in, the play shell with a permanent AP counter, the daily overview, and the map at three zooms — galaxy and region from tiles, the system as a sight-bounded board with contacts and hex selection. `GET /v1/systems/{id}` closed the last endpoint gap. |
 | 0.3 | 2026-08-27 | Watch mode built (slice C1): a canvas star chart with its textual peer, the universe feed, and the `/v1/watch/*` spectator scope. |
 | 0.2 | 2026-08-27 | Answered U1–U4: watch mode serves both a demonstration deployment and, on a live world, the Continuity's rationed watch (§9); hex maps are drawn on canvas, which makes the textual map view mandatory rather than courteous (§8.4); the client keeps only the latest overview (§3); a route is one confirmation and a partial route is a result, not an error (§5.3). |
