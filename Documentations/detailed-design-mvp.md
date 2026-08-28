@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.17 |
+| Version | 0.18 |
 | Date | 2026-08-28 |
 | Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
@@ -1747,6 +1747,8 @@ mistake in this plan that would cost a rewrite.
 | D-62 | `channel_of` moved from the WebSocket gateway into `application/visibility`, and every `EventView` is stamped with its channel. | The socket filters subscriptions by channel while the client filters its feed by channel; two definitions would drift, and the client cannot compute the server's because `visibility` is deliberately never sent. One definition, stamped by the side that knows. | No |
 | D-63 | A `MESSAGE` payload names its sender in `payload.from`. | Chat without a speaker is not chat (*UX §7*). Putting the name in the payload means partial observation drops it with the text, instead of leaking who spoke from behind a redaction. | No |
 | D-64 | `GET /v1/teams` lists every crew — name, banner, size, founding day — to any signed-in player. | `join_team` takes an id, so without a register a crew could only be joined by someone who already knew its UUID. A crew's identity is how it recruits; its roster is not published. | No |
+| D-65 | A contact carries `ship_id` only at `full` quality; a `partial` one carries `null`. | The id is what `attack` targets and what identifies a ship across sightings. Handing one out for a contact the player cannot resolve would turn a vague smudge into a durable, trackable handle — the leak the sensor ladder exists to prevent. | No |
+| D-66 | `GET /v1/orders` returns the current standing orders, with no flag saying whether a row exists. | Registration seeds a row, so such a flag could never be false; the fallback guards a deleted row rather than the ordinary case. The screen needs the values, and a field that is always true would imply a distinction the world does not have. | No |
 | D-50 | The population's flow advance is guarded by `last_simulated_on == world_day`, not `>=`, and goods move only for systems advanced in that pass. | Flows and stock are cumulative, so a re-run must not move them twice. `>=` looked equivalent and is not: a world day can be rewound — a restored snapshot, a replay, a test fixture — and a `>=` guard would freeze the population permanently. | No |
 | D-49 | Watch mode is served by its own `/v1/watch/*` routes rather than by relaxing the player endpoints. | A spectator's entitlement is different in kind, not degree: no ship, no sensors, public system-or-wider events only. Separate routes make "strictly weaker than any player" a property that can be tested rather than an argument about parameters. | No |
 | D-44 | The public API connects as `api_role`, which holds no grant on `cont`; the Continuity's stage runs as `cont_role`, which may read the world, write its own records and update `core.system_activity` — and nothing else. | *ARCH ADR-13* and *GDD §9.13*. A serialisation mistake cannot leak what the connection cannot read, and "push, never force" becomes a privilege the database withholds rather than a rule this code remembers. | No |
@@ -1817,6 +1819,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.18 | 2026-08-28 | Client slice C6, completing the MVP client: targeting from a resolved contact (D-65) and a readable standing-orders endpoint (D-66). `GET /v1/me` also reports shields and sensor range. |
 | 0.17 | 2026-08-28 | Client slice C5: one definition of an event's channel, stamped on every view (D-62); messages name their sender (D-63); and `GET /v1/teams` makes a crew findable (D-64). |
 | 0.16 | 2026-08-28 | Client slice C4: `GET /v1/stations/{id}/market` (D-58, D-59, D-60) and the hold on `GET /v1/me` (D-61). Buy, sell and repair were already commands; this gave them a screen. |
 | 0.15 | 2026-08-28 | Client slice C3: `POST /v1/commands:batch` for routes (D-53, D-54), `GET /v1/rules` so costs stay balance data on the client too (D-55), and `system.radius` so the board cannot offer a hex that is not a place (D-56, D-57). `GET /v1/me` now carries the ship's own jump range, transit state and berth. |

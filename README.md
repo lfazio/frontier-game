@@ -43,6 +43,11 @@ The feed is one stream filtered by channel — local, system, crew — arriving 
 WebSocket and merged with the fetched page on event id, so nothing appears twice. You can speak
 on it, take work from the mission board, and found or join a crew.
 
+A ship you can see clearly and reach can be fired on from the map; a fight between two players
+is queued and resolved for both at the turn of the cycle, so neither is punished for being the
+one who was asleep. Standing orders decide what your ship does while you are away, and the
+screen opens with what is already set rather than a blank form.
+
 ## Watching a world
 
 The quickest way to see the game is watch mode — a spectator view of a real server, no account
