@@ -252,3 +252,110 @@ def test_a_jump_beyond_the_hulls_range_is_refused(client, clean):
     assert response.status_code == 409
     assert response.json()["code"] == "BEYOND_JUMP_RANGE"
     assert me(client, headers)["ship"]["fuel"] == 60
+
+
+def test_the_system_view_shows_what_is_in_sight_and_what_was_charted(client, clean):
+    """UX §4.1: three layers, and the server decides all three."""
+    headers = register(client)
+    dashboard = me(client, headers)
+    position = HexAddr.parse(dashboard["ship"]["position"])
+
+    import asyncio
+
+    from frontier.adapters.db.engine import make_engine, make_sessionmaker
+
+    async def system_id() -> str:
+        engine = make_engine(clean.database_url)
+        async with make_sessionmaker(engine)() as session:
+            ship = (
+                await session.execute(select(models.Ship).where(models.Ship.player_id.is_not(None)))
+            ).scalar_one()
+            found = str(ship.system_id)
+        await engine.dispose()
+        return found
+
+    body = client.get(f"/v1/systems/{asyncio.run(system_id())}", headers=headers).json()
+
+    assert body["you"]["position"] == str(position)
+    assert body["you"]["sensor_range"] >= 1
+    assert body["system"]["path"] == str(position.parent())
+    # Nothing void is ever listed, and every body is either in sight or previously charted.
+    assert all(b["kind"] != "void" for b in body["bodies"])
+    assert all(b["in_sight"] or b["charted_on"] is not None for b in body["bodies"])
+
+
+def test_another_system_is_not_yours_to_look_inside(client, clean):
+    headers = register(client)
+    import asyncio
+
+    from frontier.adapters.db.engine import make_engine, make_sessionmaker
+
+    async def elsewhere() -> str:
+        engine = make_engine(clean.database_url)
+        async with make_sessionmaker(engine)() as session:
+            ship = (
+                await session.execute(select(models.Ship).where(models.Ship.player_id.is_not(None)))
+            ).scalar_one()
+            other = (
+                await session.execute(
+                    select(models.Location)
+                    .where(models.Location.kind == "system", models.Location.id != ship.system_id)
+                    .order_by(models.Location.path)
+                    .limit(1)
+                )
+            ).scalar_one()
+            found = str(other.id)
+        await engine.dispose()
+        return found
+
+    assert client.get(f"/v1/systems/{asyncio.run(elsewhere())}", headers=headers).status_code == 404
+    assert client.get(f"/v1/systems/{uuid4()}", headers=headers).status_code == 404
+
+
+def test_a_distant_ship_is_a_contact_without_a_name(client, clean):
+    """UX §4.2: partial means something is out there — not who, not what, not exactly where."""
+    headers = register(client)
+    import asyncio
+
+    from frontier.adapters.db.engine import make_engine, make_sessionmaker
+    from frontier.domain.hex.geometry import neighbours
+
+    async def place_a_stranger() -> str:
+        engine = make_engine(clean.database_url)
+        async with make_sessionmaker(engine)() as session, session.begin():
+            mine = (
+                await session.execute(select(models.Ship).where(models.Ship.player_id.is_not(None)))
+            ).scalar_one()
+            # Three hexes out: inside a sensor range of 3, outside the half-range that names it.
+            step = mine.position_path.tip
+            for _ in range(3):
+                step = neighbours(step)[0]
+            session.add(
+                models.Ship(
+                    id=uuid4(),
+                    player_id=None,
+                    hull=80,
+                    hull_max=80,
+                    shields=0,
+                    shields_max=0,
+                    fuel=60,
+                    fuel_max=60,
+                    cargo_max=20,
+                    sensor_range=2,
+                    system_id=mine.system_id,
+                    position_path=mine.position_path.sibling(step),
+                )
+            )
+            found = str(mine.system_id)
+        await engine.dispose()
+        return found
+
+    body = client.get(f"/v1/systems/{asyncio.run(place_a_stranger())}", headers=headers).json()
+
+    assert body["contacts"], body
+    partial = [c for c in body["contacts"] if c["quality"] == "partial"]
+    assert partial
+    for contact in partial:
+        assert contact["name"] is None and contact["kind"] is None
+        # The reported position is the system, not the hex it is really in.
+        assert contact["position"] == body["system"]["path"]
