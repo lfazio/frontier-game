@@ -141,6 +141,14 @@ export function refusalText(code: string, context: Record<string, unknown> = {})
       return "That message cannot be sent as written.";
     case "TARGET_NOT_VISIBLE":
       return "Nothing there now. Your last sighting is older than the world.";
+    case "SELF_TARGET":
+      return "You cannot fire on your own ship.";
+    case "TARGET_DOCKED":
+      return "Not while either of you is docked. A berth is neutral ground.";
+    case "ALREADY_ENGAGED":
+      return "That fight is already under way.";
+    case "OUT_OF_RANGE":
+      return "Out of weapons range. Close to an adjacent hex first.";
     case "TARGET_UNKNOWN":
       return "You have no chart for that. Scan, or fly somewhere it is known from.";
     case "UNKNOWN_DESTINATION":
@@ -214,6 +222,10 @@ export const act = {
     send("/v1/commands", token, { action: "join_team", team_id, idempotency_key: key }),
   leaveTeam: (token: string, key: string) =>
     send("/v1/commands", token, { action: "leave_team", idempotency_key: key }),
+  attack: (token: string, target_ship_id: string, key: string) =>
+    send("/v1/commands", token, { action: "attack", target_ship_id, idempotency_key: key }),
+  setOrders: (token: string, orders: Record<string, unknown>, key: string) =>
+    send("/v1/commands", token, { action: "set_standing_orders", ...orders, idempotency_key: key }),
 };
 
 export function outcomeText(outcome: Outcome, arrivedAt: string): string {

@@ -93,6 +93,9 @@ export interface Me {
     jump_range_ly: number;
     in_transit: boolean;
     hull_max: number;
+    shields: number;
+    shields_max: number;
+    sensor_range: number;
     fuel_max: number;
     cargo_max: number;
   };
@@ -112,9 +115,19 @@ export interface Body {
 
 export interface Contact {
   quality: "full" | "partial";
+  ship_id: string | null;
   position: string;
   name: string | null;
   kind: string | null;
+  docked: boolean | null;
+}
+
+export interface Orders {
+  posture: "evade" | "defend" | "aggressive" | "surrender_cargo";
+  engage_hostile: boolean;
+  engage_above_cargo: number | null;
+  retreat_at_hull_pct: number;
+  auto_reply: string | null;
 }
 
 export interface SystemView {
@@ -224,6 +237,7 @@ export const play = {
     ),
   missions: (token: string) => authed<MissionBoard>("/v1/missions", token),
   teams: (token: string) => authed<{ yours: string | null; teams: TeamRow[] }>("/v1/teams", token),
+  orders: (token: string) => authed<Orders>("/v1/orders", token),
 };
 
 async function post(url: string, body: unknown): Promise<string> {
