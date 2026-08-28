@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.6 |
+| Version | 0.7 |
 | Date | 2026-08-28 |
 | Scope | The MVP client (*GDD §10.1*) and a spectator mode for demonstrating a running world |
 | Depends on | `game-design.md` v2.9, `architecture.md` v0.8, `detailed-design-mvp.md` v0.15 |
@@ -527,6 +527,7 @@ provides is a server change, not a client workaround.
 | Buy, sell, repair | `POST /v1/commands` |
 | Feed | `GET /v1/feed`, `WS /v1/stream` |
 | Missions | `GET /v1/missions` |
+| Crew | `GET /v1/teams` |
 | Any action | `POST /v1/commands` |
 | A route | `POST /v1/commands:batch` |
 | Costs shown before commitment | `GET /v1/rules` |
@@ -543,6 +544,9 @@ The gaps this document opened, both since closed:
 | ~~System extent~~ | Clipping the board to the rim (§4.1) | **Built**: `system.radius`, so no hex is offered that is not a place |
 | ~~`GET /v1/stations/{id}/market`~~ | The station screen (§6) | **Built**: both sides of the spread, stock, held and average paid, priced on every view |
 | ~~Cargo off-station~~ | Reading the hold away from a berth | **Built**: `GET /v1/me` carries `cargo` and the ship's maxima |
+| ~~`GET /v1/teams`~~ | Finding a crew to join (§10) | **Built**: `join_team` needs an id, so the register of crews is public; who is in one is not |
+| ~~Event channel~~ | Filtering the feed (§7) | **Built**: every view is stamped with the channel the server delivered it on, so the client never guesses |
+| ~~Message sender~~ | Chat with a speaker (§7) | **Built**: `payload.from`, dropped by the same redaction that hides the text |
 
 ---
 
@@ -557,7 +561,7 @@ The client is built in the order that makes each slice independently demonstrabl
 | **C2** ✅ | Map at three zooms, contacts, selection | "Here is where I am and what is near me". Built |
 | **C3** ✅ | Commands: move, jump, dock, launch, scan | "I can fly". Built |
 | **C4** ✅ | Market, cargo, repair | "I can trade". Built |
-| **C5** | Feed, chat, missions, team | "I can talk and take work" |
+| **C5** ✅ | Feed, chat, missions, team | "I can talk and take work". Built |
 | **C6** | Combat, standing orders | "I can fight, and I can be fought while away" |
 
 C1 before C2 is deliberate: watch mode is the cheapest slice that proves the whole spine — tiles, feed, WebSocket,
@@ -584,6 +588,7 @@ redaction — and it is the artefact to show anyone who asks what the game is.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.7 | 2026-08-28 | Slice C5 built: the feed with channel filters and a composer, live over the WebSocket and de-duplicated on event id against the HTTP page; the mission board; and the crew register with founding, joining and leaving. The server now stamps each event with its channel and names the speaker of a message. |
 | 0.6 | 2026-08-28 | Slice C4 built: the station screen, the market, cargo and repair. `GET /v1/stations/{id}/market` prices both sides of the spread on every view and is readable only from the berth; `GET /v1/me` carries the hold so cargo is legible away from a station. Quantity has a stepper, typed entry and a one-click maximum that respects credits, stock and free hold at once. |
 | 0.5 | 2026-08-28 | Slice C3 built: move, route, jump, dock, launch and scan. The route is one decision submitted as `POST /v1/commands:batch`, drawn with the server's own hex-line rule and reported honestly when it stops partway. `GET /v1/rules` supplies costs so the client never holds a balance literal, and the board clips to the system's rim so it cannot offer a hex that is not a place. |
 | 0.4 | 2026-08-28 | Slices C0 and C2 built: sign-in, the play shell with a permanent AP counter, the daily overview, and the map at three zooms — galaxy and region from tiles, the system as a sight-bounded board with contacts and hex selection. `GET /v1/systems/{id}` closed the last endpoint gap. |

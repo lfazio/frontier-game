@@ -39,6 +39,10 @@ Docking opens the station: a market with both sides of the spread on screen, wha
 what you paid for it, and a quantity you can step, type or fill to the largest amount your
 credits, the hold and the station's stock all allow. Repair is quoted before it is bought.
 
+The feed is one stream filtered by channel — local, system, crew — arriving live over a
+WebSocket and merged with the fetched page on event id, so nothing appears twice. You can speak
+on it, take work from the mission board, and found or join a crew.
+
 ## Watching a world
 
 The quickest way to see the game is watch mode — a spectator view of a real server, no account
