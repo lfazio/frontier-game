@@ -410,3 +410,51 @@ ul.cards {
   border-radius: 3px;
   font: inherit;
 }
+
+/* --- standing orders (GDD §4.4) ------------------------------------------ */
+
+.orders fieldset {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin: 0 0 12px;
+}
+.orders legend {
+  color: var(--dim);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0 6px;
+}
+.choice {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 0;
+  cursor: pointer;
+}
+.inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+}
+.inline input[type="number"] {
+  width: 6em;
+  padding: 4px 8px;
+  background: var(--ground);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font: inherit;
+}
+.orders input[type="text"],
+.orders fieldset > label > input:not([type]) {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--ground);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font: inherit;
+}

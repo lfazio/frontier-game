@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FACTIONS, parentOf, play, tipOf, type Me, type SystemView, type Tile, type TileEntry } from "../api";
+import {
+  FACTIONS,
+  hexDistance,
+  parentOf,
+  play,
+  tipOf,
+  type Me,
+  type SystemView,
+  type Tile,
+  type TileEntry,
+} from "../api";
 import { HexMap } from "../HexMap";
 import { ActionBar, PlanPanel, type Plan } from "./Act";
 import { Board, contactLine } from "./Board";
 import { act, jumpCost, line, newKey, outcomeText, siblingOf, type Rules } from "./commands";
+import { describeCombat } from "./combat";
 
 // One map, three magnifications (UX §4). Zoom changes resolution, never mode: galaxy and
 // region come from tiles, and the system is the sight-bounded board.
@@ -216,11 +227,43 @@ export function MapView({ token, me, rules, onActed }: {
 
               {/* The map as text: the only way a canvas can be perceived by a screen reader. */}
               <ul aria-label="What is in range, nearest first">
-                {view.contacts.map((c, i) => (
-                  <li key={`c${i}`} className="row">
-                    <span className="tag warn">contact</span> {contactLine(c)}
-                  </li>
-                ))}
+                {view.contacts.map((c, i) => {
+                  // Only a resolved contact carries an id, and weapons reach one hex (SDD §5.6).
+                  const reachable =
+                    c.ship_id !== null &&
+                    !c.docked &&
+                    !me.ship.docked &&
+                    hexDistance(here, tipOf(c.position)) <= 1;
+                  return (
+                    <li key={`c${i}`} className="row">
+                      <span className="tag warn">contact</span> {contactLine(c)}
+                      {reachable && (
+                        <button
+                          className="link"
+                          disabled={busy || !rules}
+                          onClick={() =>
+                            commit({
+                              plan: {
+                                title: `Attack ${c.name ?? "contact"}`,
+                                steps: 0,
+                                ap: rules?.ap.cost.combat_round ?? 0,
+                                fuel: 0,
+                                verb: "Attack",
+                              },
+                              run: async () => {
+                                const outcome = await act.attack(token, c.ship_id!, newKey());
+                                if (outcome.stopped) return outcomeText(outcome, me.ship.position);
+                                return describeCombat(outcome.events);
+                              },
+                            })
+                          }
+                        >
+                          Attack · {rules?.ap.cost.combat_round ?? "?"} AP
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
                 {view.bodies.map((b) => (
                   <li key={b.id} className="row">
                     <span className={b.in_sight ? "tag" : "tag dim"}>

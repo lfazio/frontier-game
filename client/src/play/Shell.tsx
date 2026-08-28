@@ -6,6 +6,7 @@ import { Overview } from "./Overview";
 import { Crew } from "./Crew";
 import { FeedView } from "./FeedView";
 import { Missions } from "./Missions";
+import { Orders } from "./Orders";
 import { Hold, Station } from "./Station";
 
 const POLL_MS = 10000;
@@ -16,8 +17,9 @@ const LABEL: Record<string, string> = {
   feed: "Feed",
   missions: "Work",
   crew: "Crew",
+  orders: "Orders",
 };
-type Where = "overview" | "map" | "station" | "hold" | "feed" | "missions" | "crew";
+type Where = "overview" | "map" | "station" | "hold" | "feed" | "missions" | "crew" | "orders";
 
 export function Shell({ token, onSignOut }: { token: string; onSignOut: () => void }) {
   const [me, setMe] = useState<Me | null>(null);
@@ -73,7 +75,7 @@ export function Shell({ token, onSignOut }: { token: string; onSignOut: () => vo
 
       <main className="play">
         <nav className="rail">
-          {(["overview", "map", "feed", "missions", "station", "hold", "crew"] as Where[]).map((item) => (
+          {(["overview", "map", "feed", "missions", "station", "hold", "crew", "orders"] as Where[]).map((item) => (
             <button
               key={item}
               className={where === item ? "on" : ""}
@@ -100,6 +102,7 @@ export function Shell({ token, onSignOut }: { token: string; onSignOut: () => vo
             <Missions token={token} me={me} rules={rules} onActed={() => void refresh()} />
           )}
           {where === "crew" && <Crew token={token} me={me} onActed={() => void refresh()} />}
+          {where === "orders" && <Orders token={token} me={me} onActed={() => void refresh()} />}
         </section>
       </main>
 
@@ -111,6 +114,12 @@ export function Shell({ token, onSignOut }: { token: string; onSignOut: () => vo
         <span className="num">{me.ship.fuel} fuel</span>
         <span className="dim">·</span>
         <span className="num">hull {me.ship.hull}/{me.ship.hull_max}</span>
+        {me.ship.shields_max > 0 && (
+          <>
+            <span className="dim">·</span>
+            <span className="num">shields {me.ship.shields}/{me.ship.shields_max}</span>
+          </>
+        )}
         <span className="dim">·</span>
         <span className="num">hold {me.cargo.reduce((sum, c) => sum + c.qty, 0)}/{me.ship.cargo_max}</span>
         <span className="dim">·</span>
