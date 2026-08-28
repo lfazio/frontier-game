@@ -58,6 +58,12 @@ class SendMessageCommand:
                 visibility=visibility,
                 severity=Severity.TRIVIAL,
                 participants=frozenset({state.player.id}),
-                payload={"text": self.text[:MAX_LENGTH], "channel": self.channel.value},
+                # The speaker is named in the payload, so a partial sighting drops it with the
+                # rest of the text rather than leaking who spoke from behind a redaction.
+                payload={
+                    "text": self.text[:MAX_LENGTH],
+                    "channel": self.channel.value,
+                    "from": state.player.callsign,
+                },
             )
         ]
