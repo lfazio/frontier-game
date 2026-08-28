@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.3 |
+| Version | 0.4 |
 | Date | 2026-08-27 |
 | Scope | The MVP client (*GDD §10.1*) and a spectator mode for demonstrating a running world |
 | Depends on | `game-design.md` v2.9, `architecture.md` v0.7, `detailed-design-mvp.md` v0.12 |
@@ -529,11 +529,11 @@ provides is a server change, not a client workaround.
 | Any action | `POST /v1/commands` |
 | Watch mode | `GET /v1/map/tiles`, `GET /v1/feed`, `WS /v1/stream` |
 
-Two endpoints the MVP client needs and the server does not yet expose, listed here as the gap this document opens:
+The gaps this document opened, both since closed:
 
 | Needed | For | Note |
 | --- | --- | --- |
-| `GET /v1/systems/{id}` | Contacts and bodies in the current system | Named in *SDD §8.2*, not yet built |
+| ~~`GET /v1/systems/{id}`~~ | Contacts and bodies in the current system | **Built**: bodies in sight or charted, contacts graded by the shared sensor ladder |
 | ~~Spectator scope~~ | Watch mode | **Built**: `/v1/watch/overview`, `/v1/watch/map`, `/v1/watch/feed`, unauthenticated and behind `FEATURES_WATCH` |
 
 ---
@@ -544,9 +544,9 @@ The client is built in the order that makes each slice independently demonstrabl
 
 | Slice | Delivers | Demonstrable as |
 | --- | --- | --- |
-| **C0** | Shell, auth, `GET /v1/me` | "A player can log in and see their day" |
+| **C0** ✅ | Shell, auth, `GET /v1/me` | "A player can log in and see their day". Built |
 | **C1** ✅ | Watch mode: galaxy and region maps on canvas, universe feed, textual chart | "Here is a living world" — no account needed. Built |
-| **C2** | Map at three zooms, contacts, selection | "Here is where I am and what is near me" |
+| **C2** ✅ | Map at three zooms, contacts, selection | "Here is where I am and what is near me". Built |
 | **C3** | Commands: move, jump, dock, launch, scan | "I can fly" |
 | **C4** | Market, cargo, repair | "I can trade" |
 | **C5** | Feed, chat, missions, team | "I can talk and take work" |
@@ -576,6 +576,7 @@ redaction — and it is the artefact to show anyone who asks what the game is.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.4 | 2026-08-28 | Slices C0 and C2 built: sign-in, the play shell with a permanent AP counter, the daily overview, and the map at three zooms — galaxy and region from tiles, the system as a sight-bounded board with contacts and hex selection. `GET /v1/systems/{id}` closed the last endpoint gap. |
 | 0.3 | 2026-08-27 | Watch mode built (slice C1): a canvas star chart with its textual peer, the universe feed, and the `/v1/watch/*` spectator scope. |
 | 0.2 | 2026-08-27 | Answered U1–U4: watch mode serves both a demonstration deployment and, on a live world, the Continuity's rationed watch (§9); hex maps are drawn on canvas, which makes the textual map view mandatory rather than courteous (§8.4); the client keeps only the latest overview (§3); a route is one confirmation and a partial route is a result, not an error (§5.3). |
 | 0.1 | 2026-08-27 | First UI/UX design for the MVP client and watch mode. |

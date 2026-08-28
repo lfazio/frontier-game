@@ -22,6 +22,12 @@ is a merge gate.
 Both the historical model and the Continuity ship dark, behind `FEATURES_PSYCHOHISTORY` and
 `FEATURES_CONTINUITY`.
 
+## Playing
+
+Sign in at the client and you get the shell: a permanent Action Point counter, the daily
+overview built from the server's digest, and the map at three magnifications — galaxy and
+region from tiles, and your own system as a top-down board bounded by what your sensors reach.
+
 ## Watching a world
 
 The quickest way to see the game is watch mode — a spectator view of a real server, no account

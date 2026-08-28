@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.13 |
+| Version | 0.14 |
 | Date | 2026-08-27 |
 | Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
@@ -1733,6 +1733,8 @@ mistake in this plan that would cost a rewrite.
 | D-41 | Materialised NPCs are never dissolved; every agent acts each cycle, observed or not. | S5. Dissolution made a system's inhabitants a function of who was watching, contradicting the persistence *GDD §2.7* promises. Cost now scales with the *explored* world; the per-system archetype caps bound it, and R1 is the trigger to revisit. | Yes |
 | D-47 | Tick stages raise `EventDraft`s through `TickContext.emit`, and the runner stamps and writes them inside the stage's own transaction. | *ARCH §3.2* requires that no state change happen without an event, and the stages were the one place it did not hold: the catalogue (§3.5) said stage 1 emits `SHIP_ENTERED`, stage 2 `SHIP_DESTROYED` and stage 5 `TERRITORY_CHANGE`, and none of them did. Found by building watch mode, which had nothing to show. | No |
 | D-48 | World generation seeds `core.territory` so each faction holds its home from the first cycle. | *SDD §7* step 6 specified it and the implementation omitted it, so a new galaxy was uncontrolled everywhere and took seven cycles of blending to show a single border. | Yes |
+| D-51 | `sensor_quality(steps, range)` is one shared ladder: events read it through `observation_quality`, contacts read it directly. | A ship must never be more or less visible than the events it generates. Two ladders would drift, and the drift would be a leak in whichever direction was looser (*UX §4.2*). | No |
+| D-52 | `GET /v1/systems/{id}` answers `404` for a system the player is not in — the same answer as for one that does not exist. | Distinguishing "not yours" from "not there" would let a player probe the galaxy by status code. | No |
 | D-50 | The population's flow advance is guarded by `last_simulated_on == world_day`, not `>=`, and goods move only for systems advanced in that pass. | Flows and stock are cumulative, so a re-run must not move them twice. `>=` looked equivalent and is not: a world day can be rewound — a restored snapshot, a replay, a test fixture — and a `>=` guard would freeze the population permanently. | No |
 | D-49 | Watch mode is served by its own `/v1/watch/*` routes rather than by relaxing the player endpoints. | A spectator's entitlement is different in kind, not degree: no ship, no sensors, public system-or-wider events only. Separate routes make "strictly weaker than any player" a property that can be tested rather than an argument about parameters. | No |
 | D-44 | The public API connects as `api_role`, which holds no grant on `cont`; the Continuity's stage runs as `cont_role`, which may read the world, write its own records and update `core.system_activity` — and nothing else. | *ARCH ADR-13* and *GDD §9.13*. A serialisation mistake cannot leak what the connection cannot read, and "push, never force" becomes a privilege the database withholds rather than a rule this code remembers. | No |
@@ -1803,6 +1805,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.14 | 2026-08-28 | `GET /v1/systems/{id}` built for client slice C2: bodies in sight or charted, contacts graded by the shared sensor ladder (D-51), and a uniform `404` for any system the player is not in (D-52). |
 | 0.13 | 2026-08-27 | Watch mode delivered (*UX §9*, client slice C1): `/v1/watch/*`, the public tile projection, and a browser client. Closed two real gaps found by building it — tick stages never emitted events (D-47) and world generation never seeded home territory (D-48). |
 | 0.12 | 2026-08-27 | P6 delivered: the `cont` schema, capability-bounded `api_role` and `cont_role`, the Continuity's tick stage loaded by name and running under its own role, budgets that scale with world extent, and the anti-leak suite as a merge blocker. Recorded D-44 to D-46. |
 | 0.11 | 2026-08-27 | NPC crews now draw and spend the same Action Point budget as players (D-43), replacing `actions_per_cycle`; migration `0014`. The Harrowing (*GDD §8.12*) is named in §1.3 as out of MVP scope. |
