@@ -35,6 +35,10 @@ Action Points run out partway the answer says so and names where the ship actual
 a result, not an error. Jump between systems from the region chart, and scan, dock and launch
 from the system view. Refusals are written as answers: what is true, then what would help.
 
+Docking opens the station: a market with both sides of the spread on screen, what you hold and
+what you paid for it, and a quantity you can step, type or fill to the largest amount your
+credits, the hold and the station's stock all allow. Repair is quoted before it is bought.
+
 ## Watching a world
 
 The quickest way to see the game is watch mode — a spectator view of a real server, no account

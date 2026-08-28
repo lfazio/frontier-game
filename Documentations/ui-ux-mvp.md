@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.5 |
+| Version | 0.6 |
 | Date | 2026-08-28 |
 | Scope | The MVP client (*GDD §10.1*) and a spectator mode for demonstrating a running world |
 | Depends on | `game-design.md` v2.9, `architecture.md` v0.8, `detailed-design-mvp.md` v0.15 |
@@ -524,6 +524,7 @@ provides is a server change, not a client workaround.
 | Daily overview | `GET /v1/me` |
 | Map | `GET /v1/map/tiles?path=…`, `GET /v1/systems/{id}` |
 | Ship, station, market | `GET /v1/me`, `GET /v1/stations/{id}/market` |
+| Buy, sell, repair | `POST /v1/commands` |
 | Feed | `GET /v1/feed`, `WS /v1/stream` |
 | Missions | `GET /v1/missions` |
 | Any action | `POST /v1/commands` |
@@ -540,6 +541,8 @@ The gaps this document opened, both since closed:
 | ~~`POST /v1/commands:batch`~~ | A route as one decision (§5.3) | **Built**: stops at the first refusal and reports how far it got |
 | ~~`GET /v1/rules`~~ | Showing a cost before commitment (§5) | **Built**: AP costs and fuel rates only — no combat, NPC or Continuity tuning |
 | ~~System extent~~ | Clipping the board to the rim (§4.1) | **Built**: `system.radius`, so no hex is offered that is not a place |
+| ~~`GET /v1/stations/{id}/market`~~ | The station screen (§6) | **Built**: both sides of the spread, stock, held and average paid, priced on every view |
+| ~~Cargo off-station~~ | Reading the hold away from a berth | **Built**: `GET /v1/me` carries `cargo` and the ship's maxima |
 
 ---
 
@@ -553,7 +556,7 @@ The client is built in the order that makes each slice independently demonstrabl
 | **C1** ✅ | Watch mode: galaxy and region maps on canvas, universe feed, textual chart | "Here is a living world" — no account needed. Built |
 | **C2** ✅ | Map at three zooms, contacts, selection | "Here is where I am and what is near me". Built |
 | **C3** ✅ | Commands: move, jump, dock, launch, scan | "I can fly". Built |
-| **C4** | Market, cargo, repair | "I can trade" |
+| **C4** ✅ | Market, cargo, repair | "I can trade". Built |
 | **C5** | Feed, chat, missions, team | "I can talk and take work" |
 | **C6** | Combat, standing orders | "I can fight, and I can be fought while away" |
 
@@ -581,6 +584,7 @@ redaction — and it is the artefact to show anyone who asks what the game is.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.6 | 2026-08-28 | Slice C4 built: the station screen, the market, cargo and repair. `GET /v1/stations/{id}/market` prices both sides of the spread on every view and is readable only from the berth; `GET /v1/me` carries the hold so cargo is legible away from a station. Quantity has a stepper, typed entry and a one-click maximum that respects credits, stock and free hold at once. |
 | 0.5 | 2026-08-28 | Slice C3 built: move, route, jump, dock, launch and scan. The route is one decision submitted as `POST /v1/commands:batch`, drawn with the server's own hex-line rule and reported honestly when it stops partway. `GET /v1/rules` supplies costs so the client never holds a balance literal, and the board clips to the system's rim so it cannot offer a hex that is not a place. |
 | 0.4 | 2026-08-28 | Slices C0 and C2 built: sign-in, the play shell with a permanent AP counter, the daily overview, and the map at three zooms — galaxy and region from tiles, the system as a sight-bounded board with contacts and hex selection. `GET /v1/systems/{id}` closed the last endpoint gap. |
 | 0.3 | 2026-08-27 | Watch mode built (slice C1): a canvas star chart with its textual peer, the universe feed, and the `/v1/watch/*` spectator scope. |
