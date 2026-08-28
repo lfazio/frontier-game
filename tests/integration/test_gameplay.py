@@ -14,7 +14,7 @@ from frontier.adapters.db import models
 from frontier.adapters.db.engine import make_engine, make_sessionmaker
 from frontier.config.container import build_sql
 from frontier.domain.hex.coordinates import HexAddr
-from frontier.domain.hex.geometry import neighbours
+from frontier.domain.hex.geometry import Axial, neighbours
 
 pytestmark = pytest.mark.integration
 
@@ -359,3 +359,124 @@ def test_a_distant_ship_is_a_contact_without_a_name(client, clean):
         assert contact["name"] is None and contact["kind"] is None
         # The reported position is the system, not the hex it is really in.
         assert contact["position"] == body["system"]["path"]
+
+
+def test_a_route_is_one_request_and_every_hop_is_charged(client, clean):
+    """UX §5.3 / U4: one decision for the player, a sequence for the server."""
+    headers = register(client)
+    position = HexAddr.parse(me(client, headers)["ship"]["position"])
+    hops = []
+    walk = position
+    for i in range(3):
+        walk = walk.sibling(neighbours(walk.tip)[i % 6])
+        hops.append({"action": "move", "to": str(walk), "idempotency_key": str(uuid4())})
+
+    response = client.post("/v1/commands:batch", json={"commands": hops}, headers=headers)
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["requested"] == 3 and body["accepted"] == 3
+    assert body["stopped"] is None
+    assert me(client, headers)["player"]["ap"] == 7
+    assert me(client, headers)["ship"]["position"] == str(walk)
+
+
+def test_a_route_that_runs_out_stops_and_says_where(client, clean):
+    """A partial route is a result, not an error — the ship is somewhere real."""
+    headers = register(client)
+    position = HexAddr.parse(me(client, headers)["ship"]["position"])
+
+    # Twelve hops on ten Action Points: it cannot finish, and must say so honestly.
+    hops = []
+    walk = position
+    for i in range(12):
+        walk = walk.sibling(neighbours(walk.tip)[i % 6])
+        hops.append({"action": "move", "to": str(walk), "idempotency_key": str(uuid4())})
+
+    body = client.post("/v1/commands:batch", json={"commands": hops}, headers=headers).json()
+
+    assert body["accepted"] < body["requested"]
+    assert body["stopped"]["code"] == "INSUFFICIENT_AP"
+    assert body["stopped"]["at_step"] == body["accepted"]
+    assert me(client, headers)["player"]["ap"] == 0
+
+
+def test_a_batch_is_capped(client, clean):
+    headers = register(client)
+    position = HexAddr.parse(me(client, headers)["ship"]["position"])
+    one = {
+        "action": "move",
+        "to": str(position.sibling(neighbours(position.tip)[0])),
+        "idempotency_key": str(uuid4()),
+    }
+    assert (
+        client.post("/v1/commands:batch", json={"commands": [one] * 21}, headers=headers).status_code == 422
+    )
+    assert client.post("/v1/commands:batch", json={"commands": []}, headers=headers).status_code == 422
+
+
+def test_replaying_a_route_charges_nothing_twice(client, clean):
+    """The keys are minted once per intent, so a retry finishes the route (UX §5.5)."""
+    headers = register(client)
+    walk = HexAddr.parse(me(client, headers)["ship"]["position"])
+    hops = []
+    for i in range(3):
+        walk = walk.sibling(neighbours(walk.tip)[i % 6])
+        hops.append({"action": "move", "to": str(walk), "idempotency_key": str(uuid4())})
+
+    client.post("/v1/commands:batch", json={"commands": hops}, headers=headers)
+    again = client.post("/v1/commands:batch", json={"commands": hops}, headers=headers).json()
+
+    assert again["accepted"] == 3 and again["stopped"] is None
+    assert me(client, headers)["player"]["ap"] == 7
+    assert me(client, headers)["ship"]["position"] == str(walk)
+
+
+def test_rules_serve_costs_without_leaking_the_tuning(client, clean):
+    """The client shows a cost before commitment, so it must read costs, not invent them (C4)."""
+    headers = register(client)
+
+    body = client.get("/v1/rules", headers=headers).json()
+
+    assert body["ap"]["cost"]["move_hex"] >= 0
+    assert body["ap"]["daily_grant"] == 10
+    assert body["world"]["fuel_per_jump_ly"] >= 0
+    assert "continuity" not in body and "combat" not in body and "npc" not in body
+
+
+def test_rules_need_an_account(client, clean):
+    assert client.get("/v1/rules").status_code == 401
+
+
+def test_a_system_reports_its_extent(client, clean):
+    """The board clips to the rim, so it must be told where the rim is — UX §4.1."""
+    headers = register(client)
+    position = HexAddr.parse(me(client, headers)["ship"]["position"])
+    system_path = position.parent()
+    assert system_path is not None
+
+    tile = client.get("/v1/map/tiles", params={"path": str(system_path.parent())}, headers=headers).json()
+    entry = next(e for e in tile["entries"] if e["path"] == str(system_path))
+    view = client.get(f"/v1/systems/{entry['id']}", headers=headers).json()
+
+    radius = view["system"]["radius"]
+    assert radius > 0
+    # Every charted body sits inside the rim the client is told about.
+    for body in view["bodies"]:
+        assert max(abs(body["q"]), abs(body["r"]), abs(body["q"] + body["r"])) <= radius
+
+
+def test_moving_past_the_rim_is_refused(client, clean):
+    """What the board must never offer: the refusal the clipping exists to prevent."""
+    headers = register(client)
+    position = HexAddr.parse(me(client, headers)["ship"]["position"])
+    far = position.sibling(Axial(99, 0))
+
+    outcome = client.post(
+        "/v1/commands",
+        json={"action": "move", "to": str(far), "idempotency_key": str(uuid4())},
+        headers=headers,
+    )
+
+    assert outcome.status_code == 409
+    assert outcome.json()["code"] == "UNKNOWN_DESTINATION"
