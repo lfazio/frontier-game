@@ -88,7 +88,11 @@ export interface Me {
     docked_at: string | null;
     jump_range_ly: number;
     in_transit: boolean;
+    hull_max: number;
+    fuel_max: number;
+    cargo_max: number;
   };
+  cargo: CargoItem[];
 }
 
 export interface Body {
@@ -116,6 +120,44 @@ export interface SystemView {
   contacts: Contact[];
 }
 
+export interface MarketLine {
+  commodity: string;
+  stock: number;
+  buy: number;
+  sell: number;
+  held: number;
+  avg_paid: number | null;
+}
+
+export interface CargoItem {
+  commodity: string;
+  qty: number;
+  avg_paid: number;
+}
+
+export interface MarketView {
+  station: {
+    id: string;
+    name: string | null;
+    kind: string | null;
+    produces: string | null;
+    consumes: string | null;
+    controller: number | null;
+  };
+  you: {
+    docked: boolean;
+    credits: number;
+    ap: number;
+    hold_used: number;
+    hold_max: number;
+    hull: number;
+    hull_max: number;
+    repair_cost: number;
+  };
+  commodities: MarketLine[];
+  cargo: CargoItem[];
+}
+
 export class Refused extends Error {
   constructor(readonly status: number, readonly code: string) {
     super(code);
@@ -141,6 +183,8 @@ export const play = {
     authed<Tile>(`/v1/map/tiles?path=${encodeURIComponent(path)}`, token),
   system: (token: string, id: string) => authed<SystemView>(`/v1/systems/${id}`, token),
   rules: (token: string) => authed<Rules>("/v1/rules", token),
+  market: (token: string, stationId: string) =>
+    authed<MarketView>(`/v1/stations/${stationId}/market`, token),
 };
 
 async function post(url: string, body: unknown): Promise<string> {

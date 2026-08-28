@@ -122,7 +122,15 @@ export function refusalText(code: string, context: Record<string, unknown> = {})
     case "IN_TRANSIT":
       return "The ship is between systems. It arrives at the next cycle.";
     case "CARGO_FULL":
-      return "The hold is full.";
+      return context.free === undefined
+        ? "The hold is full."
+        : `The hold is full — room for ${context.free} more.`;
+    case "INSUFFICIENT_STOCK":
+      return `The station has only ${have ?? "a few"} to sell.`;
+    case "INSUFFICIENT_CARGO":
+      return `You are carrying ${have ?? "fewer"}, not ${need ?? "that many"}.`;
+    case "COMMODITY_UNAVAILABLE":
+      return "This station does not deal in that.";
     case "TARGET_NOT_VISIBLE":
       return "Nothing there now. Your last sighting is older than the world.";
     case "TARGET_UNKNOWN":
@@ -180,6 +188,12 @@ export const act = {
     send("/v1/commands", token, { action: "dock", station_id, idempotency_key: key }),
   launch: (token: string, key: string) =>
     send("/v1/commands", token, { action: "launch", idempotency_key: key }),
+  buy: (token: string, commodity: string, qty: number, key: string) =>
+    send("/v1/commands", token, { action: "buy", commodity, qty, idempotency_key: key }),
+  sell: (token: string, commodity: string, qty: number, key: string) =>
+    send("/v1/commands", token, { action: "sell", commodity, qty, idempotency_key: key }),
+  repair: (token: string, key: string) =>
+    send("/v1/commands", token, { action: "repair", idempotency_key: key }),
 };
 
 export function outcomeText(outcome: Outcome, arrivedAt: string): string {
