@@ -1,0 +1,32 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1280, "h": 880, "title": "Daily overview" },
+    { "file": "Board.dc.html", "x": 1360, "y": 0, "w": 940, "h": 760, "title": "System board · sight" },
+    { "file": "Market.dc.html", "x": 1360, "y": 840, "w": 940, "h": 620, "title": "Station market" },
+    { "file": "Route.dc.html", "x": 0, "y": 960, "w": 940, "h": 560, "title": "Route & refusals" }
+  ],
+  "annotations": [
+    {
+      "id": "how-to-read",
+      "x": 0,
+      "y": -150,
+      "w": 460,
+      "text": "Frontier — MVP client, hi-fi.\n\nMatched to the shipped watch client: same tokens, same 4px radii, same faction letters.\n\nThings respond: feed tabs filter, hexes select, the stepper recomputes, route states switch."
+    },
+    {
+      "id": "sight-rule",
+      "x": 2360,
+      "y": 0,
+      "w": 300,
+      "text": "UX §4.1 — three layers.\n\nIn sight: live.\nCharted: dim, dated, terrain only.\nUnknown: nothing drawn at all.\n\nDrag the sensor range tweak and watch the board grow — that is the hull upgrade being felt rather than read."
+    },
+    {
+      "id": "refusal-rule",
+      "x": 0,
+      "y": 1560,
+      "w": 400,
+      "text": "UX §5.4 — a 409 is gameplay.\n\nState the fact, then the remedy. Never blame, never the word \"error\", and the interface returns to exactly its prior state."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

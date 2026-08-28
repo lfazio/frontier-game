@@ -1,0 +1,239 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    a { color: #e8c07d; text-decoration: none; }
+    a:hover { color: #f3d5a3; }
+    .num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+
+<div style="width: 1280px; height: 880px; display: flex; flex-direction: column; background: #0e1216; color: #d7dde4">
+
+  <div style="display: flex; align-items: center; gap: 16px; padding: 10px 18px; border-bottom: 1px solid #232c35; background: #151b21">
+    <span style="font-weight: 700; letter-spacing: 0.14em">FRONTIER</span>
+    <span style="color: #8b96a3">Cmdr Vale</span>
+    <span style="display: inline-flex; align-items: center; gap: 6px; color: #8b96a3">
+      <span style="width: 8px; height: 8px; border-radius: 2px; background: #3f7fc2"></span>Republic
+    </span>
+    <span style="color: #8b96a3">Orion</span>
+    <span style="flex: 1"></span>
+    <span style="display: flex; align-items: center; gap: 10px">
+      <span style="font-size: 12px; letter-spacing: 0.1em; color: #8b96a3">AP</span>
+      <span style="display: flex; gap: 3px">
+        <sc-for list="{{pips}}" as="pip" hint-placeholder-count="10">
+          <span style="{{pip.style}}"></span>
+        </sc-for>
+      </span>
+      <span class="num" style="font-weight: 700">{{apLabel}}</span>
+    </span>
+    <span class="num" style="letter-spacing: 0.08em; font-weight: 700">DAY 182</span>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 180px minmax(0, 1fr) 340px; flex: 1; min-height: 0">
+
+    <div style="display: flex; flex-direction: column; gap: 2px; padding: 14px 10px; border-right: 1px solid #232c35">
+      <sc-for list="{{rail}}" as="item" hint-placeholder-count="5">
+        <div style="{{item.style}}">{{item.label}}</div>
+      </sc-for>
+      <span style="flex: 1"></span>
+      <div style="padding: 8px 12px; color: #8b96a3; font-size: 12px; line-height: 1.4">
+        Station appears here only while docked — absent, never greyed.
+      </div>
+    </div>
+
+    <div style="overflow: hidden; padding: 18px 22px; display: flex; flex-direction: column; gap: 18px">
+
+      <div style="display: flex; align-items: baseline; gap: 12px">
+        <h1 class="num" style="margin: 0; font-size: 26px; letter-spacing: 0.06em">DAY 182</h1>
+        <span style="flex: 1"></span>
+        <span style="color: #8b96a3; font-size: 13px">Last seen: day 181</span>
+      </div>
+
+      <div>
+        <div style="font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #8b96a3; margin-bottom: 10px">While you were away</div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <sc-for list="{{digest}}" as="row" hint-placeholder-count="4">
+            <div style="display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: start">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="{{row.iconStyle}}"><path d="{{row.icon}}"></path></svg>
+              <span>{{row.text}}</span>
+              <span class="num" style="{{row.metaStyle}}">{{row.meta}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px">
+        <div style="border: 1px solid #232c35; border-radius: 6px; padding: 14px 16px; background: #12171d">
+          <div style="font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #8b96a3; margin-bottom: 10px">You</div>
+          <div style="display: flex; flex-direction: column; gap: 7px">
+            <sc-for list="{{you}}" as="stat" hint-placeholder-count="5">
+              <div style="display: grid; grid-template-columns: 74px auto minmax(0, 1fr); gap: 10px; align-items: baseline">
+                <span style="color: #8b96a3">{{stat.label}}</span>
+                <span class="num">{{stat.value}}</span>
+                <span style="{{stat.noteStyle}}">{{stat.note}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #232c35; border-radius: 6px; padding: 14px 16px; background: #12171d">
+          <div style="font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #8b96a3; margin-bottom: 10px">Near you</div>
+          <div style="display: flex; flex-direction: column; gap: 7px">
+            <sc-for list="{{near}}" as="c" hint-placeholder-count="3">
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 64px auto; gap: 10px; align-items: baseline">
+                <span style="{{c.nameStyle}}">{{c.name}}</span>
+                <span class="num" style="color: #8b96a3">{{c.range}}</span>
+                <span style="{{c.tagStyle}}">{{c.tag}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="border: 1px solid #232c35; border-radius: 6px; padding: 12px 16px; background: #12171d; display: flex; align-items: center; gap: 14px">
+        <div style="font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #8b96a3">Expires today</div>
+        <span>Patrol the approaches</span>
+        <span class="num" style="color: #8b96a3">ends day 183</span>
+        <span style="flex: 1"></span>
+        <button style="background: #1d242c; color: #d7dde4; border: 1px solid #232c35; border-radius: 4px; padding: 4px 12px; font: inherit; cursor: pointer">Open</button>
+      </div>
+    </div>
+
+    <div style="border-left: 1px solid #232c35; background: #151b21; display: flex; flex-direction: column; min-height: 0">
+      <div style="display: flex; gap: 4px; padding: 12px 12px 10px">
+        <sc-for list="{{tabs}}" as="tab" hint-placeholder-count="4">
+          <button style="{{tab.style}}" onClick="{{tab.pick}}">{{tab.label}}</button>
+        </sc-for>
+      </div>
+      <div style="flex: 1; overflow: hidden; padding: 0 12px">
+        <sc-for list="{{feed}}" as="e" hint-placeholder-count="4">
+          <div style="display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 4px 8px; padding: 9px 0; border-bottom: 1px solid #232c35">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="{{e.iconStyle}}"><path d="{{e.icon}}"></path></svg>
+            <span>{{e.title}}</span>
+            <span class="num" style="color: #8b96a3; font-size: 12px">{{e.when}}</span>
+            <span style="grid-column: 2; color: #8b96a3; font-size: 13px">{{e.detail}}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding: 12px; border-top: 1px solid #232c35; display: flex; gap: 8px">
+        <input placeholder="Say something…" style="flex: 1; background: #0e1216; border: 1px solid #232c35; border-radius: 4px; color: #d7dde4; padding: 6px 10px; font: inherit">
+        <button style="background: #1d242c; color: #d7dde4; border: 1px solid #232c35; border-radius: 4px; padding: 4px 12px; font: inherit; cursor: pointer">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 12px; padding: 9px 18px; border-top: 1px solid #232c35; background: #151b21">
+    <span class="num" style="color: #8b96a3; user-select: all">ga0_0/re0_n1/sy2_4/pln5_4</span>
+    <span style="color: #8b96a3">·</span>
+    <span>Anchor Station</span>
+    <span style="{{dockStyle}}">{{dockLabel}}</span>
+    <span style="flex: 1"></span>
+    <button style="background: #1d242c; color: #d7dde4; border: 1px solid #232c35; border-radius: 4px; padding: 4px 12px; font: inherit; cursor: pointer">Standing orders</button>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "ap": {"editor": "range", "default": 7, "min": 0, "max": 10, "step": 1, "unit": " AP"},
+  "docked": {"editor": "boolean", "default": true}
+}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { channel: "all" };
+  }
+
+  // One `d` string per icon: several subpaths in a single path element, so the value can
+  // ride a plain attribute binding.
+  icon(name) {
+    const paths = {
+      combat: "M2 2L9 9 M14 2L7 9 M9.5 11.5L12 14l2-2-2.5-2.5 M6.5 11.5L4 14l-2-2 2.5-2.5",
+      market: "M2 12l4-5 3 3 5-6 M11 4h3v3",
+      ship: "M8 2l4 9-4-2-4 2z",
+      politics: "M2 13h12 M3 13V7 M8 13V7 M13 13V7 M2 7l6-4 6 4",
+      scan: "M7 7 m-4.2,0 a4.2,4.2 0 1,0 8.4,0 a4.2,4.2 0 1,0 -8.4,0 M10.2 10.2L14 14"
+    };
+    return paths[name] || paths.ship;
+  }
+
+  renderVals() {
+    const ap = this.props.ap ?? 7;
+    const docked = this.props.docked ?? true;
+    const channel = this.state.channel;
+
+    const rail = ["Overview", "Map", "Ship", "Station", "Missions", "Team"]
+      .filter((label) => label !== "Station" || docked)
+      .map((label) => ({
+        label,
+        style:
+          "padding: 7px 12px; border-radius: 4px; cursor: pointer; " +
+          (label === "Overview"
+            ? "background: #1d242c; color: #d7dde4; box-shadow: inset 2px 0 0 #e8c07d"
+            : "color: #8b96a3")
+      }));
+
+    const events = [
+      { channel: "local", icon: "ship", title: "Cmdr Smith", detail: "Anyone heading toward Alpha-3?", when: "2h", tint: "#8b96a3" },
+      { channel: "local", icon: "scan", title: "Unidentified contact", detail: "somewhere in this system", when: "3h", tint: "#8b96a3" },
+      { channel: "system", icon: "combat", title: "Combat resolved", detail: "Attacker won · 3 rounds", when: "5h", tint: "#c2603f" },
+      { channel: "system", icon: "market", title: "Grain +12%", detail: "Kestrel Yard", when: "9h", tint: "#8b96a3" },
+      { channel: "team", icon: "politics", title: "Orion", detail: "Rendezvous at Anchor, day 183.", when: "11h", tint: "#3f7fc2" }
+    ];
+
+    return {
+      apLabel: ap + " / 10",
+      pips: Array.from({ length: 10 }, (_, i) => ({
+        style:
+          "width: 7px; height: 14px; border-radius: 2px; " +
+          (i < ap ? "background: #e8c07d" : "background: #2b333c")
+      })),
+      rail,
+      dockLabel: docked ? "docked" : "in flight",
+      dockStyle: docked ? "color: #7bbf8a" : "color: #8b96a3",
+
+      digest: [
+        { icon: this.icon("combat"), iconStyle: "color: #c2603f", text: "Your convoy was attacked near Anchor Station", meta: "hull 100 → 64", metaStyle: "color: #c2603f" },
+        { icon: this.icon("market"), iconStyle: "color: #8b96a3", text: "Grain rose 12% at Kestrel Yard", meta: "", metaStyle: "color: #8b96a3" },
+        { icon: this.icon("ship"), iconStyle: "color: #8b96a3", text: "Two ships entered your hex", meta: "", metaStyle: "color: #8b96a3" },
+        { icon: this.icon("politics"), iconStyle: "color: #3f7fc2", text: "Republic influence in Sirius Reach fell below 50%", meta: "", metaStyle: "color: #8b96a3" }
+      ],
+
+      you: [
+        { label: "AP", value: ap + " / 10", note: "+3 carried", noteStyle: "color: #8b96a3" },
+        { label: "Credits", value: "4 965", note: "", noteStyle: "" },
+        { label: "Hull", value: "64 / 100", note: "damaged", noteStyle: "color: #c2603f" },
+        { label: "Fuel", value: "50 / 60", note: "", noteStyle: "" },
+        { label: "Cargo", value: "5 / 20", note: "", noteStyle: "" }
+      ],
+
+      near: [
+        { name: "Kestrel Yard", nameStyle: "", range: "2 hexes", tag: "trade", tagStyle: "color: #8b96a3" },
+        { name: "Unidentified", nameStyle: "color: #8b96a3; font-style: italic", range: "4 hexes", tag: "—", tagStyle: "color: #8b96a3" },
+        { name: "Patrol", nameStyle: "", range: "5 hexes", tag: "Empire", tagStyle: "color: #c2603f" }
+      ],
+
+      tabs: ["all", "local", "system", "team"].map((id) => ({
+        label: id.toUpperCase(),
+        pick: () => this.setState({ channel: id }),
+        style:
+          "border-radius: 4px; padding: 3px 9px; font: inherit; font-size: 12px; letter-spacing: 0.06em; cursor: pointer; border: 1px solid " +
+          (channel === id ? "#e8c07d; background: #1d242c; color: #e8c07d" : "#232c35; background: transparent; color: #8b96a3")
+      })),
+
+      feed: events
+        .filter((e) => channel === "all" || e.channel === channel)
+        .map((e) => ({ ...e, icon: this.icon(e.icon), iconStyle: "color: " + e.tint }))
+    };
+  }
+}
+</script>
+</body>
+</html>

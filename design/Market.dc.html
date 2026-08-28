@@ -1,0 +1,203 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    a { color: #e8c07d; text-decoration: none; }
+    a:hover { color: #f3d5a3; }
+    .num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+
+<div style="width: 940px; height: 620px; display: flex; flex-direction: column; background: #0e1216; color: #d7dde4">
+
+  <div style="display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-bottom: 1px solid #232c35; background: #151b21">
+    <span style="font-weight: 700; letter-spacing: 0.06em">ANCHOR STATION</span>
+    <span style="color: #8b96a3">· refinery ·</span>
+    <span style="display: inline-flex; align-items: center; gap: 6px; color: #3f7fc2">
+      <span style="width: 8px; height: 8px; border-radius: 2px; background: #3f7fc2"></span>Republic
+    </span>
+    <span style="flex: 1"></span>
+    <button style="background: #1d242c; color: #d7dde4; border: 1px solid #232c35; border-radius: 4px; padding: 4px 12px; font: inherit; cursor: pointer">Launch</button>
+  </div>
+
+  <div style="flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 232px; min-height: 0">
+
+    <div style="padding: 16px 18px; min-width: 0">
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 68px 60px 60px 56px 76px; gap: 0 12px; padding-bottom: 8px; border-bottom: 1px solid #232c35; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #8b96a3">
+        <span>Commodity</span>
+        <span style="text-align: right">Stock</span>
+        <span style="text-align: right">Buy</span>
+        <span style="text-align: right">Sell</span>
+        <span style="text-align: right">Held</span>
+        <span style="text-align: right">Avg paid</span>
+      </div>
+
+      <sc-for list="{{rows}}" as="row" hint-placeholder-count="5">
+        <div style="{{row.style}}" onClick="{{row.pick}}">
+          <span>{{row.name}}</span>
+          <span class="num" style="text-align: right; color: #8b96a3">{{row.stock}}</span>
+          <span class="num" style="text-align: right">{{row.buy}}</span>
+          <span class="num" style="text-align: right">{{row.sell}}</span>
+          <span class="num" style="text-align: right; color: #8b96a3">{{row.held}}</span>
+          <span class="num" style="text-align: right; color: #8b96a3">{{row.avg}}</span>
+        </div>
+      </sc-for>
+
+      <div style="margin-top: 18px; border: 1px solid #232c35; border-radius: 6px; background: #12171d; padding: 14px 16px">
+        <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap">
+          <span style="font-weight: 600">Buy {{picked}}</span>
+          <div style="display: flex; align-items: center; gap: 6px">
+            <button style="{{minusStyle}}" onClick="{{less}}">−</button>
+            <span class="num" style="min-width: 44px; text-align: center; font-size: 17px">{{qty}}</span>
+            <button style="{{plusStyle}}" onClick="{{more}}">+</button>
+          </div>
+          <span style="display: flex; gap: 6px">
+            <button style="{{maxAffordStyle}}" onClick="{{maxAfford}}">Max affordable</button>
+            <button style="{{maxFitStyle}}" onClick="{{maxFit}}">Fill hold</button>
+          </span>
+          <span style="flex: 1"></span>
+          <span class="num" style="font-size: 17px">{{total}}</span>
+          <span class="num" style="color: #8b96a3">{{apCost}}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #232c35">
+          <span style="color: #8b96a3">↳ leaves</span>
+          <span class="num" style="{{leaveCreditStyle}}">{{leaveCredits}}</span>
+          <span style="color: #8b96a3">·</span>
+          <span class="num" style="{{leaveHoldStyle}}">{{leaveHold}}</span>
+          <span style="flex: 1"></span>
+          <span style="{{warnStyle}}">{{warning}}</span>
+          <button style="{{buyStyle}}" onClick="{{buy}}">Buy</button>
+        </div>
+      </div>
+
+      <p style="color: #8b96a3; font-size: 13px; margin: 14px 2px 0; max-width: 62ch">
+        Both sides of the spread are always shown, so the cost of a round trip is legible before
+        it is discovered. Prices come from the server on every view; the client never computes one.
+      </p>
+    </div>
+
+    <div style="border-left: 1px solid #232c35; background: #151b21; padding: 16px 14px; display: flex; flex-direction: column; gap: 16px">
+      <div>
+        <div style="font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #8b96a3; margin-bottom: 10px">Hold</div>
+        <div style="display: flex; align-items: baseline; gap: 8px">
+          <span class="num" style="font-size: 24px">{{holdUsed}}</span>
+          <span style="color: #8b96a3">of 20</span>
+        </div>
+        <div style="margin-top: 8px; height: 6px; border-radius: 3px; background: #232c35; overflow: hidden">
+          <div style="{{holdBarStyle}}"></div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 7px; border-top: 1px solid #232c35; padding-top: 14px">
+        <div style="display: flex; justify-content: space-between">
+          <span style="color: #8b96a3">Credits</span><span class="num">4 965</span>
+        </div>
+        <div style="display: flex; justify-content: space-between">
+          <span style="color: #8b96a3">AP</span><span class="num">7 / 10</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "credits": {"editor": "int", "default": 4965, "min": 0, "max": 99999, "unit": " cr"}
+}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { commodity: "Grain", qty: 5 };
+  }
+
+  table() {
+    return [
+      { name: "Grain", stock: 412, buy: 43, sell: 36, held: 5, avg: 41 },
+      { name: "Ore", stock: 180, buy: 71, sell: 60, held: 0, avg: 0 },
+      { name: "Alloys", stock: 44, buy: 198, sell: 167, held: 0, avg: 0 },
+      { name: "Medicine", stock: 8, buy: 612, sell: 516, held: 0, avg: 0 },
+      { name: "Luxuries", stock: 21, buy: 1204, sell: 1017, held: 0, avg: 0 }
+    ];
+  }
+
+  renderVals() {
+    const credits = this.props.credits ?? 4965;
+    const picked = this.state.commodity;
+    const line = this.table().find((r) => r.name === picked) || this.table()[0];
+    const heldTotal = 5;
+    const capacity = 20;
+    const free = capacity - heldTotal;
+
+    const ceiling = Math.max(0, Math.min(free, line.stock, Math.floor(credits / line.buy)));
+    const qty = Math.min(this.state.qty, ceiling);
+    const total = qty * line.buy;
+    const overCredits = total > credits;
+    const overHold = qty > free;
+
+    const group = (enabled) =>
+      "background: #1d242c; color: " +
+      (enabled ? "#d7dde4" : "#5c6570") +
+      "; border: 1px solid #232c35; border-radius: 4px; padding: 3px 10px; font: inherit; cursor: " +
+      (enabled ? "pointer" : "default");
+
+    const money = (n) => n.toLocaleString("en-GB").replace(/,/g, " ");
+
+    return {
+      rows: this.table().map((r) => ({
+        ...r,
+        held: r.held || "—",
+        avg: r.avg || "—",
+        pick: () => this.setState({ commodity: r.name, qty: 1 }),
+        style:
+          "display: grid; grid-template-columns: minmax(0, 1fr) 68px 60px 60px 56px 76px; gap: 0 12px; " +
+          "padding: 7px 0; border-bottom: 1px solid #1a2129; cursor: pointer; " +
+          (r.name === picked ? "background: #151d24; box-shadow: inset 2px 0 0 #e8c07d" : "")
+      })),
+
+      picked,
+      qty,
+      total: money(total) + " cr",
+      apCost: "1 AP",
+
+      less: () => this.setState({ qty: Math.max(0, qty - 1) }),
+      more: () => this.setState({ qty: Math.min(ceiling, qty + 1) }),
+      maxAfford: () => this.setState({ qty: Math.min(ceiling, Math.floor(credits / line.buy)) }),
+      maxFit: () => this.setState({ qty: Math.min(ceiling, free) }),
+      minusStyle: group(qty > 0),
+      plusStyle: group(qty < ceiling),
+      maxAffordStyle: group(true) + "; font-size: 12px",
+      maxFitStyle: group(true) + "; font-size: 12px",
+
+      leaveCredits: money(credits - total) + " cr",
+      leaveHold: heldTotal + qty + " / " + capacity + " hold",
+      leaveCreditStyle: overCredits ? "color: #c2603f" : "",
+      leaveHoldStyle: overHold ? "color: #c2603f" : "",
+
+      warning: qty === 0 ? "Nothing selected." : ceiling === 0 ? "Nothing here you can carry or afford." : "",
+      warnStyle: "color: #8b96a3; font-size: 13px",
+
+      holdUsed: heldTotal + qty,
+      holdBarStyle:
+        "height: 100%; width: " +
+        (((heldTotal + qty) / capacity) * 100).toFixed(1) +
+        "%; background: " +
+        (heldTotal + qty >= capacity ? "#c2603f" : "#e8c07d"),
+
+      buy: () => {},
+      buyStyle:
+        "border-radius: 4px; padding: 5px 16px; font: inherit; font-weight: 600; " +
+        (qty > 0
+          ? "background: #e8c07d; color: #12171d; border: 1px solid #e8c07d; cursor: pointer"
+          : "background: #1d242c; color: #6b7681; border: 1px solid #232c35; cursor: default")
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    a { color: #e8c07d; text-decoration: none; }
+    a:hover { color: #f3d5a3; }
+    .num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+
+<div style="width: 940px; height: 760px; display: flex; flex-direction: column; background: #0e1216; color: #d7dde4">
+
+  <div style="display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-bottom: 1px solid #232c35; background: #151b21">
+    <span style="font-weight: 700; letter-spacing: 0.06em">KESTREL REACH</span>
+    <span style="color: #8b96a3">· system</span>
+    <span style="flex: 1"></span>
+    <span style="display: flex; gap: 4px">
+      <span style="border: 1px solid #232c35; border-radius: 4px; padding: 3px 9px; font-size: 12px; color: #8b96a3">galaxy</span>
+      <span style="border: 1px solid #232c35; border-radius: 4px; padding: 3px 9px; font-size: 12px; color: #8b96a3">region</span>
+      <span style="border: 1px solid #e8c07d; border-radius: 4px; padding: 3px 9px; font-size: 12px; color: #e8c07d; background: #1d242c">system</span>
+    </span>
+  </div>
+
+  <div style="flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 232px; min-height: 0">
+
+    <div style="position: relative; background: #0b0f13; border-right: 1px solid #232c35">
+      <svg viewBox="0 0 660 680" style="width: 100%; height: 100%; display: block">
+        <circle cx="{{sight.cx}}" cy="{{sight.cy}}" r="{{sight.r}}" fill="#111820" stroke="#e8c07d" stroke-width="1" stroke-dasharray="3 4" opacity="0.55"></circle>
+
+        <sc-for list="{{charted}}" as="c" hint-placeholder-count="12">
+          <circle cx="{{c.x}}" cy="{{c.y}}" r="1.8" fill="#2b333c"></circle>
+        </sc-for>
+
+        <sc-for list="{{cells}}" as="cell" hint-placeholder-count="19">
+          <polygon points="{{cell.points}}" fill="{{cell.fill}}" stroke="{{cell.stroke}}" stroke-width="{{cell.width}}" style="cursor: pointer" onClick="{{cell.pick}}"></polygon>
+        </sc-for>
+
+        <sc-for list="{{marks}}" as="m" hint-placeholder-count="4">
+          <g transform="{{m.transform}}" style="pointer-events: none">
+            <path d="{{m.path}}" fill="{{m.fill}}" stroke="{{m.stroke}}" stroke-width="1.4" stroke-linejoin="round"></path>
+          </g>
+        </sc-for>
+
+        <sc-for list="{{chartedMarks}}" as="cm" hint-placeholder-count="2">
+          <g transform="{{cm.transform}}" style="pointer-events: none">
+            <path d="{{cm.path}}" fill="none" stroke="#4b5560" stroke-width="1.4" stroke-linejoin="round"></path>
+          </g>
+        </sc-for>
+      </svg>
+
+      <div style="position: absolute; left: 16px; bottom: 14px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8b96a3">
+        <span style="width: 26px; border-top: 1px dashed #e8c07d; display: inline-block"></span>
+        <span>sight boundary · radius {{sightHexes}}</span>
+      </div>
+    </div>
+
+    <div style="padding: 14px; display: flex; flex-direction: column; gap: 14px">
+      <div>
+        <div style="font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #8b96a3; margin-bottom: 8px">Legend</div>
+        <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px">
+          <sc-for list="{{legend}}" as="l" hint-placeholder-count="5">
+            <div style="display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: center">
+              <svg width="18" height="18" viewBox="-10 -10 20 20" style="{{l.style}}"><path d="{{l.path}}" fill="{{l.fill}}" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path></svg>
+              <span style="color: #8b96a3">{{l.label}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid #232c35; padding-top: 12px">
+        <div style="font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #8b96a3; margin-bottom: 8px">Selected</div>
+        <div style="font-weight: 600">{{selName}}</div>
+        <div class="num" style="color: #8b96a3; font-size: 12px; margin-top: 2px">{{selPath}}</div>
+        <div style="color: #8b96a3; font-size: 13px; margin-top: 6px">{{selNote}}</div>
+      </div>
+
+      <span style="flex: 1"></span>
+
+      <div style="border-top: 1px solid #232c35; padding-top: 12px">
+        <div style="display: flex; justify-content: space-between; font-size: 13px">
+          <span style="color: #8b96a3">Distance</span><span class="num">{{costDistance}}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 13px">
+          <span style="color: #8b96a3">Cost</span><span class="num">{{costLine}}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 13px">
+          <span style="color: #8b96a3">Leaves</span><span class="num" style="{{leavesStyle}}">{{leavesLine}}</span>
+        </div>
+        <button style="{{flyStyle}}" onClick="{{fly}}">{{flyLabel}}</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 12px; padding: 9px 18px; border-top: 1px solid #232c35; background: #151b21; font-size: 13px">
+    <span class="num" style="color: #8b96a3">Sight {{sightHexes}} hexes</span>
+    <span style="color: #8b96a3">·</span>
+    <span class="num" style="color: #8b96a3">1 contact</span>
+    <span style="color: #8b96a3">·</span>
+    <span style="color: #8b96a3">Anchor Station charted day 176</span>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "sensorRange": {"editor": "range", "default": 3, "min": 1, "max": 5, "step": 1, "unit": " hexes"},
+  "apBalance": {"editor": "range", "default": 7, "min": 0, "max": 10, "step": 1, "unit": " AP"}
+}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { picked: null };
+  }
+
+  renderVals() {
+    const reach = this.props.sensorRange ?? 3;
+    const ap = this.props.apBalance ?? 7;
+    const SIZE = 30;
+    const CX = 330;
+    const CY = 340;
+
+    const centre = (q, r) => ({
+      x: CX + SIZE * 1.5 * q,
+      y: CY + SIZE * Math.sqrt(3) * (r + q / 2)
+    });
+    const corners = (x, y) =>
+      Array.from({ length: 6 }, (_, i) => {
+        const a = (Math.PI / 180) * (60 * i);
+        return (x + SIZE * Math.cos(a)).toFixed(1) + "," + (y + SIZE * Math.sin(a)).toFixed(1);
+      }).join(" ");
+    const dist = (q, r) => (Math.abs(q) + Math.abs(r) + Math.abs(-q - r)) / 2;
+
+    // Things the player has charted but cannot currently see, and things in sight.
+    const station = { q: 2, r: 0, kind: "station", name: "Kestrel Yard" };
+    const contact = { q: -1, r: 0, kind: "contact", name: "Unidentified contact" };
+    const chartedStation = { q: -2, r: -3, kind: "station", name: "Anchor Station" };
+
+    const cells = [];
+    const picked = this.state.picked;
+    for (let q = -reach; q <= reach; q += 1) {
+      for (let r = Math.max(-reach, -q - reach); r <= Math.min(reach, -q + reach); r += 1) {
+        const { x, y } = centre(q, r);
+        const key = q + ":" + r;
+        const isPicked = picked === key;
+        const isHome = q === 0 && r === 0;
+        cells.push({
+          key,
+          q,
+          r,
+          points: corners(x, y),
+          fill: isPicked ? "#1d242c" : "#131a21",
+          stroke: isPicked ? "#e8c07d" : "#232c35",
+          width: isPicked ? 2 : 1,
+          pick: () => this.setState({ picked: isHome ? null : key })
+        });
+      }
+    }
+
+    // Charted terrain outside sight: dots only, never a guess about what is moving there.
+    const charted = [];
+    for (let q = -7; q <= 7; q += 1) {
+      for (let r = Math.max(-7, -q - 7); r <= Math.min(7, -q + 7); r += 1) {
+        if (dist(q, r) <= reach || dist(q, r) > 6) continue;
+        const { x, y } = centre(q, r);
+        charted.push({ x: x.toFixed(1), y: y.toFixed(1) });
+      }
+    }
+
+    const SHIP = "M0,-9 L7,7 L0,3 L-7,7 Z";
+    const STATION = "M0,-8 L7,-4 L7,4 L0,8 L-7,4 L-7,-4 Z";
+    const CONTACT = "M0,-7 L7,0 L0,7 L-7,0 Z";
+    const at = (q, r) => {
+      const { x, y } = centre(q, r);
+      return "translate(" + x.toFixed(1) + "," + y.toFixed(1) + ")";
+    };
+
+    const marks = [
+      { transform: at(station.q, station.r), path: STATION, fill: "#1a232c", stroke: "#8b96a3" },
+      { transform: at(contact.q, contact.r), path: CONTACT, fill: "none", stroke: "#8b96a3" },
+      { transform: at(0, 0), path: SHIP, fill: "#e8c07d", stroke: "#e8c07d" }
+    ];
+    const chartedMarks = [{ transform: at(chartedStation.q, chartedStation.r), path: STATION }];
+
+    const known = { "2:0": station, "-1:0": contact };
+    const chosen = picked ? known[picked] : null;
+    const steps = picked ? dist(Number(picked.split(":")[0]), Number(picked.split(":")[1])) : 0;
+    const affordable = steps > 0 && steps <= ap;
+
+    return {
+      sight: { cx: CX, cy: CY, r: (SIZE * Math.sqrt(3) * (reach + 0.5)).toFixed(1) },
+      sightHexes: reach,
+      cells,
+      charted,
+      marks,
+      chartedMarks,
+
+      legend: [
+        { label: "you", path: SHIP, fill: "#e8c07d", style: "color: #e8c07d; overflow: visible" },
+        { label: "station, in sight", path: STATION, fill: "#1a232c", style: "color: #8b96a3; overflow: visible" },
+        { label: "unidentified contact", path: CONTACT, fill: "none", style: "color: #8b96a3; overflow: visible" },
+        { label: "station, charted only", path: STATION, fill: "none", style: "color: #4b5560; overflow: visible" },
+        { label: "charted, not in sight", path: "M0,0 m-1.6,0 a1.6,1.6 0 1,0 3.2,0 a1.6,1.6 0 1,0 -3.2,0", fill: "#2b333c", style: "color: #2b333c; overflow: visible" }
+      ],
+
+      selName: chosen ? chosen.name : picked ? "Empty hex" : "Nothing selected",
+      selPath: picked ? "ga0_0/re0_n1/sy2_4/pl" + picked.replace(":", "_") : "—",
+      selNote: picked
+        ? "Selecting costs nothing. Flying is a second, deliberate action."
+        : "Click a hex inside the sight boundary.",
+
+      costDistance: picked ? steps + (steps === 1 ? " hex" : " hexes") : "—",
+      costLine: picked ? steps + " AP · " + steps + " fuel" : "—",
+      leavesLine: picked ? (affordable ? ap - steps + " AP · " + (50 - steps) + " fuel" : "not enough AP") : "—",
+      leavesStyle: picked && !affordable ? "color: #c2603f" : "",
+
+      flyLabel: picked ? (affordable ? "Fly" : "Not enough Action Points") : "Select a hex",
+      flyStyle:
+        "width: 100%; margin-top: 12px; border-radius: 4px; padding: 7px 12px; font: inherit; " +
+        (affordable
+          ? "background: #e8c07d; color: #12171d; border: 1px solid #e8c07d; cursor: pointer; font-weight: 600"
+          : "background: #1d242c; color: #6b7681; border: 1px solid #232c35; cursor: default"),
+      fly: () => {}
+    };
+  }
+}
+</script>
+</body>
+</html>

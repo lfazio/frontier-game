@@ -1,0 +1,197 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    a { color: #e8c07d; text-decoration: none; }
+    a:hover { color: #f3d5a3; }
+    .num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+
+<div style="width: 940px; height: 560px; display: flex; flex-direction: column; gap: 0; background: #0e1216; color: #d7dde4">
+
+  <div style="display: flex; align-items: center; gap: 10px; padding: 11px 18px; border-bottom: 1px solid #232c35; background: #151b21">
+    <span style="font-weight: 700; letter-spacing: 0.06em">ROUTE &amp; ANSWERS</span>
+    <span style="color: #8b96a3">· one confirmation for the whole journey</span>
+    <span style="flex: 1"></span>
+    <span style="display: flex; gap: 4px">
+      <sc-for list="{{stages}}" as="s" hint-placeholder-count="3">
+        <button style="{{s.style}}" onClick="{{s.pick}}">{{s.label}}</button>
+      </sc-for>
+    </span>
+  </div>
+
+  <div style="padding: 22px 24px; display: flex; flex-direction: column; gap: 18px">
+
+    <div style="border: 1px solid #232c35; border-radius: 6px; background: #12171d; padding: 18px 20px">
+      <div style="display: flex; align-items: baseline; gap: 10px">
+        <span style="font-weight: 600">{{title}}</span>
+        <span style="color: #8b96a3">{{subtitle}}</span>
+      </div>
+
+      <svg viewBox="0 0 620 60" style="width: 100%; max-width: 620px; height: 60px; margin: 14px 0 4px; display: block">
+        <sc-for list="{{legs}}" as="leg" hint-placeholder-count="5">
+          <line x1="{{leg.x1}}" y1="30" x2="{{leg.x2}}" y2="30" stroke="{{leg.stroke}}" stroke-width="2" stroke-dasharray="{{leg.dash}}"></line>
+        </sc-for>
+        <sc-for list="{{nodes}}" as="n" hint-placeholder-count="6">
+          <g transform="{{n.transform}}">
+            <path d="{{n.path}}" fill="{{n.fill}}" stroke="{{n.stroke}}" stroke-width="1.4" stroke-linejoin="round"></path>
+          </g>
+        </sc-for>
+      </svg>
+
+      <div style="display: flex; align-items: center; gap: 18px; margin-top: 10px; flex-wrap: wrap">
+        <span class="num" style="{{costStyle}}">{{cost}}</span>
+        <span style="color: #8b96a3">{{leaves}}</span>
+        <span style="flex: 1"></span>
+        <sc-if value="{{showActions}}" hint-placeholder-val="{{true}}">
+          <span style="display: flex; gap: 8px">
+            <button style="background: #e8c07d; color: #12171d; border: 1px solid #e8c07d; border-radius: 4px; padding: 5px 18px; font: inherit; font-weight: 600; cursor: pointer">{{primary}}</button>
+            <button style="background: #1d242c; color: #d7dde4; border: 1px solid #232c35; border-radius: 4px; padding: 5px 14px; font: inherit; cursor: pointer">Cancel</button>
+          </span>
+        </sc-if>
+      </div>
+
+      <sc-if value="{{note}}" hint-placeholder-val="{{true}}">
+        <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid #232c35; color: #d7dde4">
+          {{note}}
+        </div>
+      </sc-if>
+    </div>
+
+    <div>
+      <div style="font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #8b96a3; margin-bottom: 10px">
+        A refusal is an answer, not a failure
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+        <sc-for list="{{refusals}}" as="r" hint-placeholder-count="4">
+          <div style="display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; align-items: start; border: 1px solid #232c35; border-radius: 6px; padding: 10px 12px; background: #12171d">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8b96a3" stroke-width="1.4" stroke-linecap="round" style="margin-top: 3px">
+              <circle cx="8" cy="8" r="6.2"></circle><path d="M8 5v4"></path><path d="M8 11.2v.1"></path>
+            </svg>
+            <span>
+              <span class="num" style="color: #8b96a3; font-size: 12px">{{r.code}}</span><br>
+              <span>{{r.said}}</span>
+            </span>
+          </div>
+        </sc-for>
+      </div>
+      <p style="color: #8b96a3; font-size: 13px; margin: 12px 2px 0; max-width: 72ch">
+        State the fact, then the remedy. No red banner, no toast, no word “error”. The interface
+        returns to exactly the state it was in before the player asked.
+      </p>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{
+  "hops": {"editor": "range", "default": 5, "min": 2, "max": 8, "step": 1, "unit": " hexes"}
+}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { stage: "plotted" };
+  }
+
+  renderVals() {
+    const hops = this.props.hops ?? 5;
+    const stage = this.state.stage;
+    const flown = stage === "stopped" ? 3 : stage === "refused" ? 0 : hops;
+
+    const SHIP = "M0,-8 L6,6 L0,2.5 L-6,6 Z";
+    const DOT = "M0,0 m-3.5,0 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0";
+    const STATION = "M0,-7 L6,-3.5 L6,3.5 L0,7 L-6,3.5 L-6,-3.5 Z";
+    const step = 560 / hops;
+
+    const nodes = [];
+    const legs = [];
+    for (let i = 0; i <= hops; i += 1) {
+      const x = 30 + step * i;
+      const reached = i <= flown;
+      nodes.push({
+        transform: "translate(" + x.toFixed(1) + ",30)",
+        path: i === 0 ? SHIP : i === hops ? STATION : DOT,
+        fill: i === 0 ? "#e8c07d" : reached ? "#2b333c" : "none",
+        stroke: reached ? (i === 0 ? "#e8c07d" : "#8b96a3") : "#3a434d"
+      });
+      if (i < hops) {
+        legs.push({
+          x1: x.toFixed(1),
+          x2: (x + step).toFixed(1),
+          stroke: i < flown ? "#e8c07d" : "#3a434d",
+          dash: i < flown ? "0" : "4 5"
+        });
+      }
+    }
+
+    const copy = {
+      plotted: {
+        title: "Route · " + hops + " hexes to Kestrel Yard",
+        subtitle: "plotted, not yet flown",
+        cost: hops + " AP · " + hops + " fuel",
+        costStyle: "font-size: 17px",
+        leaves: "leaves " + (10 - hops) + " AP · " + (50 - hops) + " fuel",
+        showActions: true,
+        primary: "Fly",
+        note: ""
+      },
+      stopped: {
+        title: "Stopped after 3 of " + hops + " hexes",
+        subtitle: "you are somewhere real",
+        cost: "3 AP · 3 fuel spent",
+        costStyle: "font-size: 17px",
+        leaves: "0 AP left",
+        showActions: true,
+        primary: "Resume",
+        note:
+          "Not enough Action Points for the rest. You are at ga0_0/re0_n1/sy2_4/pln4_3. " +
+          "Resuming is your decision — nothing is retried on your behalf."
+      },
+      refused: {
+        title: "Too far for one move",
+        subtitle: "nothing was spent",
+        cost: "—",
+        costStyle: "font-size: 17px; color: #8b96a3",
+        leaves: "7 AP · 50 fuel unchanged",
+        showActions: false,
+        primary: "",
+        note: "Plot a route instead."
+      }
+    }[stage];
+
+    return {
+      ...copy,
+      legs,
+      nodes,
+      stages: [
+        { id: "plotted", label: "Plotted" },
+        { id: "stopped", label: "Stopped partway" },
+        { id: "refused", label: "Refused" }
+      ].map((s) => ({
+        label: s.label,
+        pick: () => this.setState({ stage: s.id }),
+        style:
+          "border-radius: 4px; padding: 3px 10px; font: inherit; font-size: 12px; cursor: pointer; border: 1px solid " +
+          (stage === s.id ? "#e8c07d; background: #1d242c; color: #e8c07d" : "#232c35; background: transparent; color: #8b96a3")
+      })),
+
+      refusals: [
+        { code: "INSUFFICIENT_AP", said: "Not enough Action Points — 2 needed, 1 left. More at the next cycle." },
+        { code: "BEYOND_JUMP_RANGE", said: "Beyond this ship's jump range — 12 ly away, range 8 ly." },
+        { code: "MUST_LAUNCH_FIRST", said: "You are docked. Launch first." },
+        { code: "WORLD_TICKING", said: "The galaxy is turning. A moment." }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
