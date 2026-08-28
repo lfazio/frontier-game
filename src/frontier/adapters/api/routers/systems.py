@@ -12,7 +12,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from frontier.adapters.api.deps import ContainerDep, CurrentPlayer
 from frontier.adapters.db import models
@@ -81,6 +81,7 @@ async def system(system_id: UUID, player_id: CurrentPlayer, c: ContainerDep) -> 
         }
         callsigns = {row.id: row.callsign for row in (await session.execute(select(models.Player))).scalars()}
         controller = await _controller(session, system_id)
+        radius = await _radius(session, system_id)
 
     reach = ship.sensor_range
     bodies = [
@@ -130,6 +131,7 @@ async def system(system_id: UUID, player_id: CurrentPlayer, c: ContainerDep) -> 
             "path": str(here.path),
             "name": here.name,
             "controller": controller,
+            "radius": radius,
         },
         "you": {
             "position": str(ship.position_path),
@@ -146,6 +148,25 @@ def _steps(here: HexAddr, there: HexAddr) -> int:
         return addr_distance(here, there)
     except ScaleMismatch:
         return 10**6
+
+
+async def _radius(session: Any, system_id: UUID) -> int:
+    """How far the system extends, so the client never offers a hex that is not a place.
+
+    Read from the world rather than assumed: a route plotted beyond the rim would be refused
+    hop by hop, which is a refusal the player should never have been allowed to earn.
+    """
+    extent = func.max(
+        func.greatest(
+            func.abs(models.Location.q),
+            func.abs(models.Location.r),
+            func.abs(models.Location.q + models.Location.r),
+        )
+    )
+    value = (
+        await session.execute(select(extent).where(models.Location.parent_id == system_id))
+    ).scalar_one_or_none()
+    return int(value or 0)
 
 
 async def _controller(session: Any, system_id: UUID) -> int | None:

@@ -50,5 +50,8 @@ async def me(player_id: CurrentPlayer, c: ContainerDep) -> dict[str, Any]:
                 "hull": ship.hull,
                 "fuel": ship.fuel,
                 "docked": ship.docked_at is not None,
+                "docked_at": str(ship.docked_at) if ship.docked_at else None,
+                "jump_range_ly": ship.jump_range_ly,
+                "in_transit": ship.in_transit,
             },
         }
