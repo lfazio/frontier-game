@@ -17,9 +17,25 @@ router = APIRouter(prefix="/v1", tags=["player"])
 @router.get("/me")
 async def me(player_id: CurrentPlayer, c: ContainerDep) -> dict[str, Any]:
     unread, digest = 0, None
+    hold: list[dict[str, Any]] = []
     if c.sessions is not None:
         async with c.sessions() as session:
             unread = await FeedRepo(session).unread(player_id)
+            hold = [
+                {"commodity": row.commodity, "qty": row.qty, "avg_paid": row.avg_unit_cost}
+                for row in (
+                    await session.execute(
+                        select(models.Cargo)
+                        .join(models.Ship, models.Cargo.ship_id == models.Ship.id)
+                        .where(
+                            models.Ship.player_id == player_id,
+                            models.Ship.destroyed_on.is_(None),
+                            models.Cargo.qty > 0,
+                        )
+                        .order_by(models.Cargo.commodity)
+                    )
+                ).scalars()
+            ]
             row = (
                 await session.execute(
                     select(models.Digest)
@@ -42,6 +58,7 @@ async def me(player_id: CurrentPlayer, c: ContainerDep) -> dict[str, Any]:
                 "credits": player.credits,
                 "knowledge": player.knowledge,
             },
+            "cargo": hold,
             "unread": unread,
             "digest": digest,
             "ship": {
@@ -53,5 +70,8 @@ async def me(player_id: CurrentPlayer, c: ContainerDep) -> dict[str, Any]:
                 "docked_at": str(ship.docked_at) if ship.docked_at else None,
                 "jump_range_ly": ship.jump_range_ly,
                 "in_transit": ship.in_transit,
+                "hull_max": ship.hull_max,
+                "fuel_max": ship.fuel_max,
+                "cargo_max": ship.cargo_max,
             },
         }
