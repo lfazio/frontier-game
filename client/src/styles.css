@@ -458,3 +458,37 @@ ul.cards {
   border-radius: 3px;
   font: inherit;
 }
+
+/* A station is the only body you can act on, so it is the only one with a colour. */
+.berth {
+  color: #5fb0a6;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  color: var(--dim);
+}
+.legend .key {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--dim);
+  margin-left: 8px;
+}
+.legend .key:first-child {
+  margin-left: 0;
+}
+.legend .key.berth {
+  border-color: #5fb0a6;
+  background: #14302c;
+}
+.legend .key.body {
+  border-color: #8b96a3;
+}
+.legend .key.ship {
+  border-color: #c2603f;
+  border-radius: 0;
+}

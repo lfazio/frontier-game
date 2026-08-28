@@ -5,6 +5,8 @@ import { hexDistance, tipOf, type Contact, type SystemView } from "../api";
 // (UX §4.1). Three layers, kept visibly distinct — in sight, charted, and nothing at all.
 
 const SIZE = 26;
+const STATION = "#5fb0a6";
+const STATION_CHARTED = "#3d6b66";
 const SQRT3 = Math.sqrt(3);
 
 function toPixel(q: number, r: number) {
@@ -113,14 +115,27 @@ export function Board({ view, onSelect, selected, route }: {
       const { x, y } = toPixel(body.q, body.r);
       const px = x + ox;
       const py = y + oy;
+      const station = body.kind === "station";
+      // A station is the only body you can do anything with, so it carries its own colour and
+      // keeps it once charted. Everything else is terrain, in grey.
+      const tint = station ? (body.in_sight ? STATION : STATION_CHARTED) : body.in_sight ? "#8b96a3" : "#4b5560";
+
       context.beginPath();
-      context.arc(px, py, body.kind === "station" ? 8 : 6, 0, Math.PI * 2);
-      // Charted-but-unseen is dimmer and hollow: remembered terrain, not a live sighting.
-      context.fillStyle = body.in_sight ? (body.kind === "station" ? "#1a232c" : "#20293200") : "transparent";
+      context.arc(px, py, station ? 8 : 6, 0, Math.PI * 2);
+      // Charted-but-unseen is hollow: remembered terrain, not a live sighting.
+      context.fillStyle = body.in_sight && station ? "#14302c" : "transparent";
       context.fill();
-      context.lineWidth = 1.4;
-      context.strokeStyle = body.in_sight ? "#8b96a3" : "#4b5560";
+      context.lineWidth = station ? 2 : 1.4;
+      context.strokeStyle = tint;
       context.stroke();
+
+      // A berth is marked, not merely outlined, so it is findable at a glance.
+      if (station) {
+        context.beginPath();
+        context.arc(px, py, 3, 0, Math.PI * 2);
+        context.fillStyle = tint;
+        context.fill();
+      }
     }
 
     for (const contact of view.contacts) {
