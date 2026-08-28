@@ -642,3 +642,78 @@ def test_a_message_names_who_said_it(client, clean):
     )
     assert spoken["payload"]["from"] == mine
     assert spoken["payload"]["text"] == "Rocks ahead."
+
+
+def my_system(client, headers) -> str:
+    """The id of the system the player is in, found the way the client finds it."""
+    position = HexAddr.parse(me(client, headers)["ship"]["position"])
+    system = position.parent()
+    assert system is not None
+    tile = client.get("/v1/map/tiles", params={"path": str(system.parent())}, headers=headers).json()
+    return str(next(e for e in tile["entries"] if e["path"] == str(system))["id"])
+
+
+def test_only_a_resolved_contact_hands_out_a_ship_id(client, clean):
+    """`attack` targets an id, so the id is the thing that must not leak — UX §4.2."""
+    headers = register(client)
+    system = client.get(f"/v1/systems/{my_system(client, headers)}", headers=headers).json()
+
+    for contact in system["contacts"]:
+        if contact["quality"] == "full":
+            assert contact["ship_id"], "a resolved contact can be targeted"
+        else:
+            assert contact["ship_id"] is None, "a vague sighting is not a handle on a ship"
+
+
+def test_standing_orders_can_be_read_before_they_are_written(client, clean):
+    """A form that opens blank would overwrite orders the player set weeks ago — GDD §4.4."""
+    headers = register(client)
+
+    # A new account starts cautious: it loses cargo, not a ship (GDD §4.4).
+    untouched = client.get("/v1/orders", headers=headers).json()
+    assert untouched["posture"] == "evade"
+    assert untouched["retreat_at_hull_pct"] == 50
+
+    send(
+        client,
+        headers,
+        action="set_standing_orders",
+        posture="aggressive",
+        engage_hostile=True,
+        retreat_at_hull_pct=25,
+        auto_reply="Not today.",
+    )
+
+    written = client.get("/v1/orders", headers=headers).json()
+    assert written["posture"] == "aggressive"
+    assert written["engage_hostile"] is True
+    assert written["retreat_at_hull_pct"] == 25
+    assert written["auto_reply"] == "Not today."
+
+
+def test_the_ship_reports_its_shields(client, clean):
+    ship = me(client, register(client))["ship"]
+    assert "shields" in ship and "shields_max" in ship
+
+
+def test_a_contact_can_be_carried_into_an_attack(client, clean):
+    """The whole client path: see a ship, take its id, fire at it — nothing else is needed."""
+    attacker = register(client)
+    register(client)  # spawns alongside, in weapons reach
+
+    seen = client.get(f"/v1/systems/{my_system(client, attacker)}", headers=attacker).json()
+    target = next(c for c in seen["contacts"] if c["quality"] == "full")
+
+    fired = send(client, attacker, action="attack", target_ship_id=target["ship_id"])
+
+    assert fired.status_code == 202
+    assert any(e["type"] == "COMBAT_STARTED" for e in fired.json()["events"])
+    # Player against player is queued, so neither side is punished for being the one asleep.
+    assert me(client, attacker)["player"]["ap"] == 8
+
+
+def test_firing_on_yourself_is_refused(client, clean):
+    headers = register(client)
+    own = me(client, headers)["ship"]["id"]
+
+    assert send(client, headers, action="attack", target_ship_id=own).json()["code"] == "SELF_TARGET"
