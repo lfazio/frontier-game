@@ -23,7 +23,11 @@ from frontier.adapters.db import models
 from frontier.domain.hex.coordinates import HexAddr, Level
 from frontier.domain.hex.geometry import addr_distance
 
-VISIBLE_KINDS = ("system", "station", "planet", "star")
+# The shape of the galaxy is common knowledge — a spectator with no account sees every region
+# and system (`public_tile`), so a player must never see fewer. Discovery gates what is *inside*
+# a system, which is the thing a player can actually learn by going there.
+CHART_KINDS = ("region", "system")
+INTERIOR_KINDS = ("station", "planet", "star")
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,14 +56,14 @@ class MapTiles:
     async def tile(
         self, prefix: HexAddr, player_id: UUID, world_day: int, sensor_range: int, position: HexAddr | None
     ) -> Tile:
-        known = await self._known(player_id)
+        chart = int(prefix.level) < int(Level.SYSTEM)
         rows = (
             (
                 await self._s.execute(
                     select(models.Location)
                     .where(text("path <@ CAST(:prefix AS ltree)").bindparams(prefix=prefix.ltree()))
                     .where(models.Location.level == int(prefix.level) + 1)
-                    .where(models.Location.kind.in_(VISIBLE_KINDS))
+                    .where(models.Location.kind.in_(CHART_KINDS if chart else INTERIOR_KINDS))
                     .order_by(models.Location.path)
                 )
             )
@@ -68,11 +72,15 @@ class MapTiles:
         )
 
         control = await self._control(prefix)
-        entries = [
-            self._entry(row, control)
-            for row in rows
-            if row.id in known or self._in_sensor_range(row, position, sensor_range)
-        ]
+        if chart:
+            entries = [self._entry(row, control) for row in rows]
+        else:
+            known = await self._known(player_id)
+            entries = [
+                self._entry(row, control)
+                for row in rows
+                if row.id in known or self._in_sensor_range(row, position, sensor_range)
+            ]
         return Tile(path=str(prefix), level=int(prefix.level), world_day=world_day, entries=entries)
 
     def _entry(self, row: models.Location, control: dict[UUID, int]) -> dict[str, Any]:
@@ -110,7 +118,7 @@ class MapTiles:
                     select(models.Location)
                     .where(text("path <@ CAST(:prefix AS ltree)").bindparams(prefix=prefix.ltree()))
                     .where(models.Location.level == int(prefix.level) + 1)
-                    .where(models.Location.kind.in_(("region", "system")))
+                    .where(models.Location.kind.in_(CHART_KINDS))
                     .order_by(models.Location.path)
                 )
             )
