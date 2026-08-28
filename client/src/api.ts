@@ -61,3 +61,100 @@ export const FACTIONS: Record<number, { name: string; letter: string; tint: stri
   2: { name: "Republic", letter: "R", tint: "#3f7fc2" },
   3: { name: "Pirates", letter: "P", tint: "#8a6bbf" },
 };
+
+// ---------------------------------------------------------------------------
+// Signed-in surface (UX §10). Everything below needs a token.
+
+export interface Me {
+  world_day: number;
+  phase: string;
+  unread: number;
+  digest: { events: Record<string, number>; total: number } | null;
+  player: {
+    id: string;
+    callsign: string;
+    ap: number;
+    credits: number;
+    knowledge: number;
+  };
+  ship: {
+    id: string;
+    position: string;
+    hull: number;
+    fuel: number;
+    docked: boolean;
+  };
+}
+
+export interface Body {
+  id: string;
+  path: string;
+  kind: string;
+  name: string | null;
+  q: number;
+  r: number;
+  in_sight: boolean;
+  charted_on: number | null;
+}
+
+export interface Contact {
+  quality: "full" | "partial";
+  position: string;
+  name: string | null;
+  kind: string | null;
+}
+
+export interface SystemView {
+  system: { id: string; path: string; name: string | null; controller: number | null };
+  you: { position: string; sensor_range: number; docked_at: string | null };
+  bodies: Body[];
+  contacts: Contact[];
+}
+
+export class Refused extends Error {
+  constructor(readonly status: number, readonly code: string) {
+    super(code);
+  }
+}
+
+async function authed<T>(url: string, token: string): Promise<T> {
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Refused(response.status, body.code ?? String(response.status));
+  }
+  return (await response.json()) as T;
+}
+
+export const play = {
+  register: async (email: string, password: string, callsign: string): Promise<string> =>
+    post("/v1/auth/register", { email, password, callsign }),
+  login: async (email: string, password: string): Promise<string> =>
+    post("/v1/auth/login", { email, password }),
+  me: (token: string) => authed<Me>("/v1/me", token),
+  tile: (token: string, path: string) =>
+    authed<Tile>(`/v1/map/tiles?path=${encodeURIComponent(path)}`, token),
+  system: (token: string, id: string) => authed<SystemView>(`/v1/systems/${id}`, token),
+};
+
+async function post(url: string, body: unknown): Promise<string> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Refused(response.status, payload.detail ?? payload.code ?? "FAILED");
+  return payload.access_token as string;
+}
+
+/** `ga0_0/re1_0/sy4_2/pl3_1` -> its axial pair. */
+export function tipOf(path: string): { q: number; r: number } {
+  const last = path.split("/").pop() ?? "";
+  const [q, r] = last.slice(2).split("_").map((n) => (n.startsWith("n") ? -Number(n.slice(1)) : Number(n)));
+  return { q, r };
+}
+
+export function hexDistance(a: { q: number; r: number }, b: { q: number; r: number }): number {
+  return (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
+}

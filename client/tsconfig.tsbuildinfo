@@ -1,1 +1,1 @@
-{"root":["./src/App.tsx","./src/Feed.tsx","./src/HexMap.tsx","./src/api.ts","./src/main.tsx"],"version":"5.9.3"}
+{"root":["./src/App.tsx","./src/Feed.tsx","./src/HexMap.tsx","./src/api.ts","./src/main.tsx","./src/session.ts","./src/play/Auth.tsx","./src/play/Board.tsx","./src/play/MapView.tsx","./src/play/Overview.tsx","./src/play/Shell.tsx"],"version":"5.9.3"}

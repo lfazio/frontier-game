@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { session } from "./session";
+import { Auth } from "./play/Auth";
+import { Shell } from "./play/Shell";
 import { api, parentOf, type FeedEvent, type Overview, type Tile, type TileEntry } from "./api";
 import { Feed } from "./Feed";
 import { HexMap } from "./HexMap";
@@ -6,6 +9,36 @@ import { HexMap } from "./HexMap";
 const POLL_MS = 5000;
 
 export function App() {
+  // Two audiences, one codebase (UX §1): a spectator needs no account, a pilot needs a token.
+  const [token, setToken] = useState<string | null>(session.token());
+  const [watching, setWatching] = useState(!session.token());
+
+  if (token && !watching) {
+    return (
+      <Shell
+        token={token}
+        onSignOut={() => {
+          session.end();
+          setToken(null);
+          setWatching(true);
+        }}
+      />
+    );
+  }
+  if (!watching) {
+    return (
+      <Auth
+        onToken={(next) => {
+          session.begin(next);
+          setToken(next);
+        }}
+      />
+    );
+  }
+  return <Watch onPlay={() => setWatching(false)} />;
+}
+
+function Watch({ onPlay }: { onPlay: () => void }) {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [tile, setTile] = useState<Tile | null>(null);
   const [path, setPath] = useState<string | null>(null);
@@ -46,6 +79,7 @@ export function App() {
       <header>
         <span className="brand">FRONTIER</span>
         <span className="mode">watching</span>
+        <button onClick={onPlay}>Play</button>
         <span className="spacer" />
         {overview && (
           <>
