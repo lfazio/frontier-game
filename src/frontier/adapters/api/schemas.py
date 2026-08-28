@@ -133,6 +133,12 @@ class DefectBody(BaseModel):
     idempotency_key: UUID
 
 
+class BatchBody(BaseModel):
+    """A route is one decision for the player and a sequence for the server (UX §5.3)."""
+
+    commands: list[CommandItem] = Field(min_length=1, max_length=20)
+
+
 CommandBody = Annotated[
     MoveBody
     | JumpBody
@@ -151,3 +157,7 @@ CommandBody = Annotated[
     | DefectBody,
     Field(discriminator="action"),
 ]
+
+
+CommandItem = CommandBody
+BatchBody.model_rebuild()

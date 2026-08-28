@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Response
@@ -48,6 +49,42 @@ async def submit(
     if result.replayed:
         response.headers["Idempotent-Replay"] = "true"
     return result.as_dict()
+
+
+@router.post("/commands:batch", status_code=202)
+async def submit_batch(
+    body: schemas.BatchBody,
+    player_id: CurrentPlayer,
+    c: ContainerDep,
+) -> dict[str, Any]:
+    """Run a sequence, stopping at the first refusal.
+
+    Every hop is still evaluated and charged on its own, so a route can end early. That is a
+    result, not a failure: the caller is told how far it got and why it stopped, and the ship is
+    somewhere real either way (UX §5.3).
+    """
+    events: list[dict[str, Any]] = []
+    stopped: dict[str, Any] | None = None
+    accepted = 0
+
+    for item in body.commands:
+        outcome = await c.executor.execute(build(item), player_id)
+        if outcome.rejection is not None:
+            stopped = {
+                "code": outcome.rejection.code.value,
+                "context": outcome.rejection.context,
+                "at_step": accepted,
+            }
+            break
+        accepted += 1
+        events.extend(outcome.as_dict()["events"])
+
+    return {
+        "requested": len(body.commands),
+        "accepted": accepted,
+        "stopped": stopped,
+        "events": events,
+    }
 
 
 def build(body: CommandBody) -> Command:
