@@ -1,3 +1,5 @@
+import type { Rules } from "./play/commands";
+
 // Everything the watch view is allowed to ask for. A spectator has no account and no ship, so
 // this is the whole surface: the star chart, who holds it, and public events (UX §9).
 
@@ -83,6 +85,9 @@ export interface Me {
     hull: number;
     fuel: number;
     docked: boolean;
+    docked_at: string | null;
+    jump_range_ly: number;
+    in_transit: boolean;
   };
 }
 
@@ -105,7 +110,7 @@ export interface Contact {
 }
 
 export interface SystemView {
-  system: { id: string; path: string; name: string | null; controller: number | null };
+  system: { id: string; path: string; name: string | null; controller: number | null; radius: number };
   you: { position: string; sensor_range: number; docked_at: string | null };
   bodies: Body[];
   contacts: Contact[];
@@ -135,6 +140,7 @@ export const play = {
   tile: (token: string, path: string) =>
     authed<Tile>(`/v1/map/tiles?path=${encodeURIComponent(path)}`, token),
   system: (token: string, id: string) => authed<SystemView>(`/v1/systems/${id}`, token),
+  rules: (token: string) => authed<Rules>("/v1/rules", token),
 };
 
 async function post(url: string, body: unknown): Promise<string> {
