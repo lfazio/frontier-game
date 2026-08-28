@@ -480,3 +480,98 @@ def test_moving_past_the_rim_is_refused(client, clean):
 
     assert outcome.status_code == 409
     assert outcome.json()["code"] == "UNKNOWN_DESTINATION"
+
+
+def _dock(client, headers) -> str:
+    """Berth at the station a new account spawns on. Returns its id."""
+    station = home_station(client, headers)
+    send(client, headers, action="dock", station_id=station["id"])
+    return str(station["id"])
+
+
+def test_a_market_shows_both_sides_of_the_spread(client, clean):
+    """The cost of a round trip must be legible, not discovered — UX §6."""
+    headers = register(client)
+    station_id = _dock(client, headers)
+
+    body = client.get(f"/v1/stations/{station_id}/market", headers=headers).json()
+
+    assert body["you"]["docked"] is True
+    assert body["you"]["hold_max"] > 0
+    assert body["commodities"], "a station with no market is not a station"
+    for line in body["commodities"]:
+        assert line["buy"] > line["sell"], "buying must cost more than selling returns"
+        assert line["stock"] >= 0
+
+
+def test_a_market_you_are_not_docked_at_is_not_yours_to_read(client, clean):
+    headers = register(client)
+    other = register(client)  # standing on the same station hex, but not berthed
+    station_id = _dock(client, headers)
+
+    # Standing beside a berth is not standing in it, and both answers match an id that does
+    # not exist at all (D-52).
+    away = client.get(f"/v1/stations/{station_id}/market", headers=other)
+    missing = client.get(f"/v1/stations/{uuid4()}/market", headers=headers)
+
+    assert away.status_code == 404
+    assert missing.status_code == 404
+    assert away.json() == missing.json()
+
+
+def test_buying_moves_credits_stock_and_the_hold(client, clean):
+    headers = register(client)
+    station_id = _dock(client, headers)
+    before = client.get(f"/v1/stations/{station_id}/market", headers=headers).json()
+    line = next(c for c in before["commodities"] if c["stock"] >= 2)
+
+    send(client, headers, action="buy", commodity=line["commodity"], qty=2)
+
+    after = client.get(f"/v1/stations/{station_id}/market", headers=headers).json()
+    bought = next(c for c in after["commodities"] if c["commodity"] == line["commodity"])
+    assert bought["held"] == 2
+    assert bought["avg_paid"] == line["buy"]
+    assert bought["stock"] == line["stock"] - 2
+    assert after["you"]["credits"] == before["you"]["credits"] - line["buy"] * 2
+    assert after["you"]["hold_used"] == before["you"]["hold_used"] + 2
+
+    # The hold travels with the ship, so it is readable away from the station too.
+    assert {"commodity": line["commodity"], "qty": 2, "avg_paid": line["buy"]} in me(client, headers)["cargo"]
+
+
+def test_buying_more_than_the_hold_takes_is_refused(client, clean):
+    headers = register(client)
+    station_id = _dock(client, headers)
+    body = client.get(f"/v1/stations/{station_id}/market", headers=headers).json()
+    line = next(c for c in body["commodities"] if c["stock"] > 0)
+
+    refusal = send(
+        client, headers, action="buy", commodity=line["commodity"], qty=body["you"]["hold_max"] + 1
+    )
+
+    assert refusal.status_code == 409
+    assert refusal.json()["code"] in {"CARGO_FULL", "INSUFFICIENT_STOCK", "INSUFFICIENT_CREDITS"}
+
+
+def test_the_repair_quote_is_what_is_charged(client, clean):
+    """The station screen shows a price before commitment, so it must be the real one."""
+    headers = register(client)
+    station_id = _dock(client, headers)
+
+    async def damage() -> None:
+        engine = make_engine(clean.database_url)
+        async with make_sessionmaker(engine)() as session, session.begin():
+            await session.execute(update(models.Ship).values(hull=60))
+        await engine.dispose()
+
+    asyncio.run(damage())
+    quoted = client.get(f"/v1/stations/{station_id}/market", headers=headers).json()
+    before = quoted["you"]["credits"]
+
+    send(client, headers, action="repair")
+
+    after = client.get(f"/v1/stations/{station_id}/market", headers=headers).json()
+    assert quoted["you"]["repair_cost"] > 0
+    assert after["you"]["hull"] == after["you"]["hull_max"]
+    assert after["you"]["credits"] == before - quoted["you"]["repair_cost"]
+    assert after["you"]["repair_cost"] == 0
