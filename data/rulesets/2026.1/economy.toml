@@ -14,6 +14,16 @@ fuel_cells = 90
 machinery = 220
 medicine = 300
 luxuries = 480
+knowledge = 240
+
+# A restricted commodity trades only where its issuer sits. Knowledge bought at an Institute
+# may be read and sold back, but it never reaches an ordinary market — PSDD §2.3. This is the
+# non-transferable default, expressed as data rather than as a rule in code.
+[restricted]
+knowledge = "institute"
+
+[station_type.institute]
+produces = "knowledge"
 
 [station_type.agricultural]
 produces = "grain"

@@ -90,6 +90,12 @@ class EconomyRules:
     shift_report_threshold: float
     commodities: Mapping[str, int]
     station_type: Mapping[str, Mapping[str, str]]
+    restricted: Mapping[str, str]
+
+    def tradable_at(self, commodity: str, station_type: str | None) -> bool:
+        """A restricted commodity is stocked only by the station type that issues it."""
+        issuer = self.restricted.get(commodity)
+        return issuer is None or issuer == station_type
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,11 +183,18 @@ class RuleSet:
         economy_raw = dict(files["economy"])
         commodities = economy_raw.pop("commodities", {})
         station_type = economy_raw.pop("station_type", {})
+        restricted = economy_raw.pop("restricted", {})
         economy_fields = _take(
             economy_raw,
-            {f for f in EconomyRules.__dataclass_fields__} - {"commodities", "station_type"},
+            {f for f in EconomyRules.__dataclass_fields__} - {"commodities", "station_type", "restricted"},
             "economy",
         )
+        unknown = set(restricted) - set(commodities)
+        if unknown:
+            raise RuleSetError(f"restricted names no such commodity: {', '.join(sorted(unknown))}")
+        missing_issuer = set(restricted.values()) - set(station_type)
+        if missing_issuer:
+            raise RuleSetError(f"restricted names no such station type: {', '.join(sorted(missing_issuer))}")
         events_raw = dict(files["events"])
         npc_raw = dict(files["npc"])
         per_flow = npc_raw.pop("per_flow_unit", {})
@@ -199,6 +212,7 @@ class RuleSet:
             economy=EconomyRules(
                 commodities=dict(commodities),
                 station_type={k: dict(v) for k, v in station_type.items()},
+                restricted=dict(restricted),
                 **economy_fields,
             ),
             events=EventRules(
