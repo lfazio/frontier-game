@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.2 |
+| Version | 0.3 |
 | Date | 2026-08-29 |
 | Scope | Delivery phases **P5, P6, P7 and P7+** (*ARCH §17*), and the deferred systems of *GDD §10.2* |
 | Depends on | `game-design.md` v2.9, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20 |
@@ -34,7 +34,7 @@ about what exists is the difference between "finish it" and "write it".
 | --- | --- | --- |
 | **P0–P4** | Built | `frontier/` server, tick stages 1–7 and 9–13, 132 integration tests |
 | **C0–C6** | Built | `client/` — the whole MVP client, *UX §11* |
-| **P5 — History** | **Crises and eras built; the Institute is not** | `simulation/stages/psychohistory.py` runs as stage 7; `psycho.history_variables`, `psycho.forecasts`, four region views; `GET /v1/forecasts`; the `psycho_reader` role |
+| **P5 — History** | **Built** | Stage 7 with crisis detection; `psycho.history_variables`, `forecasts`, `crises`, `eras`, four region views; era naming in stage 10; `GET /v1/forecasts` and `/v1/history/{eras,crises}`; the Institute as a station type with a restricted `knowledge` market; the `psycho_reader` role |
 | **P6 — The Continuity** | **Partly built, not running** | `frontier/continuity/` with `stage.py` declaring `role = "cont_role"`; `cont.agents`, `cont.cells`, `cont.budget`, `cont.interventions`; the anti-leak suite. **Stage 8 is absent from `TICK_STAGES`**, so the faction does not act |
 | **P7 — Clearance and recruitment** | Not built | — |
 | **P7+ — The Harrowing** | Not built | — |
@@ -46,9 +46,9 @@ enforced today; `lint-imports` forbids anything importing `frontier.continuity`,
 write `players`, `ships` or `cargo`. Turning the faction on is registering one stage behind one flag — which is
 exactly the shape ADR-13 intended, and the reason the work is small.
 
-**Psychohistory has a reader, not yet a subject.** The model records region variables and emits forecasts. What it
-does not yet have is the in-world institution that sells them (*GDD §8.8*), the knowledge economy that values them
-(*§8.9*), or the crises that make them matter (*§8.10*) — and the Harrowing depends on that last one.
+**Psychohistory now has a subject.** Crises, eras and the Institute shipped in v0.2–0.3 of this document, so the
+model no longer only measures: it names what is going wrong, history records what it was called, and the Institute
+gives prediction a price. The expiry of an unresolved crisis is the signal the Harrowing waits on (§5).
 
 ---
 
@@ -94,12 +94,17 @@ promotion, rather than by the model. The model measures; the chronicle names.
 The Institute (*GDD §8.8*) is an in-world buyer and seller of knowledge. It is **not** a new subsystem: it is a
 station kind with a market whose commodity is `knowledge`.
 
-- `data/rulesets/*/economy.toml` gains `knowledge` to `[commodities]` and an `institute` entry to `[station_type]`.
+- `economy.toml` gains `knowledge` to `[commodities]` and an `institute` entry to `[station_type]`.
 - Buying a forecast is `buy` against that market. Selling a discovery is `sell`.
-- Knowledge carries a **non-transferable-by-default** flag (*ARCH §18*): a unit bought at the Institute may be read
-  by its buyer and resold only to the Institute, not to another player, until knowledge trading (§6) ships.
+- Knowledge is **restricted**: a `[restricted]` table names, per commodity, the station type that may stock it.
 
 This is the whole of `D-71`: the Institute reuses the market machinery rather than adding a parallel one.
+
+The non-transferable default (*ARCH §18*) is enforced by **absence**, not by a check. `seed_markets` gives a station
+a row only for commodities its type may stock, so an ordinary market has no `knowledge` line at all — and the trade
+command's existing `COMMODITY_UNAVAILABLE` is the refusal, with no new rule anywhere. The loader rejects a
+`[restricted]` entry naming a commodity or a station type that does not exist, so a typo fails at load rather than
+quietly making something untradeable.
 
 ## 2.4 Endpoints
 
@@ -334,6 +339,7 @@ These apply to every phase above, and a change that breaks one is a design decis
 | # | Decision | Why | Schema? |
 | --- | --- | --- | --- |
 | D-71 | The Historical Institute is a station kind with a market whose commodity is `knowledge`, not a new subsystem. | Buying a forecast and buying grain are the same transaction with different goods; a parallel mechanism would duplicate pricing, cargo and refusal handling for no gain. | Yes |
+| D-80 | A restricted commodity is kept out of a market by **not seeding a row**, rather than by a check in the trade command. | Absence needs no enforcement and cannot be bypassed: with no row there is nothing to buy, and the existing `COMMODITY_UNAVAILABLE` already says so in the player's language. A check would have needed the station's type plumbed into command state for a case that cannot arise. | No |
 | D-72 | Crisis detection lives inside stage 7 rather than in a stage of its own. | The stage already computes the deviation a crisis is defined by. A separate stage would either recompute it or read the first stage's output, and both are worse than one pass. | Yes |
 | D-73 | Eras are written by the chronicle stage, not by the model. | The model measures; naming a stretch of history is a narrative act, and the chronicle already owns promotion and retention. It also keeps the model's output free of prose. | Yes |
 | D-74 | The Continuity ships as an unregistered stage first: the code, schema, role and import contract exist before the faction acts. | It makes enabling the faction a one-line change under a flag, and it means the anti-leak suite can be written and run against real code before anything is at stake. | No |
@@ -361,6 +367,7 @@ These apply to every phase above, and a change that breaks one is a design decis
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.3 | 2026-08-29 | P5 complete: the Historical Institute ships as a station type with a restricted `knowledge` market (D-80). Fourteen Institutes in the generated world, and no other station stocks it. |
 | 0.2 | 2026-08-29 | P5 part one built: crises and eras. `psycho.crises` and `psycho.eras`, detection folded into stage 7, era naming in stage 10, and `GET /v1/history/{eras,crises}`. B1 corrected — a crisis is public because the star chart already is, so the charted-region filter it described would have restricted nothing. |
 | 0.1 | 2026-08-29 | First post-MVP detailed design: P5 History, P6 the Continuity as an AI, P7 recruitment, clearance and the channel, P7+ the Harrowing, and the deferred systems. Decisions D-71 to D-79, acceptance criteria B1–B16. |
 
