@@ -234,6 +234,11 @@ moons, stations and asteroids occupy the same level and are distinguished by `ki
 
 The Universe is the container of the Galaxy, not an addressable level. A world deployment holds one Galaxy.
 
+**Every level is continuous space.** A level is a filled hex area, not a scatter of occupied points: each hex is
+addressable whether or not anything is there. What lies between the systems of a region is *empty space* — a real
+address a ship can be reported at, and where an arrival can be staged (§8.12) — not a gap in the map. The extent of
+each level is `[BALANCE]` data (`data/rulesets/`), not a fixed property of the world.
+
 ## 2.3 Addresses
 
 An object's position is an **address**: one hex coordinate per level, from Galaxy downward.

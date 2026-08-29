@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.19 |
+| Version | 0.20 |
 | Date | 2026-08-28 |
 | Supersedes | 0.1 |
 | Scope | Delivery phases **P0–P3** (*ARCH §17*), realising the MVP of *GDD §10.1* |
@@ -1750,6 +1750,9 @@ mistake in this plan that would cost a rewrite.
 | D-65 | A contact carries `ship_id` only at `full` quality; a `partial` one carries `null`. | The id is what `attack` targets and what identifies a ship across sightings. Handing one out for a contact the player cannot resolve would turn a vague smudge into a durable, trackable handle — the leak the sensor ladder exists to prevent. | No |
 | D-66 | `GET /v1/orders` returns the current standing orders, with no flag saying whether a row exists. | Registration seeds a row, so such a flag could never be false; the fallback guards a deleted row rather than the ordinary case. The screen needs the values, and a field that is always true would imply a distinction the world does not have. | No |
 | D-67 | The star chart — regions and systems — is served ungated; discovery gates only what is *inside* a system. | `VISIBLE_KINDS` omitted `region`, so a player's galaxy tile was always empty while a spectator saw all four: watch mode was stronger than a player's view, which *UX §9* forbids outright. One rule now feeds both tiles, so the two cannot drift apart again. | No |
+| D-68 | A region is a filled disc: every hex is a `locations` row, `kind = 'void'` between the systems. | D-17 applied one level up. A region was a scatter of 10–14 system rows in a 127-hex area, so the chart had holes in it and the space between systems was not addressable — nothing could ever be reported as being there. | Yes |
+| D-69 | World shape — region count, both radii, systems per region — is rule data in `world.toml`, not constants in the generator. | It is exactly the `[BALANCE]` case the design names: a bigger radius against the same system count is a longer, emptier frontier, and that is a dial to turn, not a code edit. | No |
+| D-70 | Regions are packed from the centre outward rather than placed on a spread of ring slots. | The old placement left the galaxy's centre hex empty and its four regions mutually non-adjacent, so the galaxy map was as full of holes as the region map. | No |
 | D-50 | The population's flow advance is guarded by `last_simulated_on == world_day`, not `>=`, and goods move only for systems advanced in that pass. | Flows and stock are cumulative, so a re-run must not move them twice. `>=` looked equivalent and is not: a world day can be rewound — a restored snapshot, a replay, a test fixture — and a `>=` guard would freeze the population permanently. | No |
 | D-49 | Watch mode is served by its own `/v1/watch/*` routes rather than by relaxing the player endpoints. | A spectator's entitlement is different in kind, not degree: no ship, no sensors, public system-or-wider events only. Separate routes make "strictly weaker than any player" a property that can be tested rather than an argument about parameters. | No |
 | D-44 | The public API connects as `api_role`, which holds no grant on `cont`; the Continuity's stage runs as `cont_role`, which may read the world, write its own records and update `core.system_activity` — and nothing else. | *ARCH ADR-13* and *GDD §9.13*. A serialisation mistake cannot leak what the connection cannot read, and "push, never force" becomes a privilege the database withholds rather than a rule this code remembers. | No |
@@ -1820,6 +1823,7 @@ S1–S4 are design questions that surfaced during detailed design; they belong i
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.20 | 2026-08-29 | The world is continuous space: a region is a filled disc with empty space between its systems (D-68), its shape is tunable rule data now defaulting to radius 16 (D-69), and the galaxy is one connected shape (D-70). |
 | 0.19 | 2026-08-28 | Fixed: a player's galaxy map was empty, because regions were not a visible kind — leaving watch mode stronger than a player's own view (D-67). |
 | 0.18 | 2026-08-28 | Client slice C6, completing the MVP client: targeting from a resolved contact (D-65) and a readable standing-orders endpoint (D-66). `GET /v1/me` also reports shields and sensor range. |
 | 0.17 | 2026-08-28 | Client slice C5: one definition of an event's channel, stamped on every view (D-62); messages name their sender (D-63); and `GET /v1/teams` makes a crew findable (D-64). |

@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.9 |
+| Version | 0.10 |
 | Date | 2026-08-28 |
 | Scope | The MVP client (*GDD §10.1*) and a spectator mode for demonstrating a running world |
 | Depends on | `game-design.md` v2.9, `architecture.md` v0.8, `detailed-design-mvp.md` v0.15 |
@@ -551,6 +551,8 @@ The gaps this document opened, both since closed:
 | ~~Contact ship id~~ | Targeting (§4.2) | **Built**: `ship_id` on resolved contacts only — a vague sighting is not a handle on a ship |
 | ~~`GET /v1/orders`~~ | Editing standing orders (GDD §4.4) | **Built**: the form opens with what is set, so saving cannot silently replace it |
 | ~~Descending from the galaxy~~ | Zooming in (§4) | **Fixed**: a region can be opened like a system, and every zoom level stays reachable from every other |
+| ~~A region drawn as scattered points~~ | The region chart (§4) | **Fixed**: the region is a filled board like the system one, a hex per system or per patch of empty space, with the hex size fitted to the region's radius |
+| ~~No coordinates on the boards~~ | Reading a position off the map (§8.1) | **Built**: q and r rulers around every board, pinned outside it, plus the coordinate in text beside any selection |
 
 ---
 
@@ -592,6 +594,7 @@ redaction — and it is the artefact to show anyone who asks what the game is.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.10 | 2026-08-29 | The region chart is now a filled hex board like the system one — one hex per system or per hex of empty space — with the hex size fitted to the region radius, empty space drawn rather than omitted, and summarised rather than listed in the textual chart. Both boards carry q and r rulers. |
 | 0.9 | 2026-08-28 | Fixed three faults in the map: the galaxy map was empty and so offered nothing to click; a selected region had no way in; and the zoom breadcrumbs disabled themselves once you reached the galaxy. A station now carries its own colour on the board and keeps it once charted, with a legend and a matching mark in the textual chart. |
 | 0.8 | 2026-08-28 | Slice C6 built, completing the client: attacking a contact from the map, and the standing orders screen. Resolved contacts now carry the `ship_id` that `attack` targets; vague ones still carry nothing. `GET /v1/orders` lets the orders form open with what is already set. A player-versus-player attack is reported as queued, because that is what it is. |
 | 0.7 | 2026-08-28 | Slice C5 built: the feed with channel filters and a composer, live over the WebSocket and de-duplicated on event id against the HTTP page; the mission board; and the crew register with founding, joining and leaving. The server now stamps each event with its channel and names the speaker of a message. |
