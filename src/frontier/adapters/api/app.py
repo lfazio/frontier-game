@@ -11,6 +11,7 @@ from frontier.adapters.api.routers import (
     commands,
     feed,
     forecasts,
+    history,
     mapview,
     me,
     missions,
@@ -56,6 +57,7 @@ def create_app(container: Container | None = None) -> FastAPI:
     app.include_router(missions.router)
     app.include_router(orders.router)
     app.include_router(forecasts.router)
+    app.include_router(history.router)
     app.include_router(rules.router)
     app.include_router(stations.router)
     app.include_router(teams.router)
