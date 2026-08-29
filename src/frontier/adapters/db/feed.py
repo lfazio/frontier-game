@@ -104,6 +104,7 @@ async def viewer_for(
         radio_range=radio_default,
         team_id=player.team_id,
         faction_id=player.faction_id,
+        clearance=player.clearance,
     )
 
 

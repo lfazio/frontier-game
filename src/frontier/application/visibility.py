@@ -31,6 +31,7 @@ class ViewerContext:
     radio_range: int
     team_id: UUID | None = None
     faction_id: int | None = None
+    clearance: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,11 +42,14 @@ class AudienceSpec:
     team_id: UUID | None = None
     faction_id: int | None = None
     spatial: tuple[HexAddr, Scope] | None = None
+    # A clearance audience is everyone holding at least this much. It resolves against an
+    # ordinary column on an ordinary table, so nothing here names what the clearance is for.
+    clearance: int | None = None
 
     @property
     def is_narrow(self) -> bool:
         """Narrow audiences fan out on write; broad ones are queried on read — ARCH §7.4."""
-        return bool(self.players) or self.team_id is not None
+        return bool(self.players) or self.team_id is not None or self.clearance is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +75,10 @@ def resolve_audience(event: Event, team_of: dict[UUID, UUID] | None = None) -> A
             return AudienceSpec(team_id=next(iter(teams), None), players=event.participants)
         case Visibility.FACTION | Visibility.PUBLIC:
             return AudienceSpec(spatial=(event.origin, event.scope))
+        case Visibility.CLEARANCE:
+            # Delivered by entitlement, never by position: distance and relays do not enter
+            # into it, which is what makes the channel instantaneous everywhere (GDD §9.6).
+            return AudienceSpec(clearance=max(1, event.clearance))
         case _:
             return AudienceSpec()
 
@@ -106,6 +114,13 @@ def sensor_quality(steps: int, sensor_range: int) -> Quality:
 
 def observation_quality(viewer: ViewerContext, event: Event) -> Quality:
     """The MVP sensor model. Every row of this table is covered by a test."""
+    # Entitlement is settled before position, and it cuts both ways: an event carried by
+    # entitlement reaches a holder wherever they are, and reaches nobody else at any distance.
+    # This is the single gate the socket and the HTTP feed both pass through — the socket
+    # filters by channel rather than by delivery, so a check on the delivery alone would leak.
+    if event.visibility is Visibility.CLEARANCE:
+        return Quality.FULL if viewer.clearance >= max(1, event.clearance) else Quality.NONE
+
     if viewer.player_id in event.participants:
         return Quality.FULL
     if viewer.position is None:

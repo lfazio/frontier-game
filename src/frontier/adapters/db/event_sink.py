@@ -56,6 +56,11 @@ class SqlEventSink:
                 select(models.Player.id).where(models.Player.team_id == audience.team_id)
             )
             recipients |= set(rows.scalars())
+        if audience.clearance is not None:
+            rows = await self._s.execute(
+                select(models.Player.id).where(models.Player.clearance >= audience.clearance)
+            )
+            recipients |= set(rows.scalars())
         return recipients
 
     async def _teams(self, player_ids: set[UUID]) -> dict[UUID, UUID]:
@@ -70,4 +75,4 @@ class SqlEventSink:
 
 
 def is_narrow(visibility: Visibility) -> bool:
-    return visibility in (Visibility.PARTICIPANTS, Visibility.TEAM)
+    return visibility in (Visibility.PARTICIPANTS, Visibility.TEAM, Visibility.CLEARANCE)
