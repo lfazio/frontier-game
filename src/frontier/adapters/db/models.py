@@ -382,6 +382,37 @@ class HistoryVariable(Base):
     expected: Mapped[Decimal] = mapped_column(Numeric(8, 4))
 
 
+class Crisis(Base):
+    """A sustained strain on one region variable — PSDD §2.2.
+
+    No foreign key to `core.locations`: the reader role cannot follow one, and a reference that
+    cannot be followed is worse than none.
+    """
+
+    __tablename__ = "crises"
+    __table_args__ = ({"schema": "psycho"},)
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    region_id: Mapped[UUID] = mapped_column()
+    variable: Mapped[str] = mapped_column(String(32))
+    opened_on: Mapped[int] = mapped_column(Integer)
+    expires_on: Mapped[int] = mapped_column(Integer)
+    resolved_on: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    severity: Mapped[int] = mapped_column(SmallInteger)
+    magnitude: Mapped[Decimal] = mapped_column(Numeric(6, 4))
+
+
+class Era(Base):
+    """A named stretch of world days. Written by the chronicle, never by the Model — D-73."""
+
+    __tablename__ = "eras"
+    __table_args__ = ({"schema": "psycho"},)
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(64))
+    began_on: Mapped[int] = mapped_column(Integer)
+    ended_on: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    summary: Mapped[str | None] = mapped_column(String(280), nullable=True)
+
+
 class ForecastRow(Base):
     __tablename__ = "forecasts"
     __table_args__ = ({"schema": "psycho"},)
