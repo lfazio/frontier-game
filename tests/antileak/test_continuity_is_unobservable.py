@@ -6,6 +6,7 @@ unrecoverable, because the social game §9.7 describes cannot be un-spoiled.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from uuid import uuid4
 
@@ -353,3 +354,152 @@ async def test_the_request_path_never_reaches_the_faction(client, sessions, clea
     async with sessions() as session:
         after = (await session.execute(text("SELECT count(*) FROM cont.interventions"))).scalar_one()
     assert after == before, "a request path moved the Continuity"
+
+
+# --- P7: the channel (PSDD §4.3) --------------------------------------------------------------
+
+
+def clear(clean, player_id, level: int = 1) -> None:
+    async def grant() -> None:
+        engine = make_engine(clean.database_url)
+        async with make_sessionmaker(engine)() as session, session.begin():
+            await session.execute(
+                update(models.Player).where(models.Player.id == player_id).values(clearance=level)
+            )
+        await engine.dispose()
+
+    asyncio.run(grant())
+
+
+def whoami(client, headers) -> str:
+    return client.get("/v1/me", headers=headers).json()["player"]["id"]
+
+
+def test_the_channel_carries_to_a_holder_anywhere_and_to_nobody_else(client, clean):
+    """B13: entitlement, not position — and silence for everyone without it."""
+    member = register(client)
+    outsider = register(client)
+    clear(clean, whoami(client, member))
+
+    sent = client.post(
+        "/v1/commands",
+        json={
+            "action": "send_message",
+            "channel": "directorate",
+            "text": "Node 41 confirms.",
+            "idempotency_key": str(uuid4()),
+        },
+        headers=member,
+    )
+    assert sent.status_code == 202
+
+    heard = client.get("/v1/feed", headers=member).json()["events"]
+    assert any(e["payload"].get("text") == "Node 41 confirms." for e in heard)
+
+    for line in client.get("/v1/feed", headers=outsider).json()["events"]:
+        assert line["payload"].get("text") != "Node 41 confirms."
+        assert "directorate" not in json.dumps(line).lower()
+
+
+def test_speaking_on_it_without_clearance_looks_like_nonsense(client, clean):
+    """An outsider naming the channel is refused exactly as an outsider naming gibberish is."""
+    outsider = register(client)
+
+    def say(channel: str):
+        return client.post(
+            "/v1/commands",
+            json={
+                "action": "send_message",
+                "channel": channel,
+                "text": "hello?",
+                "idempotency_key": str(uuid4()),
+            },
+            headers=outsider,
+        )
+
+    named = say("directorate")
+    nonsense = say("zzyzx")
+
+    assert named.status_code == nonsense.status_code
+    assert named.json() == nonsense.json()
+
+
+def test_the_channel_reaches_a_holder_with_no_delay(client, clean):
+    """GDD §9.6: no relay, no range, no `deliver_at` in the future."""
+    member = register(client)
+    clear(clean, whoami(client, member))
+
+    client.post(
+        "/v1/commands",
+        json={
+            "action": "send_message",
+            "channel": "directorate",
+            "text": "Immediate.",
+            "idempotency_key": str(uuid4()),
+        },
+        headers=member,
+    )
+
+    line = next(
+        e
+        for e in client.get("/v1/feed", headers=member).json()["events"]
+        if e["payload"].get("text") == "Immediate."
+    )
+    assert line["scope"] == 4  # UNIVERSE
+    assert line["quality"] == "full"
+
+
+# --- P7: the rationed watch (PSDD §4.4) -------------------------------------------------------
+
+
+def spend_the_ration(clean) -> None:
+    async def clear_key() -> None:
+        from redis.asyncio import Redis
+
+        redis = Redis.from_url(clean.redis_url)
+        await redis.delete("survey:ration")
+        await redis.aclose()
+
+    asyncio.run(clear_key())
+
+
+def test_the_survey_does_not_exist_without_clearance(client, clean):
+    """B14: the same 404 as a route that is not there."""
+    outsider = register(client)
+
+    refused = client.get("/v1/survey", headers=outsider)
+    absent = client.get("/v1/no-such-route", headers=outsider)
+
+    assert refused.status_code == 404
+    assert refused.json() == absent.json()
+
+
+def test_the_ration_is_spent_for_the_whole_faction(client, clean):
+    """One member spending it spends it for everyone — it is an instrument, not a perk."""
+    spend_the_ration(clean)
+    first = register(client)
+    second = register(client)
+    clear(clean, whoami(client, first))
+    clear(clean, whoami(client, second))
+
+    opened = client.get("/v1/survey", headers=first)
+    again = client.get("/v1/survey", headers=second)
+
+    assert opened.status_code == 200
+    assert opened.json()["galaxy"]["entries"], "the survey showed nothing"
+    assert again.status_code == 429, "a second member got their own look at the world"
+    spend_the_ration(clean)
+
+
+def test_the_survey_is_no_stronger_than_watch_mode(client, clean):
+    """It is the same projection: a shared look at the chart, never at what is inside a system."""
+    spend_the_ration(clean)
+    member = register(client)
+    clear(clean, whoami(client, member))
+
+    body = client.get("/v1/survey", headers=member).json()
+
+    kinds = {entry["kind"] for tile in body["regions"] for entry in tile["entries"]}
+    assert kinds <= {"system", "void"}, "the survey reached inside a system"
+    assert {entry["kind"] for entry in body["galaxy"]["entries"]} <= {"region", "void"}
+    spend_the_ration(clean)
