@@ -26,7 +26,8 @@ from frontier.domain.hex.geometry import addr_distance
 # The shape of the galaxy is common knowledge — a spectator with no account sees every region
 # and system (`public_tile`), so a player must never see fewer. Discovery gates what is *inside*
 # a system, which is the thing a player can actually learn by going there.
-CHART_KINDS = ("region", "system")
+# Empty space is charted like anything else: the chart is a filled grid, not a scatter of points.
+CHART_KINDS = ("region", "system", "void")
 INTERIOR_KINDS = ("station", "planet", "star")
 
 
@@ -112,6 +113,11 @@ class MapTiles:
         A spectator has no sight (*UX §4.1*), so it sees the shape of the galaxy and who holds
         it, never what is flying around in it. Strictly weaker than any player's tile.
         """
+        # The chart stops at the system: inside one, even the empty hexes are not a spectator's
+        # to count. Sharing the kind list with `tile` is not enough — the level gate is the rule.
+        if int(prefix.level) >= int(Level.SYSTEM):
+            return Tile(path=str(prefix), level=int(prefix.level), world_day=world_day, entries=[])
+
         rows = (
             (
                 await self._s.execute(
