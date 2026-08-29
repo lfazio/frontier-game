@@ -60,6 +60,11 @@ class WorldRules:
     hull_repair_cost_per_point: int
     territory_control_threshold: float
     territory_decay: float
+    regions: int
+    region_radius: int
+    system_radius: int
+    systems_per_region_min: int
+    systems_per_region_max: int
 
 
 @dataclass(frozen=True, slots=True)

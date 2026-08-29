@@ -7,3 +7,11 @@ shield_regen_per_cycle = 10
 hull_repair_cost_per_point = 12
 territory_control_threshold = 0.50
 territory_decay = 0.10
+
+# World shape. Tunable: a bigger region is more empty space between the same systems, so
+# raising the radius without raising the system count makes the frontier emptier and longer.
+regions = 4
+region_radius = 16
+system_radius = 8
+systems_per_region_min = 10
+systems_per_region_max = 14

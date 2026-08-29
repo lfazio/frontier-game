@@ -15,7 +15,7 @@ from frontier.adapters.db.engine import make_engine, make_sessionmaker
 from frontier.adapters.rules_loader import load_ruleset
 from frontier.config.settings import Settings
 from frontier.domain.rules.ruleset import RuleSet
-from frontier.worldgen.generator import GeneratedLocation, generate, summarise
+from frontier.worldgen.generator import GeneratedLocation, Shape, generate, summarise
 
 
 async def build_world(settings: Settings, force: bool = False) -> dict[str, int]:
@@ -41,7 +41,8 @@ async def build_world(settings: Settings, force: bool = False) -> dict[str, int]
                 await session.execute(delete(models.Ship))
                 await session.execute(delete(models.Location))
 
-            rows = generate(SeededRng(settings.world_seed).for_)
+            rules = load_ruleset(settings.ruleset_root, settings.ruleset_version)
+            rows = generate(SeededRng(settings.world_seed).for_, Shape.of(rules.world))
             session.add_all(
                 [
                     models.Location(
@@ -59,7 +60,6 @@ async def build_world(settings: Settings, force: bool = False) -> dict[str, int]
                     for r in rows
                 ]
             )
-            rules = load_ruleset(settings.ruleset_root, settings.ruleset_version)
             session.add_all(seed_markets(rows, rules, SeededRng(settings.world_seed).for_))
             session.add_all(seed_activity(rows))
             session.add_all(seed_territory(rows))
