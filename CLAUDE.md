@@ -16,7 +16,7 @@ and say so.
 detail. Cited as `SDD §n`. |
 | `Documentations/ui-ux-mvp.md` (v0.10) | **What the player sees and touches.** Screens, states, wording and
 interaction contracts. Cited as `UX §n`. |
-| `Documentations/detailed-design-post-mvp.md` (v0.1) | **What is built after the MVP.** Phases P5–P7+ and the
+| `Documentations/detailed-design-post-mvp.md` (v0.2) | **What is built after the MVP.** Phases P5–P7+ and the
 deferred systems. Cited as `PSDD §n`. |
 
 Where they disagree, the design document wins on behaviour and the architecture document wins on implementation —

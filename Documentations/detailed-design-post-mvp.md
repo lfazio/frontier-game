@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.1 |
+| Version | 0.2 |
 | Date | 2026-08-29 |
 | Scope | Delivery phases **P5, P6, P7 and P7+** (*ARCH §17*), and the deferred systems of *GDD §10.2* |
 | Depends on | `game-design.md` v2.9, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20 |
@@ -34,7 +34,7 @@ about what exists is the difference between "finish it" and "write it".
 | --- | --- | --- |
 | **P0–P4** | Built | `frontier/` server, tick stages 1–7 and 9–13, 132 integration tests |
 | **C0–C6** | Built | `client/` — the whole MVP client, *UX §11* |
-| **P5 — History** | **Partly built** | `simulation/stages/psychohistory.py` runs as stage 7; `psycho.history_variables`, `psycho.forecasts`, four region views; `GET /v1/forecasts`; the `psycho_reader` role |
+| **P5 — History** | **Crises and eras built; the Institute is not** | `simulation/stages/psychohistory.py` runs as stage 7; `psycho.history_variables`, `psycho.forecasts`, four region views; `GET /v1/forecasts`; the `psycho_reader` role |
 | **P6 — The Continuity** | **Partly built, not running** | `frontier/continuity/` with `stage.py` declaring `role = "cont_role"`; `cont.agents`, `cont.cells`, `cont.budget`, `cont.interventions`; the anti-leak suite. **Stage 8 is absent from `TICK_STAGES`**, so the faction does not act |
 | **P7 — Clearance and recruitment** | Not built | — |
 | **P7+ — The Harrowing** | Not built | — |
@@ -109,8 +109,9 @@ This is the whole of `D-71`: the Institute reuses the market machinery rather th
 | `GET` | `/v1/history/eras` | The named eras, newest first |
 | `GET` | `/v1/history/crises` | Open crises in regions the player has charted |
 
-A crisis is public — it is a visible condition of a region, not intelligence — but it is **scoped to charted
-regions**, so the crisis list is not a way to learn the shape of the galaxy without flying it.
+A crisis is public — a visible condition of a region, not intelligence. It is **not** scoped to charted regions:
+registration already grants every galaxy, region and system (`D-67`), so such a filter would restrict nothing and
+would be a lie in the code. What is inside a system stays private, and no crisis says anything about that.
 
 ---
 
@@ -309,7 +310,7 @@ These apply to every phase above, and a change that breaks one is a design decis
 
 | # | Criterion |
 | --- | --- |
-| **B1** | A sustained region deviation opens a crisis, and the crisis appears in `GET /v1/history/crises` for a player who has charted that region — and not for one who has not |
+| **B1** | A sustained region deviation opens a crisis, it appears in `GET /v1/history/crises`, and it is named once however long it lasts |
 | **B2** | A crisis that is resolved by play closes; one that is not expires, and expiry is what the incursion stage watches |
 | **B3** | An era is named by the chronicle stage, never by the model |
 | **B4** | No forecast, crisis or era row contains a player id, callsign or ship id — asserted over the whole schema, not sampled |
@@ -360,6 +361,7 @@ These apply to every phase above, and a change that breaks one is a design decis
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.2 | 2026-08-29 | P5 part one built: crises and eras. `psycho.crises` and `psycho.eras`, detection folded into stage 7, era naming in stage 10, and `GET /v1/history/{eras,crises}`. B1 corrected — a crisis is public because the star chart already is, so the charted-region filter it described would have restricted nothing. |
 | 0.1 | 2026-08-29 | First post-MVP detailed design: P5 History, P6 the Continuity as an AI, P7 recruitment, clearance and the channel, P7+ the Harrowing, and the deferred systems. Decisions D-71 to D-79, acceptance criteria B1–B16. |
 
 ---
