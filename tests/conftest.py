@@ -29,6 +29,8 @@ PLAYER_TABLES = (
     "cont.cells",
     "cont.budget",
     "psycho.forecasts",
+    "psycho.crises",
+    "psycho.eras",
     "psycho.history_variables",
     "hist.chronicle",
     "core.mission_assignments",
