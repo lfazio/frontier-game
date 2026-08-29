@@ -5,3 +5,5 @@ systems_per_agent = 16
 max_magnitude = 0.06
 deviation_floor = 0.02
 agent_cover_factions = [1, 2, 3]
+# One survey of the whole world per interval, for the entire faction — not per member (U1).
+watch_interval_seconds = 21600

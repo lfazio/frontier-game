@@ -139,6 +139,7 @@ class ContinuityRules:
     max_magnitude: float
     deviation_floor: float
     agent_cover_factions: list[int]
+    watch_interval_seconds: int
 
     def interventions_for(self, systems: int) -> int:
         return max(1, systems // max(1, self.systems_per_intervention))

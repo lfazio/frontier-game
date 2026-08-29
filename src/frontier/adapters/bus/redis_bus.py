@@ -16,6 +16,11 @@ class RedisBus:
     def __init__(self, url: str) -> None:
         self._redis: Redis = Redis.from_url(url)
 
+    async def claim(self, key: str, seconds: int) -> bool:
+        """Take a ration if it is going. `SET NX EX` is atomic, so two callers cannot both win."""
+        taken = await self._redis.set(key, "1", nx=True, ex=seconds)
+        return bool(taken)
+
     async def publish(self, payloads: list[dict[str, Any]]) -> None:
         for payload in payloads:
             await self._redis.publish(CHANNEL, json.dumps(payload))
