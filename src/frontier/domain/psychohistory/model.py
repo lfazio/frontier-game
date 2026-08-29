@@ -72,6 +72,22 @@ def project(
     }
 
 
+def strains(observed: dict[Variable, float], expected: dict[Variable, float]) -> dict[Variable, float]:
+    """Per-variable drift, where `deviation` gives only the mean of it.
+
+    A crisis has to name what is going wrong, and an average cannot: a region can be steady on
+    five variables and coming apart on the sixth.
+    """
+    return {variable: abs(value - expected.get(variable, value)) for variable, value in observed.items()}
+
+
+def severity_of(strain: float, threshold: float) -> int:
+    """1 to 5, by how many multiples of the threshold the strain has reached."""
+    if threshold <= 0:
+        return 1
+    return max(1, min(5, int(strain / threshold) + 1))
+
+
 def deviation(observed: dict[Variable, float], expected: dict[Variable, float]) -> float:
     """How far the world has drifted from what the Model expected — GDD §8.3."""
     if not observed:

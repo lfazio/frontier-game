@@ -4,6 +4,14 @@ retention_planet_days = 14
 retention_system_days = 60
 chronicle_min_severity = 3
 
+# Crises and eras (PSDD §2.2). A crisis is a *sustained* strain, not a bad afternoon: the window
+# is what separates a trend from noise, and the duration is how long the world has to put it
+# right before it expires into something worse.
+crisis_threshold = 0.18
+crisis_window = 3
+crisis_duration = 12
+era_threshold = 3
+
 [promotion_threshold]
 local_to_system = 6
 system_to_region = 14

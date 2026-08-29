@@ -111,6 +111,10 @@ class EventRules:
     retention_planet_days: int
     retention_system_days: int
     chronicle_min_severity: int
+    crisis_threshold: float
+    crisis_window: int
+    crisis_duration: int
+    era_threshold: int
     promotion_threshold: Mapping[str, int]
 
     def retention_days(self, scope: int) -> int | None:
