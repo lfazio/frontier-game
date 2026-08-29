@@ -353,6 +353,7 @@ class NpcPopulation:
                 player_id=None,
                 system_id=system_id,
                 position_path=home.path,
+                jump_range_ly=ctx.rules.world.jump_range_default_ly,
                 **NPC_SHIP[archetype],
             )
         )

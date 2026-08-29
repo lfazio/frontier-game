@@ -95,7 +95,7 @@ async def seed(settings: Settings) -> None:
         ids=UuidFactory(clock),
         rules=rules,
     )
-    registrar = SqlRegistrar(sessions, rules.ap.daily_grant)
+    registrar = SqlRegistrar(sessions, rules.ap.daily_grant, rules.world.jump_range_default_ly)
     tick = TickRunner(
         sessions=sessions,
         rules=rules,

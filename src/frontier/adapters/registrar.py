@@ -38,9 +38,12 @@ class Registrar(Protocol):
 
 
 class SqlRegistrar:
-    def __init__(self, sessions: async_sessionmaker[AsyncSession], daily_grant: int) -> None:
+    def __init__(
+        self, sessions: async_sessionmaker[AsyncSession], daily_grant: int, jump_range_ly: int
+    ) -> None:
         self._sessions = sessions
         self._grant = daily_grant
+        self._jump_range_ly = jump_range_ly
 
     async def register(self, email: str, password: str, callsign: str) -> UUID:
         async with self._sessions() as session, session.begin():
@@ -64,6 +67,7 @@ class SqlRegistrar:
                 player_id=player.id,
                 system_id=spawn.parent_id,
                 position_path=spawn.path,
+                jump_range_ly=self._jump_range_ly,
                 **STARTING_SHIP,
             )
             session.add_all(
