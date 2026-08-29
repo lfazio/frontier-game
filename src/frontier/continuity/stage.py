@@ -26,6 +26,7 @@ KINDS = ("nudge", "delay", "accelerate", "hide", "reveal")
 class ContinuityInterventions:
     name = "continuity"
     role = "cont_role"
+    order = 8
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         if not ctx.features.continuity:

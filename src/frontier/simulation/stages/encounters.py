@@ -21,6 +21,7 @@ from frontier.simulation.stages.base import TickContext
 class ResolveEncounters:
     name = "resolve_encounters"
     role: str | None = None
+    order = 2
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         queued = (

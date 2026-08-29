@@ -31,16 +31,16 @@ log = logging.getLogger(__name__)
 LOCK_KEY = "frontier:tick"
 
 TICK_STAGES: tuple[Stage, ...] = (
-    SettleTravel(),  # ARCH stage 1
-    ResolveEncounters(),  # ARCH stage 2
-    EconomyStep(),  # ARCH stage 3
-    NpcPopulation(),  # ARCH stage 4, NPC half only
-    TerritoryRecompute(),  # ARCH stage 5
-    MissionLifecycle(),  # ARCH stage 6
-    PsychohistoryUpdate(),  # ARCH stage 7
-    EventPromotion(),  # ARCH stage 9
-    ChronicleAndRetention(),  # ARCH stage 10
-    GrantActionPoints(),  # ARCH stage 11
+    SettleTravel(),
+    ResolveEncounters(),
+    EconomyStep(),
+    NpcPopulation(),  # the NPC half of stage 4 only
+    TerritoryRecompute(),
+    MissionLifecycle(),
+    PsychohistoryUpdate(),
+    EventPromotion(),
+    ChronicleAndRetention(),
+    GrantActionPoints(),
     BuildDigests(),  # ARCH stages 12-13
 )
 
@@ -75,7 +75,13 @@ class TickRunner:
         self._ids = UuidFactory(clock)
 
     async def run(self, stages: tuple[Stage, ...] | None = None) -> TickReport:
-        stages = TICK_STAGES + self._extra if stages is None else stages
+        # Sorted by the stage's own declared number, so a stage loaded by name lands in its
+        # designed place rather than on the end. Stable, so equal numbers keep tuple order.
+        stages = (
+            tuple(sorted(TICK_STAGES + self._extra, key=lambda stage: stage.order))
+            if stages is None
+            else stages
+        )
         async with self._sessions() as session:
             await session.begin()
             if not await self._acquire(session):

@@ -18,6 +18,7 @@ from frontier.simulation.stages.base import TickContext
 class BuildDigests:
     name = "build_digests"
     role: str | None = None
+    order = 12
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         day = ctx.world_day

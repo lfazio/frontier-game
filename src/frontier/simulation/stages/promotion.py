@@ -29,6 +29,7 @@ DEPTH = {Scope.SYSTEM: 3, Scope.REGION: 2, Scope.UNIVERSE: 1}
 class EventPromotion:
     name = "event_promotion"
     role: str | None = None
+    order = 9
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         window = ctx.world_day - ctx.rules.events.promotion_window_cycles

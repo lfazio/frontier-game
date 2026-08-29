@@ -57,6 +57,7 @@ class NpcPopulation:
 
     name = "npc_population"
     role: str | None = None
+    order = 4
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         flows, advanced = await self._aggregate(ctx)

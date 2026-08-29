@@ -40,5 +40,9 @@ class Stage(Protocol):
     name: str
     # A stage may name the database role whose grants bound what it can do.
     role: str | None
+    # Its place in the cycle, numbered as ARCH §9.2 numbers it. The runner sorts by this, so a
+    # stage loaded by name (ARCH ADR-13) can take its proper position without the runner naming
+    # it — which is what keeps an optional stage out of every import graph.
+    order: int
 
     async def run(self, ctx: TickContext) -> dict[str, int]: ...
