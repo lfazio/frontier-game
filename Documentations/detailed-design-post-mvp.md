@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.3 |
+| Version | 0.4 |
 | Date | 2026-08-29 |
 | Scope | Delivery phases **P5, P6, P7 and P7+** (*ARCH §17*), and the deferred systems of *GDD §10.2* |
 | Depends on | `game-design.md` v2.9, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20 |
@@ -35,16 +35,16 @@ about what exists is the difference between "finish it" and "write it".
 | **P0–P4** | Built | `frontier/` server, tick stages 1–7 and 9–13, 132 integration tests |
 | **C0–C6** | Built | `client/` — the whole MVP client, *UX §11* |
 | **P5 — History** | **Built** | Stage 7 with crisis detection; `psycho.history_variables`, `forecasts`, `crises`, `eras`, four region views; era naming in stage 10; `GET /v1/forecasts` and `/v1/history/{eras,crises}`; the Institute as a station type with a restricted `knowledge` market; the `psycho_reader` role |
-| **P6 — The Continuity** | **Partly built, not running** | `frontier/continuity/` with `stage.py` declaring `role = "cont_role"`; `cont.agents`, `cont.cells`, `cont.budget`, `cont.interventions`; the anti-leak suite. **Stage 8 is absent from `TICK_STAGES`**, so the faction does not act |
+| **P6 — The Continuity** | **Built and running behind its flag** | `frontier/continuity/stage.py` (`role = "cont_role"`, `order = 8`), loaded by name from `settings.extra_stages`; `cont.agents`, `cont.cells`, `cont.budget`, `cont.interventions`; fifteen anti-leak probes |
 | **P7 — Clearance and recruitment** | Not built | — |
 | **P7+ — The Harrowing** | Not built | — |
 
 Two consequences follow, and they shape everything below.
 
-**The Continuity is inert, not missing.** Its schema, its role boundary and its import contract all exist and are
-enforced today; `lint-imports` forbids anything importing `frontier.continuity`, and `cont_role` has no grant to
-write `players`, `ships` or `cargo`. Turning the faction on is registering one stage behind one flag — which is
-exactly the shape ADR-13 intended, and the reason the work is small.
+**The Continuity now acts, behind its flag.** Its schema, role boundary and import contract were already enforced —
+`lint-imports` forbids anything importing `frontier.continuity`, and `cont_role` has no grant to write `players`,
+`ships` or `cargo` — and it needed only to be put in its proper place in the cycle (§3.1). With
+`FEATURES_CONTINUITY` off it is inert and every `cont` table stays empty, which `B5` asserts.
 
 **Psychohistory now has a subject.** Crises, eras and the Institute shipped in v0.2–0.3 of this document, so the
 model no longer only measures: it names what is going wrong, history records what it was called, and the Institute
@@ -127,13 +127,22 @@ find is real history rather than something retrofitted (*ARCH §17*, ADR-13).
 
 ## 3.1 Turning it on
 
-The work is deliberately small:
+The work turned out to be smaller still, and one step of it was wrong as first written.
 
-1. Register the stage as **stage 8**, between missions (6/7) and event promotion (9), guarded by
-   `features.continuity` so it is inert unless enabled.
-2. The runner already applies `SET LOCAL ROLE` for a stage that declares one, so the stage runs as `cont_role`
-   with no further wiring.
-3. Extend the anti-leak suite before enabling it anywhere (§3.4).
+The stage is **not** registered in `TICK_STAGES`. It is named in configuration
+(`settings.extra_stages`) and resolved by dotted path at runtime, so `tick.py` never mentions
+it and neither does a stack trace pasted into a public bug report — which is most of what keeps
+*GDD §9.4* true. An earlier draft of this section said to register it in the tuple; that would
+have put the Continuity in the import graph of the thing that runs it and undone the point.
+
+What remained:
+
+1. **Position.** Extra stages were appended, so the faction ran last, after the digests. Every
+   stage now declares its ARCH §9.2 number as `order`, and the runner sorts by it — so a stage
+   loaded by name takes its designed place without the runner naming it. The Continuity declares
+   `order = 8` and now runs between psychohistory (7) and promotion (9), as designed.
+2. **The role.** Already handled: the runner applies `SET LOCAL ROLE` for any stage declaring one.
+3. **The probes.** Six added (§3.4), taking the suite from nine to fifteen.
 
 ## 3.2 What an intervention may do
 
@@ -174,15 +183,27 @@ This phase adds probes to `tests/antileak/`, and they are a merge gate exactly a
 > Membership **MUST NOT** be inferable from any response, error code, timing difference, statistic or ledger entry
 > (*GDD §10.4 C9*).
 
-| Probe | Asserts |
-| --- | --- |
-| `B7` | An intervened system's public projection is byte-identical in shape to an unintervened one |
-| `B8` | `api_role` querying every player-facing endpoint never touches `cont` — verified by grants, not by inspection |
-| `B9` | An agent's command latency distribution is indistinguishable from an ordinary pilot's |
-| `B10` | No ledger entry, digest or chronicle line names an intervention |
+| Probe | Asserts | Built |
+| --- | --- | --- |
+| `B5` | With the flag off, stage 8 does not run and all four `cont` tables stay empty | ✅ |
+| `B6` | A tick opens a budget of `interventions_for(systems)` and spends no more; no intervention exceeds `max_magnitude` | ✅ |
+| `B7` | Every system's public projection has one shape, whether or not its region was leaned on, and none of them carries a population flow | ✅ |
+| `B8` | `api_role` holds no privilege on `cont` — verified from the catalogue, not by inspection | ✅ *(shipped with P6's schema)* |
+| `B9` | No request path moves the Continuity: the intervention count is unchanged across every player-facing endpoint | ✅ |
+| `B10` | Nothing in the AP ledger, the digests, the chronicle or an event payload contains any of the six secret words | ✅ |
 
-`B9` deserves a note: a timing difference is a side channel, so an agent's extra work **MUST** happen in the tick,
-never in the request path. That is why interventions are a stage and not a command.
+`B9` deserves a note. A timing difference is a side channel, so an agent's extra work **MUST** happen in the tick,
+never in the request path — which is why interventions are a stage and not a command. The probe asserts the
+structural fact (a request cannot move the faction) rather than sampling latency, because a timing assertion that
+passes on a quiet machine and fails on a loaded one is not a merge gate.
+
+Two facts about the faction's behaviour are worth recording, because both surprised the tests:
+
+- **It cannot act on a world that has not surprised the Model.** Interventions are driven by deviation, and on a
+  first tick the projection equals the observation exactly, so the deviation is zero and the budget goes unspent.
+  The faction waits for drift by construction.
+- **It leans on regions, not systems**, so a small world can find every region touched at once. A probe that needs
+  an untouched region to compare against is therefore unreliable; `B7` compares *shape* across all systems instead.
 
 ## 3.5 The confidentiality protocol is fiction
 
@@ -340,6 +361,7 @@ These apply to every phase above, and a change that breaks one is a design decis
 | --- | --- | --- | --- |
 | D-71 | The Historical Institute is a station kind with a market whose commodity is `knowledge`, not a new subsystem. | Buying a forecast and buying grain are the same transaction with different goods; a parallel mechanism would duplicate pricing, cargo and refusal handling for no gain. | Yes |
 | D-80 | A restricted commodity is kept out of a market by **not seeding a row**, rather than by a check in the trade command. | Absence needs no enforcement and cannot be bypassed: with no row there is nothing to buy, and the existing `COMMODITY_UNAVAILABLE` already says so in the player's language. A check would have needed the station's type plumbed into command state for a case that cannot arise. | No |
+| D-81 | Every stage declares its ARCH §9.2 number as `order`, and the runner sorts by it. | Extra stages were appended, so a stage loaded by name ran last however the architecture numbered it. Sorting lets an optional stage take its designed position without the runner naming it — the numbering stops being a comment and becomes a fact the runner uses. | No |
 | D-72 | Crisis detection lives inside stage 7 rather than in a stage of its own. | The stage already computes the deviation a crisis is defined by. A separate stage would either recompute it or read the first stage's output, and both are worse than one pass. | Yes |
 | D-73 | Eras are written by the chronicle stage, not by the model. | The model measures; naming a stretch of history is a narrative act, and the chronicle already owns promotion and retention. It also keeps the model's output free of prose. | Yes |
 | D-74 | The Continuity ships as an unregistered stage first: the code, schema, role and import contract exist before the faction acts. | It makes enabling the faction a one-line change under a flag, and it means the anti-leak suite can be written and run against real code before anything is at stake. | No |
@@ -367,6 +389,7 @@ These apply to every phase above, and a change that breaks one is a design decis
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.4 | 2026-08-29 | P6 built: the Continuity acts at stage 8 behind `FEATURES_CONTINUITY`, ARCH's stage numbers became executable as `Stage.order` (D-81), and the anti-leak suite went from nine probes to fifteen. §3.1 corrected — the stage is loaded by name, never registered in `TICK_STAGES`. |
 | 0.3 | 2026-08-29 | P5 complete: the Historical Institute ships as a station type with a restricted `knowledge` market (D-80). Fourteen Institutes in the generated world, and no other station stocks it. |
 | 0.2 | 2026-08-29 | P5 part one built: crises and eras. `psycho.crises` and `psycho.eras`, detection folded into stage 7, era naming in stage 10, and `GET /v1/history/{eras,crises}`. B1 corrected — a crisis is public because the star chart already is, so the charted-region filter it described would have restricted nothing. |
 | 0.1 | 2026-08-29 | First post-MVP detailed design: P5 History, P6 the Continuity as an AI, P7 recruitment, clearance and the channel, P7+ the Harrowing, and the deferred systems. Decisions D-71 to D-79, acceptance criteria B1–B16. |
