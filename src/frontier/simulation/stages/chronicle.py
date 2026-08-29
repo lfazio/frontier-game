@@ -28,7 +28,49 @@ class ChronicleAndRetention:
     async def run(self, ctx: TickContext) -> dict[str, int]:
         kept = await self._promote_to_history(ctx)
         expired = await self._expire(ctx)
-        return {"chronicled": kept, "events_expired": expired}
+        named = await self._name_the_era(ctx)
+        return {"chronicled": kept, "events_expired": expired, "eras_named": named}
+
+    async def _name_the_era(self, ctx: TickContext) -> int:
+        """Close an era when a crisis grave enough to define one is resolved — D-73.
+
+        The Model measures; naming a stretch of history is a narrative act, which is why it
+        happens here and not in stage 7.
+        """
+        if not ctx.features.psychohistory:
+            return 0
+
+        current = (
+            await ctx.session.execute(select(models.Era).where(models.Era.ended_on.is_(None)))
+        ).scalar_one_or_none()
+        if current is None:
+            ctx.session.add(models.Era(id=uuid4(), name=_era_name(1), began_on=ctx.world_day, ended_on=None))
+            return 1
+
+        defining = (
+            await ctx.session.execute(
+                select(models.Crisis)
+                .where(
+                    models.Crisis.resolved_on == ctx.world_day,
+                    models.Crisis.severity >= ctx.rules.events.era_threshold,
+                )
+                .order_by(models.Crisis.severity.desc(), models.Crisis.id)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if defining is None:
+            return 0
+
+        current.ended_on = ctx.world_day
+        current.summary = (
+            f"Ended with a {defining.variable.replace('_', ' ')} crisis of severity {defining.severity}."
+        )
+        await ctx.session.flush()
+        count = (await ctx.session.execute(select(func.count()).select_from(models.Era))).scalar_one()
+        ctx.session.add(
+            models.Era(id=uuid4(), name=_era_name(count + 1), began_on=ctx.world_day, ended_on=None)
+        )
+        return 1
 
     async def _promote_to_history(self, ctx: TickContext) -> int:
         rows = (
@@ -105,3 +147,11 @@ class ChronicleAndRetention:
             )
             total += removed
         return total
+
+
+# Original naming: an ordinal, not a borrowed literary one (GDD §10.4 C10).
+_ORDINALS = ("First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth")
+
+
+def _era_name(index: int) -> str:
+    return f"The {_ORDINALS[index - 1]} Age" if index <= len(_ORDINALS) else f"Age {index}"

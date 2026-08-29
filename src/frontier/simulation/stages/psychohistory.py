@@ -24,6 +24,8 @@ from frontier.domain.psychohistory.model import (
     forecast,
     observe,
     project,
+    severity_of,
+    strains,
 )
 from frontier.simulation.stages.base import TickContext
 
@@ -49,10 +51,12 @@ class PsychohistoryUpdate:
         await self._clear_day(ctx)
 
         published = 0
+        strained: dict[UUID, dict[Variable, float]] = {}
         for region_id, sample in sorted(samples.items(), key=lambda kv: str(kv[0])):
             observed = observe(sample)
             expected = project(previous.get(region_id, {}), observed)
             drift = deviation(observed, expected)
+            strained[region_id] = strains(observed, expected)
 
             for variable, value in observed.items():
                 ctx.session.add(
@@ -79,8 +83,75 @@ class PsychohistoryUpdate:
                 )
                 published += 1
 
+        opened, resolved = await self._crises(ctx, strained)
         await self._prune(ctx)
-        return {"regions": len(samples), "forecasts": published}
+        return {
+            "regions": len(samples),
+            "forecasts": published,
+            "crises_opened": opened,
+            "crises_resolved": resolved,
+        }
+
+    async def _crises(self, ctx: TickContext, strained: dict[UUID, dict[Variable, float]]) -> tuple[int, int]:
+        """Open a crisis where a strain has held, and close one where it has let go.
+
+        Detection reads the stored variables rather than this cycle's numbers alone: a crisis is
+        a trend, and one bad cycle is not one (PSDD §2.2).
+        """
+        # This cycle's variables are still pending in the session, and the window is counted in
+        # SQL: without the flush the newest day of the trend is invisible to the query.
+        await ctx.session.flush()
+
+        rules = ctx.rules.events
+        open_now = {
+            (row.region_id, row.variable): row
+            for row in (
+                await ctx.session.execute(select(models.Crisis).where(models.Crisis.resolved_on.is_(None)))
+            ).scalars()
+        }
+        sustained = await self._sustained(ctx, rules.crisis_threshold, rules.crisis_window)
+
+        opened = resolved = 0
+        for region_id, per_variable in sorted(strained.items(), key=lambda kv: str(kv[0])):
+            for variable, strain in sorted(per_variable.items(), key=lambda kv: kv[0].value):
+                key = (region_id, variable.value)
+                existing = open_now.get(key)
+                if existing is not None:
+                    # The world put it right: a strain back under the threshold closes it.
+                    if strain < rules.crisis_threshold:
+                        existing.resolved_on = ctx.world_day
+                        resolved += 1
+                    continue
+                if key not in sustained:
+                    continue
+                ctx.session.add(
+                    models.Crisis(
+                        id=uuid4(),
+                        region_id=region_id,
+                        variable=variable.value,
+                        opened_on=ctx.world_day,
+                        expires_on=ctx.world_day + rules.crisis_duration,
+                        resolved_on=None,
+                        severity=severity_of(strain, rules.crisis_threshold),
+                        magnitude=_dec(strain),
+                    )
+                )
+                opened += 1
+        return opened, resolved
+
+    async def _sustained(self, ctx: TickContext, threshold: float, window: int) -> set[tuple[UUID, str]]:
+        """Region and variable pairs strained beyond the threshold on every day of the window."""
+        rows = (
+            await ctx.session.execute(
+                text(
+                    "SELECT region_id, variable, count(*) AS days "
+                    "FROM psycho.history_variables "
+                    "WHERE world_day > :since AND abs(observed - expected) >= :threshold "
+                    "GROUP BY region_id, variable"
+                ).bindparams(since=ctx.world_day - window, threshold=threshold)
+            )
+        ).all()
+        return {(row.region_id, row.variable) for row in rows if row.days >= window}
 
     async def _clear_day(self, ctx: TickContext) -> None:
         await ctx.session.execute(
