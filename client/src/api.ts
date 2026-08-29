@@ -251,10 +251,39 @@ async function post(url: string, body: unknown): Promise<string> {
   return payload.access_token as string;
 }
 
+// How an address is written for a person: `G0/R0:-1/S2:4/P3:4`. The stored form keeps `ltree`'s
+// alphabet (`ga0_0/re0_n1/...`, `n` for a negative), which is a database detail, not a notation
+// anyone should have to read.
+const LEVEL_LETTER: Record<string, string> = {
+  ga: "G",
+  re: "R",
+  sy: "S",
+  pl: "P",
+  se: "Se",
+  lo: "L",
+};
+
+function readPart(part: string): number {
+  return part.startsWith("n") ? -Number(part.slice(1)) : Number(part);
+}
+
+export function formatAddress(path: string): string {
+  return path
+    .split("/")
+    .map((token) => {
+      const letter = LEVEL_LETTER[token.slice(0, 2)];
+      if (!letter) return token;
+      const [q, r] = token.slice(2).split("_").map(readPart);
+      // A galaxy is a single deployment, so it is numbered rather than given a coordinate.
+      return letter === "G" ? `G${r === 0 ? q : `${q}:${r}`}` : `${letter}${q}:${r}`;
+    })
+    .join("/");
+}
+
 /** `ga0_0/re1_0/sy4_2/pl3_1` -> its axial pair. */
 export function tipOf(path: string): { q: number; r: number } {
   const last = path.split("/").pop() ?? "";
-  const [q, r] = last.slice(2).split("_").map((n) => (n.startsWith("n") ? -Number(n.slice(1)) : Number(n)));
+  const [q, r] = last.slice(2).split("_").map(readPart);
   return { q, r };
 }
 
