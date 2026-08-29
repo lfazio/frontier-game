@@ -768,3 +768,28 @@ def test_what_is_inside_a_system_still_needs_discovering(client, clean):
 
     assert all(e["kind"] in {"station", "planet", "star"} for e in inside["entries"])
     assert client.get("/v1/watch/map", params={"path": str(system)}).json()["entries"] == []
+
+
+def test_a_new_hull_takes_its_jump_range_from_the_rules(client, clean, rules):
+    """The range a ship has and the range `/v1/rules` advertises must be the same number."""
+    headers = register(client)
+
+    ship = me(client, headers)["ship"]
+    advertised = client.get("/v1/rules", headers=headers).json()["world"]["jump_range_default_ly"]
+
+    assert ship["jump_range_ly"] == rules.world.jump_range_default_ly
+    assert advertised == ship["jump_range_ly"]
+    # The same mapping used to drop these, so `/v1/me` reported a shieldless hull to everyone.
+    assert ship["shields_max"] > 0
+    assert ship["shields"] == ship["shields_max"]
+    assert ship["in_transit"] is False
+
+
+def test_a_ship_reports_itself_in_transit_while_a_jump_is_in_flight(client, clean):
+    """Nothing on the ship row records a jump; the unsettled journey does — GDD §5.1."""
+    headers = register(client)
+    assert me(client, headers)["ship"]["in_transit"] is False
+
+    send(client, headers, action="jump", to_system=another_system(client, headers)["path"])
+
+    assert me(client, headers)["ship"]["in_transit"] is True

@@ -42,7 +42,7 @@ def executor(sessions, clean, rules_):
 
 @pytest.fixture
 async def player(sessions, rules_):
-    registrar = SqlRegistrar(sessions, rules_.ap.daily_grant)
+    registrar = SqlRegistrar(sessions, rules_.ap.daily_grant, rules_.world.jump_range_default_ly)
     return await registrar.register(f"{uuid4().hex}@x.io", "correct horse battery", uuid4().hex[:12])
 
 
