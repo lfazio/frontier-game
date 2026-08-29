@@ -88,7 +88,10 @@ def seed_markets(rows: list[GeneratedLocation], rules: RuleSet, rng_for: Any) ->
             continue
         profile = economy.station_type.get(str(row.attrs.get("station_type", "")), {})
         rng = rng_for("market", str(row.id))
+        station_type = str(row.attrs.get("station_type", "")) or None
         for commodity, base_price in economy.commodities.items():
+            if not economy.tradable_at(commodity, station_type):
+                continue
             target = rng.randint(60, 140)
             if commodity == profile.get("produces"):
                 target *= 3

@@ -19,7 +19,7 @@ NAMESPACE: Final = UUID("2f9c0a5e-2b7a-4c31-9d1a-4a0d5f1e7b00")
 PLANETS_PER_SYSTEM: Final = (3, 8)
 STATIONS_PER_SYSTEM: Final = (1, 3)
 MIN_SYSTEM_SEPARATION: Final = 2
-STATION_TYPES: Final = ("agricultural", "industrial", "mining", "refinery", "trade_hub")
+STATION_TYPES: Final = ("agricultural", "industrial", "mining", "refinery", "trade_hub", "institute")
 FACTIONS: Final = ("empire", "republic", "pirates")
 
 
