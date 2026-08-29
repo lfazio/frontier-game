@@ -17,7 +17,10 @@ from frontier.application.commands.missions import (
 )
 from frontier.application.commands.move import MoveCommand
 from frontier.application.commands.navigation import JumpCommand, ScanCommand
-from frontier.application.commands.send_message import Channel, SendMessageCommand
+from frontier.application.commands.send_message import (
+    SendMessageCommand,
+    channel_or_none,
+)
 from frontier.application.commands.teams import (
     CreateTeamCommand,
     DefectCommand,
@@ -115,7 +118,10 @@ def build(body: CommandBody) -> Command:
             return AttackCommand(id=new_id, idempotency_key=key, target_ship_id=body.target_ship_id)
         case schemas.SendMessageBody():
             return SendMessageCommand(
-                id=new_id, idempotency_key=key, channel=Channel(body.channel), text=body.text
+                id=new_id,
+                idempotency_key=key,
+                channel=channel_or_none(body.channel),
+                text=body.text,
             )
         case schemas.StandingOrdersBody():
             return SetStandingOrdersCommand(

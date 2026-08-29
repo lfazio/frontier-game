@@ -31,6 +31,7 @@ class Player(Protocol):
     credits: int
     team_id: UUID | None
     faction_id: int | None
+    clearance: int
 
 
 class PlayerRepo(Protocol):

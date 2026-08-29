@@ -42,7 +42,9 @@ class MoveBody(BaseModel):
 
 class SendMessageBody(BaseModel):
     action: Literal["send_message"]
-    channel: Literal["local", "system", "team"]
+    # Not a Literal: an unknown channel and a channel the sender may not use must be refused
+    # the same way, or the set of names that validate would itself be an answer (GDD §9.4).
+    channel: str = Field(min_length=1, max_length=24)
     text: str = Field(min_length=1, max_length=500)
     idempotency_key: UUID
 

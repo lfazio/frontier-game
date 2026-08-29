@@ -51,6 +51,7 @@ class EventDraft:
     severity: Severity = Severity.MINOR
     participants: frozenset[UUID] = field(default_factory=frozenset)
     payload: dict[str, Any] = field(default_factory=dict)
+    clearance: int = 0
 
 
 @dataclass(frozen=True, slots=True)

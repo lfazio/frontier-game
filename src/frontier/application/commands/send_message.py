@@ -20,20 +20,33 @@ class Channel(StrEnum):
     LOCAL = "local"
     SYSTEM = "system"
     TEAM = "team"
+    # A fourth channel, carried by entitlement rather than by position: no relay, no range, no
+    # delay, anywhere in the world. Speaking on it needs an entitlement nobody else holds, and
+    # asking for it without one is refused exactly as an unknown channel would be.
+    DIRECTORATE = "directorate"
 
 
 CHANNEL_SCOPE: dict[Channel, tuple[Scope, Visibility]] = {
     Channel.LOCAL: (Scope.LOCAL, Visibility.PUBLIC),
     Channel.SYSTEM: (Scope.SYSTEM, Visibility.PUBLIC),
     Channel.TEAM: (Scope.LOCAL, Visibility.TEAM),
+    Channel.DIRECTORATE: (Scope.UNIVERSE, Visibility.CLEARANCE),
 }
+
+
+def channel_or_none(name: str) -> Channel | None:
+    """An unknown name is not an error here; the command refuses it like any other it cannot use."""
+    try:
+        return Channel(name)
+    except ValueError:
+        return None
 
 
 @dataclass(slots=True)
 class SendMessageCommand:
     id: UUID
     idempotency_key: UUID
-    channel: Channel
+    channel: Channel | None
     text: str
     action: str = field(default="send_message", init=False)
 
@@ -45,13 +58,23 @@ class SendMessageCommand:
             return Rejected(RejectionCode.TARGET_UNKNOWN, {"reason": "player has no ship"})
         if not self.text.strip():
             return Rejected(RejectionCode.MALFORMED_MESSAGE)
+        # An unknown channel and one the sender is not entitled to use are refused identically,
+        # so the set of channels that exist cannot be probed for (GDD §10.4 C9).
+        if self.channel is None or not self._may_speak(state):
+            return Rejected(RejectionCode.MALFORMED_MESSAGE)
         return Accepted(ap_cost=rules.ap_cost(ActionKind.MESSAGE))
 
+    def _may_speak(self, state: State) -> bool:
+        if self.channel is Channel.DIRECTORATE:
+            return state.player.clearance >= 1
+        return True
+
     def apply(self, state: State, accepted: Accepted, rules: RuleSet, rng: RngPort) -> list[EventDraft]:
-        assert state.ship is not None
+        assert state.ship is not None and self.channel is not None
         scope, visibility = CHANNEL_SCOPE[self.channel]
         return [
             EventDraft(
+                clearance=1 if visibility is Visibility.CLEARANCE else 0,
                 type=EventType.MESSAGE,
                 origin=state.ship.position,
                 scope=scope,
