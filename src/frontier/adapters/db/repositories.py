@@ -8,6 +8,7 @@ from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from frontier.adapters.db import models
+from frontier.adapters.db.state_store import to_domain
 from frontier.domain.fleet.ship import Ship
 from frontier.domain.hex.coordinates import HexAddr
 
@@ -57,19 +58,21 @@ class ShipRepo:
             )
         ).scalar_one()
         self._systems[row.id] = row.system_id
-        return Ship(
-            id=row.id,
-            player_id=row.player_id,
-            position=row.position_path,
-            hull=row.hull,
-            hull_max=row.hull_max,
-            fuel=row.fuel,
-            fuel_max=row.fuel_max,
-            cargo_max=row.cargo_max,
-            sensor_range=row.sensor_range,
-            docked_at=row.docked_at,
-            destroyed_on=row.destroyed_on,
-        )
+        # One mapper for one table. Listing the columns again here is how this repository came
+        # to silently drop shields and jump range, leaving `/v1/me` reporting the defaults.
+        ship = to_domain(row)
+        ship.in_transit = await self._in_transit(row.id)
+        return ship
+
+    async def _in_transit(self, ship_id: UUID) -> bool:
+        """A jump in flight is an unsettled journey; nothing on the ship row records it."""
+        return (
+            await self._s.execute(
+                select(models.Journey.id)
+                .where(models.Journey.ship_id == ship_id, models.Journey.settled.is_(False))
+                .limit(1)
+            )
+        ).scalar_one_or_none() is not None
 
     async def save(self, ship: Ship) -> None:
         await self._s.execute(
