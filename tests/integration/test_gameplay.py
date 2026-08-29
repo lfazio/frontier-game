@@ -793,3 +793,73 @@ def test_a_ship_reports_itself_in_transit_while_a_jump_is_in_flight(client, clea
     send(client, headers, action="jump", to_system=another_system(client, headers)["path"])
 
     assert me(client, headers)["ship"]["in_transit"] is True
+
+
+# --- the Historical Institute (PSDD §2.3) ----------------------------------------------------
+
+
+def berth_at_an_institute(client, headers, clean) -> str:
+    """Put the player in an Institute's berth. Institutes are scattered, and flying to one is
+    not what these tests are about."""
+
+    async def move_in() -> str:
+        engine = make_engine(clean.database_url)
+        async with make_sessionmaker(engine)() as session, session.begin():
+            station = (
+                (
+                    await session.execute(
+                        select(models.Location).where(
+                            models.Location.kind == "station",
+                            models.Location.attrs["station_type"].astext == "institute",
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            await session.execute(
+                update(models.Ship).values(
+                    docked_at=station.id, position_path=station.path, system_id=station.parent_id
+                )
+            )
+            found = str(station.id)
+        await engine.dispose()
+        return found
+
+    return asyncio.run(move_in())
+
+
+def test_only_an_institute_deals_in_knowledge(client, clean):
+    """The non-transferable default, expressed as data: no ordinary market stocks it."""
+    headers = register(client)
+    ordinary = _dock(client, headers)
+
+    market = client.get(f"/v1/stations/{ordinary}/market", headers=headers).json()
+
+    assert market["station"]["kind"] != "institute"
+    assert "knowledge" not in {line["commodity"] for line in market["commodities"]}
+    assert send(client, headers, action="buy", commodity="knowledge", qty=1).json()["code"] == (
+        "COMMODITY_UNAVAILABLE"
+    )
+
+
+def test_knowledge_is_bought_and_sold_back_at_an_institute(client, clean):
+    headers = register(client)
+    institute = berth_at_an_institute(client, headers, clean)
+
+    market = client.get(f"/v1/stations/{institute}/market", headers=headers).json()
+    line = next(c for c in market["commodities"] if c["commodity"] == "knowledge")
+    before = market["you"]["credits"]
+
+    assert market["station"]["kind"] == "institute"
+    assert market["station"]["produces"] == "knowledge"
+    assert send(client, headers, action="buy", commodity="knowledge", qty=2).status_code == 202
+
+    held = client.get(f"/v1/stations/{institute}/market", headers=headers).json()
+    bought = next(c for c in held["commodities"] if c["commodity"] == "knowledge")
+    assert bought["held"] == 2
+    assert held["you"]["credits"] == before - line["buy"] * 2
+
+    # Read and sold back: an Institute buys its own knowledge in again.
+    assert send(client, headers, action="sell", commodity="knowledge", qty=2).status_code == 202
+    assert not [c for c in me(client, headers)["cargo"] if c["commodity"] == "knowledge"]

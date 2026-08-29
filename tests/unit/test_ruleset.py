@@ -45,3 +45,35 @@ def _world_fields():
     from frontier.domain.rules.ruleset import WorldRules
 
     return WorldRules.__dataclass_fields__
+
+
+def test_a_restricted_commodity_is_stocked_only_by_its_issuer(rules):
+    """PSDD §2.3: the non-transferable default is data, not a rule buried in code."""
+    assert rules.economy.tradable_at("knowledge", "institute")
+    assert not rules.economy.tradable_at("knowledge", "mining")
+    assert not rules.economy.tradable_at("knowledge", None)
+    # Everything unrestricted trades anywhere, including at an Institute.
+    assert rules.economy.tradable_at("grain", "institute")
+    assert rules.economy.tradable_at("grain", None)
+
+
+def test_restricting_something_that_does_not_exist_fails_the_load(rules, tmp_path):
+    """A typo in `restricted` is caught at load time, never at play time."""
+    from pathlib import Path
+
+    from frontier.adapters.rules_loader import load_ruleset
+
+    shipped = Path(__file__).resolve().parents[2] / "data" / "rulesets" / "2026.1"
+    root = tmp_path / "rulesets" / "2026.1"
+    root.mkdir(parents=True)
+    for source in shipped.glob("*.toml"):
+        (root / source.name).write_bytes(source.read_bytes())
+
+    economy = (root / "economy.toml").read_text()
+    (root / "economy.toml").write_text(economy.replace("[restricted]\nknowledge =", "[restricted]\nrumour ="))
+    with pytest.raises(RuleSetError, match="no such commodity"):
+        load_ruleset(tmp_path / "rulesets", "2026.1")
+
+    (root / "economy.toml").write_text(economy.replace('knowledge = "institute"', 'knowledge = "museum"'))
+    with pytest.raises(RuleSetError, match="no such station type"):
+        load_ruleset(tmp_path / "rulesets", "2026.1")
