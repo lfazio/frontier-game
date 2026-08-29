@@ -47,6 +47,27 @@ def me(client, headers):
     return client.get("/v1/me", headers=headers).json()
 
 
+def another_system(client, headers) -> dict:
+    """The nearest *system* elsewhere in the region.
+
+    A region chart is filled space — most of its hexes are empty (D-68) — so picking "any entry
+    that is not mine" would pick a patch of nothing, and nothing is not a jump target.
+    """
+    position = HexAddr.parse(me(client, headers)["ship"]["position"])
+    here = position.parent()
+    assert here is not None
+    entries = client.get(f"/v1/map/tiles?path={here.parent()}", headers=headers).json()["entries"]
+    mine = here.tip
+    systems = [e for e in entries if e["kind"] == "system" and e["path"] != str(here)]
+    assert systems, "a region with only one system cannot exercise jumping"
+    return min(
+        systems,
+        key=lambda e: (
+            (abs(e["q"] - mine.q) + abs(e["r"] - mine.r) + abs(e["q"] + e["r"] - mine.q - mine.r)) // 2
+        ),
+    )
+
+
 def home_station(client, headers) -> dict:
     position = HexAddr.parse(me(client, headers)["ship"]["position"])
     entries = client.get(f"/v1/map/tiles?path={position.parent()}", headers=headers).json()["entries"]
@@ -122,9 +143,7 @@ def test_launching_frees_the_ship_to_move(client):
 def test_a_jump_leaves_the_ship_in_transit_until_the_tick(client):
     headers = register(client)
     position = HexAddr.parse(me(client, headers)["ship"]["position"])
-    region = position.parent().parent()
-    systems = client.get(f"/v1/map/tiles?path={region}", headers=headers).json()["entries"]
-    elsewhere = next(e for e in systems if e["path"] != str(position.parent()))
+    elsewhere = another_system(client, headers)
 
     response = send(client, headers, action="jump", to_system=elsewhere["path"])
 
@@ -138,11 +157,8 @@ def test_the_star_chart_is_public_but_system_contents_are_not(client):
     """Criterion A11: an unscanned system reveals nothing about what is inside it."""
     headers = register(client)
     position = HexAddr.parse(me(client, headers)["ship"]["position"])
-    region = position.parent().parent()
-    systems = client.get(f"/v1/map/tiles?path={region}", headers=headers).json()["entries"]
-    elsewhere = next(e for e in systems if e["path"] != str(position.parent()))
+    elsewhere = another_system(client, headers)
 
-    assert len(systems) > 1
     assert client.get(f"/v1/map/tiles?path={elsewhere['path']}", headers=headers).json()["entries"] == []
     assert client.get(f"/v1/map/tiles?path={position.parent()}", headers=headers).json()["entries"]
 
@@ -242,10 +258,7 @@ def test_a_jump_beyond_the_hulls_range_is_refused(client, clean):
 
     asyncio.run(clip_the_range())
 
-    position = HexAddr.parse(me(client, headers)["ship"]["position"])
-    region = position.parent().parent()
-    systems = client.get(f"/v1/map/tiles?path={region}", headers=headers).json()["entries"]
-    elsewhere = next(e for e in systems if e["path"] != str(position.parent()))
+    elsewhere = another_system(client, headers)
 
     response = send(client, headers, action="jump", to_system=elsewhere["path"])
 
@@ -723,7 +736,9 @@ def test_a_player_never_sees_less_of_the_chart_than_a_spectator(client, clean):
     """Watch mode must stay strictly weaker than any player's view — UX §9."""
     headers = register(client)
 
-    for path in ("ga0_0", "ga0_0/re0_n1"):
+    home = HexAddr.parse(me(client, headers)["ship"]["position"])
+    region = home.parent().parent()
+    for path in ("ga0_0", str(region)):
         spectator = client.get("/v1/watch/map", params={"path": path}).json()
         player = client.get("/v1/map/tiles", params={"path": path}, headers=headers).json()
 

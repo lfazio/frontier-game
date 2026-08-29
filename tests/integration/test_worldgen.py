@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from frontier.adapters.clock import SeededRng
 from frontier.adapters.db import models
 from frontier.domain.hex.coordinates import Level
-from frontier.worldgen.generator import REGIONS, generate, levels_used, summarise
+from frontier.worldgen.generator import Shape, generate, levels_used, summarise
 
 pytestmark = pytest.mark.integration
 
@@ -29,7 +29,7 @@ def test_the_generated_shape_matches_the_design():
     rows = generate(SeededRng("shape").for_)
     counts = summarise(rows)
     assert counts["galaxy"] == 1
-    assert counts["region"] == REGIONS
+    assert counts["region"] == Shape().regions
     assert 40 <= counts["system"] <= 56
     assert counts["star"] == counts["system"]
     assert levels_used(rows) == {Level.GALAXY, Level.REGION, Level.SYSTEM, Level.PLANET}
@@ -73,3 +73,38 @@ async def test_home_systems_start_discovered(sessions):
             )
         ).scalar_one()
     assert discovered > 0
+
+
+def test_a_region_is_filled_space_not_a_scatter_of_systems():
+    """Every region hex is a row, empty ones included — D-17, one level up."""
+    shape = Shape(regions=2, region_radius=4, system_radius=2, systems_per_region=(3, 5))
+    rows = generate(SeededRng("a-seed").for_, shape)
+
+    hexes_in_a_disc = 1 + 3 * shape.region_radius * (shape.region_radius + 1)
+    for region in (r for r in rows if r.kind == "region"):
+        children = [r for r in rows if r.parent_id == region.id]
+        assert len(children) == hexes_in_a_disc
+        assert {r.kind for r in children} == {"system", "void"}
+
+
+def test_the_galaxy_is_one_connected_shape():
+    """Regions pack from the centre, so the galaxy map has no holes in it."""
+    rows = generate(SeededRng("a-seed").for_, Shape(regions=4, region_radius=2, system_radius=2))
+    regions = [(r.q, r.r) for r in rows if r.kind == "region"]
+
+    for spot in regions[1:]:
+        touching = any(
+            (abs(spot[0] - o[0]) + abs(spot[1] - o[1]) + abs(spot[0] + spot[1] - o[0] - o[1])) / 2 == 1
+            for o in regions
+            if o != spot
+        )
+        assert touching, f"region at {spot} is detached from the rest of the galaxy"
+
+
+def test_the_shape_is_rule_data_not_a_constant():
+    """A bigger region is more empty space around the same systems."""
+    small = generate(SeededRng("a-seed").for_, Shape(regions=1, region_radius=3, system_radius=2))
+    large = generate(SeededRng("a-seed").for_, Shape(regions=1, region_radius=9, system_radius=2))
+
+    voids = lambda rows: len([r for r in rows if r.kind == "void" and r.level == 1 + 1])  # noqa: E731
+    assert voids(large) > voids(small)
