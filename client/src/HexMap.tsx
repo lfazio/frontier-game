@@ -1,28 +1,50 @@
 import { useEffect, useRef, useState } from "react";
 import { FACTIONS, type Tile, type TileEntry } from "./api";
+import { GUTTER, drawAxes } from "./axes";
 
 // Canvas rather than SVG (UX §8.4): a region view holds hundreds of marks and a system board
 // holds 217, which is more layout work than the DOM should be asked for while panning.
 // Canvas has no accessibility tree, so the textual list below the board is not a courtesy —
 // it is the only way a screen reader can perceive the map at all.
 
-const SIZE = 26;
+const MAX_SIZE = 26;
 const SQRT3 = Math.sqrt(3);
 
 /** Flat-top axial to pixels. The same layout the design assumes throughout. */
-function toPixel(q: number, r: number): { x: number; y: number } {
-  return { x: SIZE * 1.5 * q, y: SIZE * SQRT3 * (r + q / 2) };
+function toPixel(q: number, r: number, size: number): { x: number; y: number } {
+  return { x: size * 1.5 * q, y: size * SQRT3 * (r + q / 2) };
 }
 
-function hexPath(context: CanvasRenderingContext2D, x: number, y: number): void {
+function hexPath(context: CanvasRenderingContext2D, x: number, y: number, size: number): void {
   context.beginPath();
   for (let corner = 0; corner < 6; corner += 1) {
     const angle = (Math.PI / 180) * (60 * corner);
-    const px = x + SIZE * Math.cos(angle);
-    const py = y + SIZE * Math.sin(angle);
+    const px = x + size * Math.cos(angle);
+    const py = y + size * Math.sin(angle);
     corner === 0 ? context.moveTo(px, py) : context.lineTo(px, py);
   }
   context.closePath();
+}
+
+/** A region is a filled disc whose radius is rule data, so the hex size has to follow it. */
+function layoutFor(entries: TileEntry[], width: number, height: number) {
+  const span = entries.reduce(
+    (most, e) => Math.max(most, (Math.abs(e.q) + Math.abs(e.r) + Math.abs(e.q + e.r)) / 2),
+    0,
+  );
+  const across = 2 * span + 1;
+  // The rulers need room, so the board is fitted inside them rather than under them.
+  const room = { w: Math.max(40, width - GUTTER * 2), h: Math.max(40, height - GUTTER * 2) };
+  const size = Math.max(3, Math.min(MAX_SIZE, Math.min(room.w / (across * 1.6), room.h / (across * SQRT3))));
+
+  const points = entries.map((e) => toPixel(e.q, e.r, size));
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  return {
+    size,
+    offsetX: width / 2 - (Math.min(...xs) + Math.max(...xs)) / 2 + GUTTER / 2,
+    offsetY: height / 2 - (Math.min(...ys) + Math.max(...ys)) / 2 + GUTTER / 2,
+  };
 }
 
 interface Props {
@@ -35,6 +57,8 @@ export function HexMap({ tile, onSelect, selected }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [focus, setFocus] = useState(0);
   const entries = tile?.entries ?? [];
+  const places = entries.filter((entry) => entry.kind !== "void");
+  const empties = entries.length - places.length;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -58,34 +82,36 @@ export function HexMap({ tile, onSelect, selected }: Props) {
     }
 
     // Centre whatever the tile contains, whatever its coordinates happen to be.
-    const points = entries.map((e) => toPixel(e.q, e.r));
-    const minX = Math.min(...points.map((p) => p.x));
-    const maxX = Math.max(...points.map((p) => p.x));
-    const minY = Math.min(...points.map((p) => p.y));
-    const maxY = Math.max(...points.map((p) => p.y));
-    const offsetX = width / 2 - (minX + maxX) / 2;
-    const offsetY = height / 2 - (minY + maxY) / 2;
+    const { size, offsetX, offsetY } = layoutFor(entries, width, height);
 
     entries.forEach((entry, index) => {
-      const { x, y } = toPixel(entry.q, entry.r);
+      const { x, y } = toPixel(entry.q, entry.r, size);
       const cx = x + offsetX;
       const cy = y + offsetY;
       const faction = entry.controller ? FACTIONS[entry.controller] : undefined;
+      // Empty space is drawn, not omitted: it is somewhere, and the chart is continuous.
+      const empty = entry.kind === "void";
 
-      hexPath(context, cx, cy);
-      context.fillStyle = faction ? `${faction.tint}44` : "#1b2129";
+      hexPath(context, cx, cy, size);
+      context.fillStyle = empty ? "#11161b" : faction ? `${faction.tint}44` : "#1b2129";
       context.fill();
       context.lineWidth = entry.path === selected ? 3 : 1;
       context.strokeStyle =
-        entry.path === selected ? "#e8c07d" : index === focus ? "#7f8c99" : "#2c343d";
+        entry.path === selected ? "#e8c07d" : index === focus ? "#7f8c99" : empty ? "#1c232a" : "#2c343d";
       context.stroke();
 
+      if (empty || size < 9) return;
       context.fillStyle = "#d7dde4";
-      context.font = "11px ui-sans-serif, system-ui, sans-serif";
+      context.font = `${Math.round(size * 0.42)}px ui-sans-serif, system-ui, sans-serif`;
       context.textAlign = "center";
       // Control is a letter as well as a tint: never colour alone (UX §8.3).
-      context.fillText(faction ? faction.letter : "·", cx, cy + 4);
+      context.fillText(faction ? faction.letter : "·", cx, cy + size * 0.15);
     });
+
+    drawAxes(context, entries, (q, r) => {
+      const { x, y } = toPixel(q, r, size);
+      return { x: x + offsetX, y: y + offsetY };
+    }, size);
   }, [entries, selected, focus]);
 
   function pick(index: number): void {
@@ -103,7 +129,7 @@ export function HexMap({ tile, onSelect, selected }: Props) {
         className="board"
         tabIndex={0}
         role="application"
-        aria-label={`Star chart, ${entries.length} places`}
+        aria-label={`Star chart, ${places.length} places in ${entries.length} hexes`}
         onKeyDown={(event) => {
           if (event.key === "ArrowRight" || event.key === "ArrowDown") {
             event.preventDefault();
@@ -122,20 +148,15 @@ export function HexMap({ tile, onSelect, selected }: Props) {
           const box = canvas.getBoundingClientRect();
           const px = event.clientX - box.left;
           const py = event.clientY - box.top;
-          const points = entries.map((e) => toPixel(e.q, e.r));
-          const minX = Math.min(...points.map((p) => p.x));
-          const maxX = Math.max(...points.map((p) => p.x));
-          const minY = Math.min(...points.map((p) => p.y));
-          const maxY = Math.max(...points.map((p) => p.y));
-          const offsetX = box.width / 2 - (minX + maxX) / 2;
-          const offsetY = box.height / 2 - (minY + maxY) / 2;
+          const { size, offsetX, offsetY } = layoutFor(entries, box.width, box.height);
           let best = -1;
           let bestDistance = Infinity;
-          points.forEach((point, index) => {
+          entries.forEach((entry, index) => {
+            const point = toPixel(entry.q, entry.r, size);
             const dx = point.x + offsetX - px;
             const dy = point.y + offsetY - py;
             const distance = dx * dx + dy * dy;
-            if (distance < bestDistance && distance < SIZE * SIZE) {
+            if (distance < bestDistance && distance < size * size) {
               bestDistance = distance;
               best = index;
             }
@@ -143,9 +164,10 @@ export function HexMap({ tile, onSelect, selected }: Props) {
           if (best >= 0) pick(best);
         }}
       />
-      {/* The map as text, for anyone who cannot see a canvas. Same data, same order. */}
+      {/* The map as text, for anyone who cannot see a canvas. Empty space is summarised rather
+          than listed hex by hex: hundreds of identical entries would bury the places that matter. */}
       <ul className="chart" aria-label="Places on this chart">
-        {entries.map((entry) => (
+        {places.map((entry) => (
           <li key={entry.id}>
             <button
               className={entry.path === selected ? "chosen" : ""}
@@ -160,6 +182,11 @@ export function HexMap({ tile, onSelect, selected }: Props) {
             </button>
           </li>
         ))}
+        {empties > 0 && (
+          <li className="dim small">
+            and {empties} hexes of empty space between them
+          </li>
+        )}
       </ul>
     </div>
   );

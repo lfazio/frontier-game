@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { hexDistance, tipOf, type Contact, type SystemView } from "../api";
+import { formatAddress, hexDistance, tipOf, type Contact, type SystemView } from "../api";
+import { GUTTER, coords, drawAxes } from "../axes";
 
 // The system board: a top-down view centred on the ship and bounded by how far it can see
 // (UX §4.1). Three layers, kept visibly distinct — in sight, charted, and nothing at all.
@@ -67,12 +68,15 @@ export function Board({ view, onSelect, selected, route }: {
     context.clearRect(0, 0, width, height);
 
     const origin = toPixel(me.q, me.r);
-    const ox = width / 2 - origin.x;
-    const oy = height / 2 - origin.y;
+    // Shifted by half a gutter so the rulers have room without moving the ship off centre.
+    const ox = width / 2 - origin.x + GUTTER / 2;
+    const oy = height / 2 - origin.y + GUTTER / 2;
 
     // The sight boundary is drawn, so the player can see where their knowledge stops.
+    const centreX = width / 2 + GUTTER / 2;
+    const centreY = height / 2 + GUTTER / 2;
     context.beginPath();
-    context.arc(width / 2, height / 2, SIZE * SQRT3 * (reach + 0.5), 0, Math.PI * 2);
+    context.arc(centreX, centreY, SIZE * SQRT3 * (reach + 0.5), 0, Math.PI * 2);
     context.fillStyle = "#101821";
     context.fill();
     context.setLineDash([3, 4]);
@@ -152,12 +156,17 @@ export function Board({ view, onSelect, selected, route }: {
       context.stroke();
     }
 
+    drawAxes(context, cells, (q, r) => {
+      const { x, y } = toPixel(q, r);
+      return { x: x + ox, y: y + oy };
+    }, SIZE);
+
     // You, last, so nothing is drawn over the one mark that must always be findable.
     context.beginPath();
-    context.moveTo(width / 2, height / 2 - 9);
-    context.lineTo(width / 2 + 7, height / 2 + 7);
-    context.lineTo(width / 2, height / 2 + 3);
-    context.lineTo(width / 2 - 7, height / 2 + 7);
+    context.moveTo(centreX, centreY - 9);
+    context.lineTo(centreX + 7, centreY + 7);
+    context.lineTo(centreX, centreY + 3);
+    context.lineTo(centreX - 7, centreY + 7);
     context.closePath();
     context.fillStyle = "#e8c07d";
     context.fill();
@@ -179,7 +188,7 @@ export function Board({ view, onSelect, selected, route }: {
       className="board"
       tabIndex={0}
       role="application"
-      aria-label={`System board, sight ${reach} hexes, ${view.contacts.length} contacts`}
+      aria-label={`System board centred on ${coords(me)}, sight ${reach} hexes, ${view.contacts.length} contacts`}
       onKeyDown={(event) => {
         if (event.key === "ArrowRight" || event.key === "ArrowDown") {
           event.preventDefault();
@@ -199,8 +208,8 @@ export function Board({ view, onSelect, selected, route }: {
         const px = event.clientX - box.left;
         const py = event.clientY - box.top;
         const origin = toPixel(me.q, me.r);
-        const ox = box.width / 2 - origin.x;
-        const oy = box.height / 2 - origin.y;
+        const ox = box.width / 2 - origin.x + GUTTER / 2;
+        const oy = box.height / 2 - origin.y + GUTTER / 2;
         let best = -1;
         let bestDistance = SIZE * SIZE;
         cells.forEach((cell, i) => {
@@ -220,6 +229,6 @@ export function Board({ view, onSelect, selected, route }: {
 
 export function contactLine(contact: Contact): string {
   return contact.quality === "full"
-    ? `${contact.name ?? contact.kind ?? "ship"} · ${contact.position}`
+    ? `${contact.name ?? contact.kind ?? "ship"} · ${formatAddress(contact.position)}`
     : `Unidentified contact · somewhere in this system`;
 }

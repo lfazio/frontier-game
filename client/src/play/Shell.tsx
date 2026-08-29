@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { play, Refused, type Me } from "../api";
+import { formatAddress, play, Refused, type Me } from "../api";
 import type { Rules } from "./commands";
 import { MapView } from "./MapView";
 import { Overview } from "./Overview";
@@ -107,7 +107,7 @@ export function Shell({ token, onSignOut }: { token: string; onSignOut: () => vo
       </main>
 
       <footer className="statusbar">
-        <code className="num">{me.ship.position}</code>
+        <code className="num">{formatAddress(me.ship.position)}</code>
         <span className="dim">·</span>
         <span>{me.ship.in_transit ? "in transit" : me.ship.docked ? "docked" : "in flight"}</span>
         <span className="dim">·</span>

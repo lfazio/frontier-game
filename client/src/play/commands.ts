@@ -1,7 +1,7 @@
 // Submitting intents (UX §5). The client never computes an outcome: it plots, shows what the
 // server's own rule data says a thing costs, submits, and renders what comes back.
 
-import { Refused, hexDistance, tipOf } from "../api";
+import { Refused, formatAddress, hexDistance, tipOf } from "../api";
 
 export interface Rules {
   version: string;
@@ -234,7 +234,7 @@ export function outcomeText(outcome: Outcome, arrivedAt: string): string {
   }
   if (outcome.stopped) {
     const why = refusalText(outcome.stopped.code, outcome.stopped.context);
-    return `Stopped after ${outcome.accepted} of ${outcome.requested} hexes. ${why} You are at ${arrivedAt}.`;
+    return `Stopped after ${outcome.accepted} of ${outcome.requested} hexes. ${why} You are at ${formatAddress(arrivedAt)}.`;
   }
-  return outcome.requested > 1 ? `Arrived at ${arrivedAt}.` : "Done.";
+  return outcome.requested > 1 ? `Arrived at ${formatAddress(arrivedAt)}.` : "Done.";
 }

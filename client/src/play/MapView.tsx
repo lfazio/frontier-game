@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FACTIONS,
+  formatAddress,
   hexDistance,
   parentOf,
   play,
@@ -14,6 +15,7 @@ import { HexMap } from "../HexMap";
 import { ActionBar, PlanPanel, type Plan } from "./Act";
 import { Board, contactLine } from "./Board";
 import { act, jumpCost, line, newKey, outcomeText, siblingOf, type Rules } from "./commands";
+import { coords } from "../axes";
 import { describeCombat } from "./combat";
 
 // One map, three magnifications (UX §4). Zoom changes resolution, never mode: galaxy and
@@ -153,7 +155,7 @@ export function MapView({ token, me, rules, onActed }: {
             {label}
           </button>
         ))}
-        <code className="dim">{path}</code>
+        <code className="dim">{formatAddress(path)}</code>
         <span className="spacer" />
         <button onClick={() => setPath(systemPath)}>Centre on me</button>
       </div>
@@ -299,7 +301,9 @@ export function MapView({ token, me, rules, onActed }: {
                   />
                 ) : cell && cell.steps > 0 ? (
                   <>
-                    <b>{cell.steps} hexes out</b>
+                    <b>
+                      {cell.steps} hexes out · <code>{coords(cell)}</code>
+                    </b>
                     <p className="dim small">Selecting costs nothing.</p>
                     <button className="go" disabled={me.ship.docked || !rules} onClick={planRoute}>
                       {me.ship.docked ? "Docked — launch first" : "Plot route"}
@@ -317,9 +321,13 @@ export function MapView({ token, me, rules, onActed }: {
           <HexMap tile={tile} onSelect={setChosen} selected={chosen?.path ?? null} />
           {chosen && (
             <div className="detail">
-              <b>{chosen.name ?? chosen.kind}</b> · {chosen.kind} · <code>{chosen.path}</code>
-              {/* A region and a system both contain something, so both can be opened. */}
-              <button onClick={() => setPath(chosen.path)}>Look inside</button>
+              <b>{chosen.kind === "void" ? "Empty space" : (chosen.name ?? chosen.kind)}</b> ·{" "}
+              {chosen.kind === "void" ? "nothing charted here" : chosen.kind} ·{" "}
+              <code>{formatAddress(chosen.path)}</code>
+              {/* A region and a system both contain something. Empty space does not. */}
+              {chosen.kind !== "void" && (
+                <button onClick={() => setPath(chosen.path)}>Look inside</button>
+              )}
               {chosen.kind === "system" && chosen.path !== systemPath && (
                 <button className="go" disabled={!rules || me.ship.docked} onClick={() => planJump(chosen)}>
                   Jump here
