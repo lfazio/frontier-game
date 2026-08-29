@@ -77,6 +77,9 @@ class Player(Base):
     credits: Mapped[int] = mapped_column(BigInteger, default=0)
     ap_balance: Mapped[int] = mapped_column(Integer, default=0)
     knowledge: Mapped[int] = mapped_column(Integer, default=0)
+    # Never serialised. Who holds it is the one thing GDD §9.4 forbids being inferable.
+    clearance: Mapped[int] = mapped_column(SmallInteger, default=0)
+    generation: Mapped[int] = mapped_column(SmallInteger, default=1)
     last_grant_day: Mapped[int] = mapped_column(Integer, default=-1)
 
 
