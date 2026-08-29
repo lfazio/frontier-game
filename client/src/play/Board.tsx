@@ -5,16 +5,23 @@ import { GUTTER, coords, drawAxes } from "../axes";
 // The system board: a top-down view centred on the ship and bounded by how far it can see
 // (UX §4.1). Three layers, kept visibly distinct — in sight, charted, and nothing at all.
 
-const SIZE = 26;
+const MAX_SIZE = 26;
 const STATION = "#5fb0a6";
 const STATION_CHARTED = "#3d6b66";
 const SQRT3 = Math.sqrt(3);
 
-function toPixel(q: number, r: number) {
-  return { x: SIZE * 1.5 * q, y: SIZE * SQRT3 * (r + q / 2) };
+function toPixel(q: number, r: number, size: number) {
+  return { x: size * 1.5 * q, y: size * SQRT3 * (r + q / 2) };
 }
 
-function hexPath(context: CanvasRenderingContext2D, x: number, y: number, size = SIZE) {
+/** The whole system has to fit, so the hex size follows the system's radius, not a constant. */
+function sizeFor(radius: number, width: number, height: number) {
+  const across = 2 * radius + 1;
+  const room = { w: Math.max(40, width - GUTTER * 2), h: Math.max(40, height - GUTTER * 2) };
+  return Math.max(3, Math.min(MAX_SIZE, Math.min(room.w / (across * 1.6), room.h / (across * SQRT3))));
+}
+
+function hexPath(context: CanvasRenderingContext2D, x: number, y: number, size: number) {
   context.beginPath();
   for (let corner = 0; corner < 6; corner += 1) {
     const angle = (Math.PI / 180) * (60 * corner);
@@ -43,15 +50,14 @@ export function Board({ view, onSelect, selected, route }: {
   const me = tipOf(view.you.position);
   const reach = view.you.sensor_range;
 
-  // Only hexes inside sight are cells at all. Charted places outside it are marks, not cells:
-  // the player may know a station is there, but not what is standing on it. Sight is also
-  // clipped to the system's own rim — past it there is no place to fly to, so none is offered.
+  // The whole system is drawn, out to its rim: a board that showed only the sight circle gave
+  // the player no idea where in the system they were. What sight decides is how a hex is drawn,
+  // not whether it exists — and nothing beyond the rim is drawn, because nothing is there.
+  const span = view.system.radius;
   const cells: Cell[] = [];
-  for (let dq = -reach; dq <= reach; dq += 1) {
-    for (let dr = Math.max(-reach, -dq - reach); dr <= Math.min(reach, -dq + reach); dr += 1) {
-      const at = { q: me.q + dq, r: me.r + dr };
-      if (hexDistance(at, { q: 0, r: 0 }) > view.system.radius) continue;
-      cells.push({ ...at, steps: hexDistance({ q: 0, r: 0 }, { q: dq, r: dr }) });
+  for (let q = -span; q <= span; q += 1) {
+    for (let r = Math.max(-span, -q - span); r <= Math.min(span, -q + span); r += 1) {
+      cells.push({ q, r, steps: hexDistance({ q, r }, me) });
     }
   }
 
@@ -67,16 +73,18 @@ export function Board({ view, onSelect, selected, route }: {
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, width, height);
 
-    const origin = toPixel(me.q, me.r);
-    // Shifted by half a gutter so the rulers have room without moving the ship off centre.
-    const ox = width / 2 - origin.x + GUTTER / 2;
-    const oy = height / 2 - origin.y + GUTTER / 2;
+    // The system is centred, not the ship: the board is a picture of the whole system now, and
+    // where the ship sits inside it is one of the things it shows.
+    const size = sizeFor(span, width, height);
+    const ox = width / 2 + GUTTER / 2;
+    const oy = height / 2 + GUTTER / 2;
+    const shipAt = toPixel(me.q, me.r, size);
+    const centreX = shipAt.x + ox;
+    const centreY = shipAt.y + oy;
 
     // The sight boundary is drawn, so the player can see where their knowledge stops.
-    const centreX = width / 2 + GUTTER / 2;
-    const centreY = height / 2 + GUTTER / 2;
     context.beginPath();
-    context.arc(centreX, centreY, SIZE * SQRT3 * (reach + 0.5), 0, Math.PI * 2);
+    context.arc(centreX, centreY, size * SQRT3 * (reach + 0.5), 0, Math.PI * 2);
     context.fillStyle = "#101821";
     context.fill();
     context.setLineDash([3, 4]);
@@ -85,14 +93,22 @@ export function Board({ view, onSelect, selected, route }: {
     context.setLineDash([]);
 
     for (const cell of cells) {
-      const { x, y } = toPixel(cell.q, cell.r);
+      const { x, y } = toPixel(cell.q, cell.r, size);
       const isSelected = selected?.q === cell.q && selected?.r === cell.r;
       const isFocus = focus?.q === cell.q && focus?.r === cell.r;
-      hexPath(context, x + ox, y + oy);
-      context.fillStyle = isSelected ? "#1d242c" : "#131a21";
+      // Out of sight is still a place — it is drawn, and drawn plainly as unwatched.
+      const seen = cell.steps <= reach;
+      hexPath(context, x + ox, y + oy, size);
+      context.fillStyle = isSelected ? "#1d242c" : seen ? "#131a21" : "#0f1318";
       context.fill();
       context.lineWidth = isSelected ? 2 : 1;
-      context.strokeStyle = isSelected ? "#e8c07d" : isFocus ? "#7f8c99" : "#232c35";
+      context.strokeStyle = isSelected
+        ? "#e8c07d"
+        : isFocus
+          ? "#7f8c99"
+          : seen
+            ? "#232c35"
+            : "#1a2027";
       context.stroke();
     }
 
@@ -100,14 +116,14 @@ export function Board({ view, onSelect, selected, route }: {
     if (route && route.length > 1) {
       context.beginPath();
       route.forEach((hop, i) => {
-        const { x, y } = toPixel(hop.q, hop.r);
+        const { x, y } = toPixel(hop.q, hop.r, size);
         i === 0 ? context.moveTo(x + ox, y + oy) : context.lineTo(x + ox, y + oy);
       });
       context.strokeStyle = "#e8c07d";
       context.lineWidth = 2;
       context.stroke();
       for (const hop of route.slice(1)) {
-        const { x, y } = toPixel(hop.q, hop.r);
+        const { x, y } = toPixel(hop.q, hop.r, size);
         context.beginPath();
         context.arc(x + ox, y + oy, 3, 0, Math.PI * 2);
         context.fillStyle = "#e8c07d";
@@ -116,7 +132,7 @@ export function Board({ view, onSelect, selected, route }: {
     }
 
     for (const body of view.bodies) {
-      const { x, y } = toPixel(body.q, body.r);
+      const { x, y } = toPixel(body.q, body.r, size);
       const px = x + ox;
       const py = y + oy;
       const station = body.kind === "station";
@@ -145,7 +161,7 @@ export function Board({ view, onSelect, selected, route }: {
     for (const contact of view.contacts) {
       if (contact.quality !== "full") continue;
       const at = tipOf(contact.position);
-      const { x, y } = toPixel(at.q, at.r);
+      const { x, y } = toPixel(at.q, at.r, size);
       context.beginPath();
       context.moveTo(x + ox, y + oy - 8);
       context.lineTo(x + ox + 7, y + oy + 6);
@@ -156,21 +172,27 @@ export function Board({ view, onSelect, selected, route }: {
       context.stroke();
     }
 
-    drawAxes(context, cells, (q, r) => {
-      const { x, y } = toPixel(q, r);
-      return { x: x + ox, y: y + oy };
-    }, SIZE);
+    drawAxes(
+      context,
+      cells,
+      (q, r) => {
+        const { x, y } = toPixel(q, r, size);
+        return { x: x + ox, y: y + oy };
+      },
+      size,
+    );
 
     // You, last, so nothing is drawn over the one mark that must always be findable.
     context.beginPath();
-    context.moveTo(centreX, centreY - 9);
-    context.lineTo(centreX + 7, centreY + 7);
-    context.lineTo(centreX, centreY + 3);
-    context.lineTo(centreX - 7, centreY + 7);
+    const mark = Math.max(5, size * 0.36);
+    context.moveTo(centreX, centreY - mark);
+    context.lineTo(centreX + mark * 0.78, centreY + mark * 0.78);
+    context.lineTo(centreX, centreY + mark * 0.33);
+    context.lineTo(centreX - mark * 0.78, centreY + mark * 0.78);
     context.closePath();
     context.fillStyle = "#e8c07d";
     context.fill();
-  }, [view, selected, focus, cells, route, me.q, me.r, reach]);
+  }, [view, selected, focus, cells, route, me.q, me.r, reach, span]);
 
   function pick(index: number) {
     const cell = cells[index];
@@ -188,7 +210,7 @@ export function Board({ view, onSelect, selected, route }: {
       className="board"
       tabIndex={0}
       role="application"
-      aria-label={`System board centred on ${coords(me)}, sight ${reach} hexes, ${view.contacts.length} contacts`}
+      aria-label={`System board, ${cells.length} hexes, you at ${coords(me)}, sight ${reach} hexes, ${view.contacts.length} contacts`}
       onKeyDown={(event) => {
         if (event.key === "ArrowRight" || event.key === "ArrowDown") {
           event.preventDefault();
@@ -207,13 +229,13 @@ export function Board({ view, onSelect, selected, route }: {
         const box = canvas.getBoundingClientRect();
         const px = event.clientX - box.left;
         const py = event.clientY - box.top;
-        const origin = toPixel(me.q, me.r);
-        const ox = box.width / 2 - origin.x + GUTTER / 2;
-        const oy = box.height / 2 - origin.y + GUTTER / 2;
+        const size = sizeFor(span, box.width, box.height);
+        const ox = box.width / 2 + GUTTER / 2;
+        const oy = box.height / 2 + GUTTER / 2;
         let best = -1;
-        let bestDistance = SIZE * SIZE;
+        let bestDistance = size * size;
         cells.forEach((cell, i) => {
-          const { x, y } = toPixel(cell.q, cell.r);
+          const { x, y } = toPixel(cell.q, cell.r, size);
           const dx = x + ox - px;
           const dy = y + oy - py;
           if (dx * dx + dy * dy < bestDistance) {

@@ -492,3 +492,8 @@ ul.cards {
   border-color: #c2603f;
   border-radius: 0;
 }
+.legend .key.unseen {
+  border-color: #1a2027;
+  background: #0f1318;
+  border-radius: 2px;
+}

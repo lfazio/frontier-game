@@ -186,6 +186,7 @@ export function MapView({ token, me, rules, onActed }: {
                 <span className="key berth" /> station
                 <span className="key body" /> planet or star
                 <span className="key ship" /> contact
+                <span className="key unseen" /> out of sight
               </p>
 
               <ActionBar
@@ -310,7 +311,7 @@ export function MapView({ token, me, rules, onActed }: {
                     </button>
                   </>
                 ) : (
-                  <p className="dim small">Click a hex inside the sight boundary to plot a route.</p>
+                  <p className="dim small">Click any hex in the system to plot a route.</p>
                 )}
               </div>
             </div>
