@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.4 |
+| Version | 0.5 |
 | Date | 2026-08-29 |
 | Scope | Delivery phases **P5, P6, P7 and P7+** (*ARCH §17*), and the deferred systems of *GDD §10.2* |
 | Depends on | `game-design.md` v2.9, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20 |
@@ -36,7 +36,7 @@ about what exists is the difference between "finish it" and "write it".
 | **C0–C6** | Built | `client/` — the whole MVP client, *UX §11* |
 | **P5 — History** | **Built** | Stage 7 with crisis detection; `psycho.history_variables`, `forecasts`, `crises`, `eras`, four region views; era naming in stage 10; `GET /v1/forecasts` and `/v1/history/{eras,crises}`; the Institute as a station type with a restricted `knowledge` market; the `psycho_reader` role |
 | **P6 — The Continuity** | **Built and running behind its flag** | `frontier/continuity/stage.py` (`role = "cont_role"`, `order = 8`), loaded by name from `settings.extra_stages`; `cont.agents`, `cont.cells`, `cont.budget`, `cont.interventions`; fifteen anti-leak probes |
-| **P7 — Clearance and recruitment** | Not built | — |
+| **P7 — Clearance and recruitment** | **Channel and watch built; recruitment and permanent loss are not** | `core.players.clearance` and `generation`; the `directorate` channel of `send_message`; `GET /v1/survey`; twenty-one anti-leak probes |
 | **P7+ — The Harrowing** | Not built | — |
 
 Two consequences follow, and they shape everything below.
@@ -232,6 +232,18 @@ Rules:
 - Eligibility is evaluated from the player's own record only (*GDD Q10*): re-recruitment after a loss is possible,
   but never automatic, and it evaluates the new pilot's record on its own terms.
 
+**Not built, and blocked on a grants decision.** An offer has to reach a mission board, and the Continuity's stage
+runs as `cont_role`, which holds no write privilege on `core.missions` — deliberately, since that is the boundary
+keeping it from touching the world directly (§3.2). Two ways out, and they trade against each other:
+
+| Option | Cost |
+| --- | --- |
+| Grant `cont_role` `INSERT` on `core.missions` | Widens the faction's write surface past "its own records", weakening the §3.2 boundary |
+| Have stage 6 read a marker the faction wrote in `cont` | Names `cont` in a stage every engineer reads, weakening *GDD §9.4* |
+
+This is **Q-F** below. It is a design decision about which boundary matters more, not something to settle by
+picking whichever is easier to write.
+
 ## 4.2 Permanent loss and the new pilot
 
 An agent who dies in the Harrowing returns as a fresh pilot (*GDD §9.14*, Q9). The seam is stated in `ARCH §18` and
@@ -242,6 +254,11 @@ is worth repeating because it is the sharpest constraint in the project:
 
 `players` gains a `generation`; a reset writes a new pilot row rather than mutating the old. The Chronicle already
 records a death and **MUST NOT** distinguish this one.
+
+**The column is built; the reset path is not, and it belongs with the Harrowing.** Ordinary death is not permanent:
+a destroyed pilot is recovered for a salvage tax (*GDD* S1), so the only permanent loss in the design is an agent
+dying in an incursion (*§9.14*) — and incursions are §5. Building the reset now would mean building a path nothing
+can reach.
 
 ## 4.3 The channel
 
@@ -257,11 +274,35 @@ calculation, because it is expressed entirely in the existing event model:
 When communication delay ships (§6), `features.comms_delay` will apply to every channel *except* this one — it is
 exempt by construction, not by a special case in the delay code.
 
+**Built as a fourth channel of `send_message`**, needing no new command. Three things about it were not obvious
+until it was written:
+
+- **Clearance is a column on `core.players`, not a record in `cont`.** Resolving who may receive the event is then
+  ordinary SQL over ordinary tables, so the delivery code never mentions the hidden faction and its import graph
+  and stack traces stay clean. The column is never serialised, and a probe asserts that.
+- **The entitlement gate belongs in `observation_quality`, not in the delivery.** The WebSocket pump filters by
+  *channel*, not by delivery, so a `UNIVERSE`-scope event reaches every open socket. Gating only the delivery row
+  would have leaked every clearance message to every connected client. The check now sits in the one function both
+  the socket and the HTTP feed pass through, and it cuts both ways: a holder receives wherever they are, and a
+  non-holder receives at no distance.
+- **The refusal must be indistinguishable from nonsense.** `channel` was a `Literal`, so naming the channel would
+  have been refused with `422` while an unknown name got the same — but a *member* got `202`, which makes a
+  successful guess an answer. The field now takes any short string and the command refuses an unusable channel and
+  an unknown one with the same code and the same body.
+
 ## 4.4 The watch
 
 The spectator projection built for *UX §9* becomes the Continuity's watch, gated by a **faction-wide** rate limit in
 Redis rather than a per-player one (*GDD §9.6*, U1: one watch per X hours for the whole faction). It reads only, so
 it emits no event and touches no write path — which is also why it cannot leak membership through a write.
+
+**Built as `GET /v1/survey`.** The ration is claimed with a single atomic `SET NX EX`, so two members cannot both
+win it, and one member spending it spends it for everyone: it is a shared instrument, not a personal advantage.
+`watch_interval_seconds` is rule data.
+
+Without clearance the route answers `404` with **exactly the body a route that does not exist answers** — word for
+word. The `NOT_FOUND` detail the resource endpoints use would have marked this one as a real route being withheld,
+which the probe caught before it shipped.
 
 ---
 
@@ -362,6 +403,9 @@ These apply to every phase above, and a change that breaks one is a design decis
 | D-71 | The Historical Institute is a station kind with a market whose commodity is `knowledge`, not a new subsystem. | Buying a forecast and buying grain are the same transaction with different goods; a parallel mechanism would duplicate pricing, cargo and refusal handling for no gain. | Yes |
 | D-80 | A restricted commodity is kept out of a market by **not seeding a row**, rather than by a check in the trade command. | Absence needs no enforcement and cannot be bypassed: with no row there is nothing to buy, and the existing `COMMODITY_UNAVAILABLE` already says so in the player's language. A check would have needed the station's type plumbed into command state for a case that cannot arise. | No |
 | D-81 | Every stage declares its ARCH §9.2 number as `order`, and the runner sorts by it. | Extra stages were appended, so a stage loaded by name ran last however the architecture numbered it. Sorting lets an optional stage take its designed position without the runner naming it — the numbering stops being a comment and becomes a fact the runner uses. | No |
+| D-82 | Clearance is a column on `core.players`, not a record in `cont`. | Resolving a clearance audience becomes ordinary SQL over ordinary tables, so the delivery path never names the hidden faction. The alternative — reading `cont` from `event_sink` — would have put the word in a file every engineer reads, for no gain. The column is never serialised, and a probe asserts it over every player-facing response. | Yes |
+| D-83 | The clearance gate lives in `observation_quality`, not in the delivery row. | The WebSocket pump filters by channel rather than by delivery, so a `UNIVERSE`-scope event reaches every open socket. Gating the delivery alone would have leaked every clearance message to every connected client. One gate, in the one function both the socket and the HTTP feed pass through. | No |
+| D-84 | The survey's ration is claimed with one atomic `SET NX EX` on a key belonging to the faction, not the caller. | Two members cannot both win it, and one spending it spends it for everyone — which is the difference between a shared instrument and a per-member perk (U1). | No |
 | D-72 | Crisis detection lives inside stage 7 rather than in a stage of its own. | The stage already computes the deviation a crisis is defined by. A separate stage would either recompute it or read the first stage's output, and both are worse than one pass. | Yes |
 | D-73 | Eras are written by the chronicle stage, not by the model. | The model measures; naming a stretch of history is a narrative act, and the chronicle already owns promotion and retention. It also keeps the model's output free of prose. | Yes |
 | D-74 | The Continuity ships as an unregistered stage first: the code, schema, role and import contract exist before the faction acts. | It makes enabling the faction a one-line change under a flag, and it means the anti-leak suite can be written and run against real code before anything is at stake. | No |
@@ -382,6 +426,7 @@ These apply to every phase above, and a change that breaks one is a design decis
 | **Q-C** | How long is the watch interval, and is it the same on a demonstration world as on a live one? | §4.4 |
 | **Q-D** | May knowledge be resold to the Institute at a loss, or is it consumed on reading? | §2.3 |
 | **Q-E** | *GDD* Q8 — team shared assets — is still open, and player-owned stations depend on the answer. | §6 |
+| **Q-F** | Recruitment must place an offer on a mission board, but `cont_role` cannot write `core.missions` and stage 6 must not read `cont`. Which boundary gives? | §4.1 |
 
 ---
 
@@ -389,6 +434,7 @@ These apply to every phase above, and a change that breaks one is a design decis
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.5 | 2026-08-29 | P7 part one: the zero-delay clearance channel (D-82, D-83) and the faction-wide rationed survey (D-84). Recruitment and permanent loss remain — §4.1 and §4.2 record why each is blocked. |
 | 0.4 | 2026-08-29 | P6 built: the Continuity acts at stage 8 behind `FEATURES_CONTINUITY`, ARCH's stage numbers became executable as `Stage.order` (D-81), and the anti-leak suite went from nine probes to fifteen. §3.1 corrected — the stage is loaded by name, never registered in `TICK_STAGES`. |
 | 0.3 | 2026-08-29 | P5 complete: the Historical Institute ships as a station type with a restricted `knowledge` market (D-80). Fourteen Institutes in the generated world, and no other station stocks it. |
 | 0.2 | 2026-08-29 | P5 part one built: crises and eras. `psycho.crises` and `psycho.eras`, detection folded into stage 7, era naming in stage 10, and `GET /v1/history/{eras,crises}`. B1 corrected — a crisis is public because the star chart already is, so the charted-region filter it described would have restricted nothing. |
