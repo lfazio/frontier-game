@@ -33,6 +33,11 @@ class Combatant:
     sensor_range: int
     orders: StandingOrders = field(default_factory=StandingOrders.default)
     cargo_value: int = 0
+    # Of the incursion, rather than merely fighting for it.
+    is_harrower: bool = False
+    # Siding now, and having ever sided. The second is what the penalty attaches to (GDD §8.12).
+    sided_now: bool = False
+    sided_ever: bool = False
 
     @property
     def destroyed(self) -> bool:
@@ -89,7 +94,23 @@ def resolve(
 
 def _hit_chance(shooter: Combatant, target: Combatant, rules: CombatRules) -> float:
     edge = (shooter.sensor_range - target.sensor_range) * rules.sensor_hit_bonus_per_point
-    return min(0.95, max(0.05, rules.base_hit_chance + edge))
+    return min(0.95, max(0.05, rules.base_hit_chance + edge + _allegiance_edge(shooter, target, rules)))
+
+
+def _allegiance_edge(shooter: Combatant, target: Combatant, rules: CombatRules) -> float:
+    """What siding with an incursion is worth, and what it costs — GDD §8.12.
+
+    The bonus is held only while sided and only against humankind: it is help, and help stops.
+    The penalty is held by anyone who ever sided, against Harrowers, for ever — renouncing at
+    the right moment must not be a way to shed it.
+    """
+    if shooter.is_harrower or (shooter.sided_now and target.sided_now):
+        return 0.0
+    if target.is_harrower:
+        return -rules.collaborator_hit_malus if shooter.sided_ever else 0.0
+    if shooter.sided_now:
+        return rules.collaborator_hit_bonus
+    return 0.0
 
 
 def _apply(target: Combatant, damage: int, rules: CombatRules) -> int:
