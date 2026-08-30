@@ -25,6 +25,7 @@ from frontier.application.commands.base import (
 from frontier.domain.fleet.cargo import Cargo
 from frontier.domain.fleet.ship import Ship
 from frontier.domain.fleet.standing_orders import Posture, StandingOrders
+from frontier.domain.hex.coordinates import HexAddr
 
 
 class SqlStateStore:
@@ -52,6 +53,8 @@ class SqlStateStore:
             state.nearby, state.known_ids = await self._nearby(player_id, state.ship)
         if spec.known_systems:
             state.known_systems = await self._known_systems(player_id)
+        if spec.incursion and state.ship is not None:
+            state.incursion_nearby = await self._incursion_near(state.ship.position)
         if spec.orders:
             state.orders = await self._orders(player_id)
         if spec.mission and spec.mission_id is not None:
@@ -98,6 +101,11 @@ class SqlStateStore:
             await self._apply_mission_change(state)
         if state.defection is not None:
             await self._defect(state)
+        if state.player.allegiance == "incursion" and state.player.first_sided_on is None:
+            state.player.first_sided_on = await self._day()
+        if state.standing_collapse is not None:
+            for faction_id in (1, 2, 3):
+                await self._adjust_reputation(state.player.id, faction_id, -state.standing_collapse)
         if state.reputation_change is not None:
             faction_id, delta = state.reputation_change
             if faction_id:
@@ -159,6 +167,25 @@ class SqlStateStore:
             .all()
         )
         return frozenset(str(p) for p in rows)
+
+    async def _incursion_near(self, position: HexAddr) -> bool:
+        """Is the Harrowing in this pilot's region? Siding is a decision about *this* emergency."""
+        region = position.parent()
+        region = region.parent() if region is not None else None
+        if region is None:
+            return False
+        found = (
+            await self._s.execute(
+                text(
+                    "SELECT 1 FROM core.npc_agents n "
+                    "JOIN core.ships s ON s.id = n.ship_id "
+                    "JOIN core.locations berth ON berth.id = s.system_id "
+                    "WHERE n.archetype = 'incursion' AND s.destroyed_on IS NULL "
+                    "  AND berth.path <@ CAST(:region AS ltree) LIMIT 1"
+                ).bindparams(region=region.ltree())
+            )
+        ).scalar_one_or_none()
+        return found is not None
 
     async def _orders(self, player_id: UUID) -> StandingOrders:
         row = (

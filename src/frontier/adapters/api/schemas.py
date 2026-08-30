@@ -84,6 +84,11 @@ class TradeBody(BaseModel):
     idempotency_key: UUID
 
 
+class AllegianceBody(BaseModel):
+    action: Literal["side_with_incursion", "renounce_incursion"]
+    idempotency_key: UUID
+
+
 class ReadBody(BaseModel):
     action: Literal["read"]
     commodity: str = Field(min_length=1, max_length=24)
@@ -154,6 +159,7 @@ CommandBody = Annotated[
     | DockBody
     | LaunchBody
     | TradeBody
+    | AllegianceBody
     | ReadBody
     | RepairBody
     | AttackBody

@@ -32,6 +32,7 @@ class StateSpec:
     mission: bool = False
     mission_id: UUID | None = None
     resolve: tuple[HexAddr, ...] = ()
+    incursion: bool = False
 
 
 @dataclass(slots=True)
@@ -73,6 +74,10 @@ class State:
     team_change: tuple[str, str, int] | None = None
     mission_change: tuple[str, UUID] | None = None
     reputation_change: tuple[int, int] | None = None
+    # An incursion under way in this pilot's region, and a standing loss owed to every faction
+    # at once — siding is not a quarrel with one of them (GDD §8.12).
+    incursion_nearby: bool = False
+    standing_collapse: int | None = None
     defection: int | None = None
 
 

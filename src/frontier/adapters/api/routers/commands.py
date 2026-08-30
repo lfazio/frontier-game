@@ -9,6 +9,10 @@ from frontier.adapters.api import schemas
 from frontier.adapters.api.deps import ContainerDep, CurrentPlayer
 from frontier.adapters.api.errors import rejection
 from frontier.adapters.api.schemas import CommandBody
+from frontier.application.commands.allegiance import (
+    RenounceIncursionCommand,
+    SideWithIncursionCommand,
+)
 from frontier.application.commands.base import Command
 from frontier.application.commands.combat import AttackCommand, SetStandingOrdersCommand
 from frontier.application.commands.missions import (
@@ -112,6 +116,12 @@ def build(body: CommandBody) -> Command:
                 commodity=body.commodity,
                 qty=body.qty,
                 selling=body.action == "sell",
+            )
+        case schemas.AllegianceBody():
+            return (
+                SideWithIncursionCommand(id=new_id, idempotency_key=key)
+                if body.action == "side_with_incursion"
+                else RenounceIncursionCommand(id=new_id, idempotency_key=key)
             )
         case schemas.ReadBody():
             return ReadCommand(id=new_id, idempotency_key=key, commodity=body.commodity)
