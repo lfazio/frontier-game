@@ -16,8 +16,10 @@ and say so.
 detail. Cited as `SDD §n`. |
 | `Documentations/ui-ux-mvp.md` (v0.10) | **What the player sees and touches.** Screens, states, wording and
 interaction contracts. Cited as `UX §n`. |
-| `Documentations/detailed-design-post-mvp.md` (v0.6) | **What is built after the MVP.** Phases P5–P7+ and the
+| `Documentations/detailed-design-post-mvp.md` (v0.7) | **What is built after the MVP.** Phases P5–P7+ and the
 deferred systems. Cited as `PSDD §n`. |
+| `Documentations/ui-ux-admin.md` (v0.1) | **What the operator sees.** The console, its boundary and its dials.
+Design only, nothing built. Cited as `ADMIN §n`. |
 
 Where they disagree, the design document wins on behaviour and the architecture document wins on implementation —
 and one of them needs amending. Neither is aspirational notes: read the relevant sections before implementing.
@@ -42,6 +44,7 @@ Rationale and rejected alternatives are in `ARCH §4`; the enforced package layo
 | MVP scope / deferred systems | §10.1, §10.2 | §17, §18 |
 | MVP tables, endpoints, commands, tick stages | — | SDD §4, §5, §6, §8 |
 | Post-MVP phases, the Harrowing, deferred systems | §8, §9, §10.2 | PSDD §2–§6 |
+| Operating a world: the console, its dials | — | ADMIN §3–§6 |
 | MVP task breakdown and acceptance criteria | — | SDD §1.2, §15 |
 | Design constraints on implementation | §10.4 (C1–C10) | throughout |
 | Open design questions | §11.2 (Q1–Q8) | §20 |

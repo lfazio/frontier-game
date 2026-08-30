@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.6 |
+| Version | 0.7 |
 | Date | 2026-08-29 |
 | Scope | Delivery phases **P5, P6, P7 and P7+** (*ARCH §17*), and the deferred systems of *GDD §10.2* |
 | Depends on | `game-design.md` v2.9, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20 |
@@ -37,7 +37,7 @@ about what exists is the difference between "finish it" and "write it".
 | **P5 — History** | **Built** | Stage 7 with crisis detection; `psycho.history_variables`, `forecasts`, `crises`, `eras`, four region views; era naming in stage 10; `GET /v1/forecasts` and `/v1/history/{eras,crises}`; the Institute as a station type with a restricted `knowledge` market; the `psycho_reader` role |
 | **P6 — The Continuity** | **Built and running behind its flag** | `frontier/continuity/stage.py` (`role = "cont_role"`, `order = 8`), loaded by name from `settings.extra_stages`; `cont.agents`, `cont.cells`, `cont.budget`, `cont.interventions`; fifteen anti-leak probes |
 | **P7 — Clearance and recruitment** | **Built, but for permanent loss** | `core.players.clearance` and `generation`; the `directorate` channel; `GET /v1/survey`; addressed recruitment offers; twenty-four anti-leak probes |
-| **P7+ — The Harrowing** | Not built | — |
+| **P7+ — The Harrowing** | **Built** | `simulation/stages/harrowing.py` at order 85; the `incursion` archetype closing on a system from empty space; permanent loss for an agent who dies in one |
 
 Two consequences follow, and they shape everything below.
 
@@ -411,6 +411,9 @@ These apply to every phase above, and a change that breaks one is a design decis
 | D-85 | Knowledge is spent by a `read` command that consumes a unit and raises the pilot's knowledge; selling it is refused with `NOT_SELLABLE`. | Q-D: knowledge is not a commodity to flip. Reading costs no Action Points and needs no station — reading what you already carry is not an act in the world; what it costs is the unit. | Yes |
 | D-86 | The watch ration is rule data, overridable per deployment by `WATCH_INTERVAL_SECONDS`. | Q-C: live pacing is balance, but a six-hour ration makes the feature invisible on a demonstration world. The override is a deployment concern, so it is a setting rather than a second ruleset. | No |
 | D-87 | Recruitment is an offer addressed to one pilot via `missions.offered_to`, posted under an `INSERT`-only grant. | Q-F: narrower than either option the question posed. The faction may put work in front of someone; it may not edit it, withdraw it, or touch the pilot, and no other board changes at all. | Yes |
+| D-88 | An incursion is raised into the region's empty space and closes on the nearest system over following cycles. | Arriving on top of a system would be an ambush; arriving in the dark and closing in is what gives a region its warning, and it uses the address D-68 created. `answered_on` on the crisis is what stops one expiry raising a fresh wave every cycle for ever. | Yes |
+| D-89 | Permanent loss is decided from two ordinary facts — the pilot held a clearance, and something of the Harrowing was in the same place — and writes a **new** `players` row. | Nothing consults the hidden faction's own records, so the encounter code never mentions it. The old row stays exactly as it was, and no column links the two: re-recruitment reads the new pilot's own record (*ARCH §18*). Sign-in follows the highest generation. | No |
+| D-90 | Stage `order` is the ARCH §9.2 number times ten. | The Harrowing had to run between the Continuity (8) and promotion (9), and integers left no room. Spacing lets a stage slot in without renumbering a normative document. | No |
 | D-72 | Crisis detection lives inside stage 7 rather than in a stage of its own. | The stage already computes the deviation a crisis is defined by. A separate stage would either recompute it or read the first stage's output, and both are worse than one pass. | Yes |
 | D-73 | Eras are written by the chronicle stage, not by the model. | The model measures; naming a stretch of history is a narrative act, and the chronicle already owns promotion and retention. It also keeps the model's output free of prose. | Yes |
 | D-74 | The Continuity ships as an unregistered stage first: the code, schema, role and import contract exist before the faction acts. | It makes enabling the faction a one-line change under a flag, and it means the anti-leak suite can be written and run against real code before anything is at stake. | No |
@@ -429,7 +432,7 @@ stable so a citation of `Q-B` keeps meaning what it meant.
 
 | # | Question | Answer |
 | --- | --- | --- |
-| **Q-A** | What is the era threshold? | **Configurable.** It already is: `era_threshold` in `events.toml`, like every other tunable. An operator-facing view for turning such dials is a separate piece of work and is not in any current phase — see §7. |
+| **Q-A** | What is the era threshold? | **Configurable.** It already is: `era_threshold` in `events.toml`, like every other tunable. The operator-facing view for turning such dials is now designed in `ui-ux-admin.md` (*ADMIN §3.4*), where it is deliberately read-only: the console drafts a new ruleset version rather than editing a live one. |
 | **Q-B** | Does an unresolved crisis always produce an incursion, or only above a severity? | **Always.** Every crisis that expires unresolved brings an incursion. Severity governs how bad the incursion is, not whether it comes — so the world's promise is simple: leave a crisis alone long enough and something arrives. |
 | **Q-C** | How long is the watch interval, and does a demonstration world differ? | **Shorter on a demonstration world.** The live pacing is rule data; a deployment may shorten it, and the demo does, because a six-hour ration makes the feature invisible to anyone being shown the game. |
 | **Q-D** | May knowledge be resold to the Institute, or is it consumed on reading? | **Consumed when read.** Knowledge is not a commodity to flip: reading it spends it. Selling it back is therefore refused — the only thing to do with knowledge is learn it. |
@@ -442,6 +445,7 @@ stable so a citation of `Q-B` keeps meaning what it meant.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.7 | 2026-08-30 | P7+ built: the Harrowing. A crisis that expires unanswered raises an incursion in the empty space of its region, which closes on a system and fights (D-88); an agent who dies there returns as a new pilot with no column linking the two (D-89). Stage orders are spaced by ten so a stage can slot between two without renumbering the architecture (D-90). |
 | 0.6 | 2026-08-30 | All six open questions answered (§10) and acted on: knowledge is consumed by reading (D-85), the ration may be shortened per deployment (D-86), and recruitment ships as an addressed offer with a narrow `INSERT` grant (D-87). P7 is complete but for permanent loss, which waits on the Harrowing. |
 | 0.5 | 2026-08-29 | P7 part one: the zero-delay clearance channel (D-82, D-83) and the faction-wide rationed survey (D-84). Recruitment and permanent loss remain — §4.1 and §4.2 record why each is blocked. |
 | 0.4 | 2026-08-29 | P6 built: the Continuity acts at stage 8 behind `FEATURES_CONTINUITY`, ARCH's stage numbers became executable as `Stage.order` (D-81), and the anti-leak suite went from nine probes to fifteen. §3.1 corrected — the stage is loaded by name, never registered in `TICK_STAGES`. |
