@@ -24,5 +24,8 @@ class Settings(BaseSettings):
     # The public surface connects as a role with no privilege on the hidden schema.
     api_role: str = "api_role"
     features_watch: bool = True
+    # Live pacing is rule data; a deployment may shorten it. A demonstration world does, because
+    # a six-hour ration makes the feature invisible to anyone being shown the game (PSDD Q-C).
+    watch_interval_seconds: int | None = None
     # Optional tick stages, resolved by name so nothing imports them (ARCH ADR-13).
     extra_stages: tuple[str, ...] = ("frontier.continuity.stage:stage",)

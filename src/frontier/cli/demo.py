@@ -267,6 +267,8 @@ def main() -> None:
     print("\nrun the server and the client:")
     print("  uv run uvicorn frontier.adapters.api.app:app --port 8000")
     print("  cd client && npm run dev      →  http://localhost:5173")
+    print("\na shorter watch ration, so the survey is demonstrable on a small world:")
+    print("  WATCH_INTERVAL_SECONDS=120 uv run uvicorn frontier.adapters.api.app:app --port 8000")
 
 
 if __name__ == "__main__":

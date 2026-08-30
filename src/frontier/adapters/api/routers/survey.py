@@ -39,7 +39,7 @@ async def survey(player_id: CurrentPlayer, c: ContainerDep) -> dict[str, Any]:
             # resource endpoints use, would mark this one as a real route being withheld.
             raise HTTPException(status_code=404, detail="Not Found")
 
-        interval = c.executor.rules.continuity.watch_interval_seconds
+        interval = c.settings.watch_interval_seconds or c.executor.rules.continuity.watch_interval_seconds
         if c.bus is None or not await c.bus.claim(RATION_KEY, interval):
             # Spent. Saying so is safe: only a holder ever reaches this line.
             raise HTTPException(status_code=429, detail="RATION_SPENT")
