@@ -182,7 +182,9 @@ class RuleSet:
     @classmethod
     def from_mapping(cls, version: str, files: Mapping[str, Mapping[str, Any]]) -> RuleSet:
         known = {"ap_costs", "world", "combat", "economy", "npc", "events", "continuity"}
-        unknown = set(files) - known
+        # `notes` documents what each dial does (ADMIN §3.4). It lives with the version it
+        # describes, and nothing here reads it: no line of it can change how a world behaves.
+        unknown = set(files) - known - {"notes"}
         if unknown:
             raise RuleSetError(f"unknown ruleset file(s): {', '.join(sorted(unknown))}")
 

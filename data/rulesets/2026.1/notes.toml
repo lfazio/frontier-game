@@ -1,0 +1,76 @@
+# What turning each dial does, in one line — ADMIN §3.4.
+#
+# The note is part of adding a dial, not documentation written afterwards. The console lists
+# every tunable it finds in the ruleset and shows the note beside it; a dial with no note here
+# appears with none, which is the pressure to write one.
+#
+# This file is not rule data. The loader reads the files it knows by name and ignores this one,
+# so nothing here can change how a world behaves.
+
+"world.region_radius" = "a bigger region is more empty space around the same systems"
+"world.system_radius" = "how far a system extends from its star"
+"world.regions" = "how many regions the galaxy is generated with"
+"world.systems_per_region_min" = "the fewest systems a region may be given"
+"world.systems_per_region_max" = "the most systems a region may be given"
+"world.jump_range_default_ly" = "below 12, regions fragment internally and travel goes by neighbours"
+"world.sensor_range_base" = "how far a hull sees, and so how much of a system is drawn"
+"world.radio_range_base" = "how far a spoken message carries"
+"world.fuel_per_hex" = "the cost of crossing one hex"
+"world.fuel_per_jump_ly" = "the cost of a light year, which is what makes distance expensive"
+"world.hull_repair_cost_per_point" = "what a station charges to put a hull right"
+"world.shield_regen_per_cycle" = "how quickly a hull is ready to fight again"
+"world.territory_control_threshold" = "the influence at which a faction is said to hold a system"
+"world.territory_decay" = "how fast a grip loosens when nobody maintains it"
+
+"ap.daily_grant" = "how much a pilot may do in a cycle: the pace of the whole game"
+"ap.carry_over_fraction" = "how much of an unspent day is kept"
+"ap.carry_ceiling" = "the most that may ever be banked, so absence cannot be hoarded"
+
+"events.crisis_threshold" = "lower opens more crises, and every crisis that expires brings ships"
+"events.crisis_window" = "how long a strain must hold before it counts as a trend"
+"events.crisis_duration" = "how long the world has to put a crisis right"
+"events.era_threshold" = "the severity of a resolved crisis that closes an age"
+"events.chronicle_min_severity" = "what is worth remembering for ever"
+"events.promotion_window_cycles" = "how long an event has to grow into a bigger one"
+"events.retention_local_days" = "how long local noise is kept before it expires"
+"events.retention_planet_days" = "how long a planet's events are kept"
+"events.retention_system_days" = "how long a system's events are kept"
+
+"combat.base_hit_chance" = "how decisive a fight is before anything else is counted"
+"combat.sensor_hit_bonus_per_point" = "what better sensors are worth in a fight"
+"combat.shield_absorb_ratio" = "how much of a hit shields take instead of the hull"
+"combat.escape_base_chance" = "how often running away works"
+"combat.max_rounds_per_encounter" = "how long a fight may last before it is called"
+"combat.weapon_damage_min" = "the softest a hit lands"
+"combat.weapon_damage_max" = "the hardest a hit lands"
+"combat.destroyed_cargo_drop_ratio" = "how much of a lost hold is recoverable"
+"combat.rescue_tax_fraction" = "what recovering a life capsule costs the pilot"
+"combat.collaborator_hit_bonus" = "what siding with an incursion is worth against humankind"
+"combat.collaborator_hit_malus" = "what having ever sided costs against Harrowers, for ever"
+"combat.collaboration_standing_penalty" = "what siding costs with every faction at once"
+
+"npc.incursion_ships_per_severity" = "hulls per point of severity when a crisis expires"
+"npc.incursion_hull" = "how much a Harrower can take"
+"npc.incursion_shields" = "how much a Harrower shrugs off"
+"npc.incursion_sensor_range" = "how far a Harrower sees, and so how well it shoots"
+"npc.incursion_ap" = "how much a Harrower may do in a cycle"
+"npc.haul_capacity" = "how much a trading crew moves at once"
+"npc.diffusion" = "how quickly activity spreads between neighbouring systems"
+"npc.trade_relax" = "how fast trade returns to its resting level"
+"npc.patrol_relax" = "how fast patrols return to their resting level"
+"npc.raider_relax" = "how fast raiders return to their resting level"
+"npc.k_trade" = "how strongly trade responds to what a system needs"
+"npc.k_raider" = "how strongly raiders respond to what is worth taking"
+
+"economy.elasticity" = "how sharply a price answers scarcity"
+"economy.spread" = "the gap between buying and selling, which is what a round trip costs"
+"economy.price_floor_ratio" = "how cheap a glut may make something"
+"economy.price_ceiling_ratio" = "how dear a shortage may make something"
+"economy.relaxation_rate" = "how fast a market drifts back toward its target stock"
+"economy.shift_report_threshold" = "how big a price move has to be before the world hears of it"
+
+"continuity.systems_per_intervention" = "how often the hidden faction may act, by the size of the world"
+"continuity.systems_per_agent" = "how many agents the world supports"
+"continuity.max_magnitude" = "the hardest it may ever push"
+"continuity.deviation_floor" = "below this it does nothing: it acts on drift, not on noise"
+"continuity.watch_interval_seconds" = "one survey per interval, for the whole faction"
