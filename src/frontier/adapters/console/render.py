@@ -70,7 +70,7 @@ def page(title: str, body: str) -> str:
 def shell(world: str, worlds: list[str], here: str, body: str, day: int | None, phase: str | None) -> str:
     tabs = "".join(
         f"<a class='{'on' if name == here else ''}' href='/console/{escape(w)}/{name}'>{name}</a>"
-        for name in ("overview", "ticks", "history", "pilots")
+        for name in ("overview", "ticks", "history", "pilots", "balance")
         for w in [world]
     )
     picker = "".join(
@@ -409,6 +409,102 @@ def pilots(world: str, listing: list[dict[str, Any]], chosen: dict[str, Any] | N
     return (
         "<div style='display:grid;grid-template-columns:320px 1fr;gap:18px;align-items:start'>"
         f"<div>{finder}</div><div>{detail}</div></div>"
+    )
+
+
+def _step(value: float, integral: bool) -> float:
+    """A sensible nudge for the size of the number, so a ratio and a radius both move usefully."""
+    if integral:
+        return 1 if abs(value) < 200 else (100 if abs(value) < 10000 else 3600)
+    return 0.01 if abs(value) < 1 else 0.1
+
+
+def _fmt(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else f"{value:g}"
+
+
+def balance(
+    world: str,
+    version: str,
+    dials: list[dict[str, Any]],
+    edits: dict[str, float],
+    drafted: dict[str, Any] | None,
+) -> str:
+    sections: dict[str, list[str]] = {}
+    for dial in dials:
+        held = edits.get(dial["key"], dial["value"])
+        moved = dial["key"] in edits
+        step = _step(dial["value"], dial["integral"])
+        others = "".join(f"&edit.{k}={v}" for k, v in edits.items() if k != dial["key"])
+        down = f"?edit.{dial['key']}={_fmt(held - step)}{others}"
+        up = f"?edit.{dial['key']}={_fmt(held + step)}{others}"
+        sections.setdefault(dial["section"], []).append(
+            "<tr>"
+            f"<td class='num small' style='width:250px'>{escape(dial['name'])}</td>"
+            f"<td class='dim small'>{escape(dial['note'])}</td>"
+            f"<td style='white-space:nowrap;text-align:right;width:150px'>"
+            f"<a class='button' href='{down}'>&minus;</a> "
+            f"<span class='num' style='display:inline-block;width:64px;text-align:center;"
+            f"color:{ACCENT if moved else INK}'>{_fmt(held)}</span> "
+            f"<a class='button' href='{up}'>+</a></td>"
+            f"<td class='num dim small' style='width:96px'>"
+            + (f"was {_fmt(dial['value'])}" if moved else "")
+            + "</td></tr>"
+        )
+
+    tables = "".join(
+        f"<div class='dim small' style='{CAPS};margin-top:14px'>{escape(name)}</div>"
+        f"<div class='card'><table>{''.join(rows)}</table></div>"
+        for name, rows in sections.items()
+    )
+
+    if drafted is not None:
+        where = (
+            f"on branch <span class='num'>{escape(drafted['branch'])}</span>"
+            if drafted["committed"]
+            else f"at <span class='num'>{escape(drafted['path'])}</span>, not committed"
+        )
+        panel = (
+            f"<div class='card'><div class='row' style='flex-direction:column;"
+            "align-items:flex-start;gap:6px'>"
+            f"<b class='good'>Drafted {escape(drafted['version'])}</b>"
+            f"<span class='dim small'>{where}</span>"
+            "<span class='dim small'>Nothing has changed in this world. A draft that is never "
+            "merged changes nothing, which is what makes the button safe to press.</span>"
+            "</div></div>"
+        )
+    elif edits:
+        diff = "".join(
+            f"<div class='num small' style='color:{WARN}'>- {escape(k)} = "
+            f"{_fmt(next(d['value'] for d in dials if d['key'] == k))}</div>"
+            f"<div class='num small' style='color:{GOOD}'>+ {escape(k)} = {_fmt(v)}</div>"
+            for k, v in edits.items()
+        )
+        hidden = "".join(
+            f"<input type='hidden' name='edit.{escape(k)}' value='{_fmt(v)}'>" for k, v in edits.items()
+        )
+        panel = (
+            "<div class='card'><div class='row' style='flex-direction:column;"
+            "align-items:flex-start;gap:8px'>"
+            f"<b>{len(edits)} change(s) would become the next version</b>"
+            f"<div style='background:#0b0f13;border:1px solid {LINE};border-radius:4px;"
+            f"padding:8px 10px;width:100%'>{diff}</div>"
+            f"<form method='post' action='/console/{escape(world)}/balance/draft'>{hidden}"
+            "<button class='go'>Draft it on a branch</button></form>"
+            f"<a class='dim small' href='/console/{escape(world)}/balance'>discard</a>"
+            "</div></div>"
+        )
+    else:
+        panel = (
+            "<div class='card'><div class='row'><span class='quiet'>"
+            "Turn a dial to see the branch it would open.</span></div></div>"
+        )
+
+    return (
+        f"<div class='row' style='padding:0 0 10px'><b class='num'>RULESET {escape(version)}</b>"
+        "<span class='spacer'></span>"
+        "<span class='dim small'>read-only — editing balance means publishing a new version</span>"
+        "</div>" + panel + tables
     )
 
 

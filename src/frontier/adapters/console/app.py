@@ -26,7 +26,7 @@ from frontier.adapters.api.security import (
     verify_password,
 )
 from frontier.adapters.clock import SystemClock
-from frontier.adapters.console import reads, render
+from frontier.adapters.console import balance, reads, render
 from frontier.adapters.console.deps import (
     RANKS,
     Console,
@@ -48,6 +48,11 @@ class Credentials(BaseModel):
     # offering — and it refuses addresses a deployment may legitimately use internally.
     email: str = Field(min_length=3, max_length=254)
     password: str = Field(min_length=12, max_length=200)
+
+
+class DraftBody(BaseModel):
+    edits: dict[str, float] = Field(default_factory=dict)
+    version: str | None = Field(default=None, max_length=32)
 
 
 class GrantBody(BaseModel):
@@ -202,6 +207,49 @@ def create_console(console: Console | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Not Found")
         return {"world": world, **found}
 
+    @app.get("/admin/worlds/{world}/ruleset", tags=["balance"])
+    async def ruleset(world: str, operator_id: CurrentOperator, c: ConsoleDep) -> dict[str, Any]:
+        async with c.sessions() as session:
+            if world not in c.worlds:
+                raise HTTPException(status_code=404, detail="Not Found")
+            await require(session, operator_id, world, "watch")
+        return {
+            "world": world,
+            "version": c.rules.version,
+            "dials": balance.dials(c.rules, balance.notes_for(c.settings.ruleset_root, c.rules.version)),
+        }
+
+    @app.post("/admin/worlds/{world}/ruleset:draft", status_code=201, tags=["balance"])
+    async def draft(
+        world: str, body: DraftBody, operator_id: CurrentOperator, c: ConsoleDep
+    ) -> dict[str, Any]:
+        """Write the edits as a new version on a branch. The live ruleset is never touched."""
+        async with c.sessions() as session:
+            if world not in c.worlds:
+                raise HTTPException(status_code=404, detail="Not Found")
+            await require(session, operator_id, world, "operate")
+            who = (
+                await session.execute(select(models.Operator.name).where(models.Operator.id == operator_id))
+            ).scalar_one()
+
+        known = {d["key"] for d in balance.dials(c.rules, {})}
+        unknown = set(body.edits) - known
+        if unknown:
+            raise HTTPException(status_code=422, detail=f"no such dial: {', '.join(sorted(unknown))}")
+        if not body.edits:
+            raise HTTPException(status_code=422, detail="NOTHING_CHANGED")
+
+        try:
+            return balance.draft(
+                c.settings.ruleset_root,
+                c.rules.version,
+                body.version or balance.next_version(c.rules.version),
+                dict(body.edits),
+                author=who,
+            )
+        except FileExistsError as exc:
+            raise HTTPException(status_code=409, detail="VERSION_EXISTS") from exc
+
     @app.get("/admin/operators", tags=["operators"])
     async def operators(world: str, operator_id: CurrentOperator, c: ConsoleDep) -> dict[str, Any]:
         async with c.sessions() as session:
@@ -351,6 +399,52 @@ def create_console(console: Console | None = None) -> FastAPI:
     async def screen_overview(world: str, request: Request) -> Response:
         return await _screen(request, world, "overview")
 
+    def pending(params: Any) -> dict[str, float]:
+        """Edits ride in the query string, so the page holds no state of its own."""
+        out: dict[str, float] = {}
+        for name, value in params.items():
+            if name.startswith("edit."):
+                try:
+                    out[name[5:]] = float(value)
+                except ValueError:
+                    continue
+        return out
+
+    @app.get("/console/{world}/balance", include_in_schema=False)
+    async def screen_balance(world: str, request: Request) -> Response:
+        return await _screen(request, world, "balance", edits=pending(request.query_params))
+
+    @app.post("/console/{world}/balance/draft", include_in_schema=False)
+    async def screen_draft(world: str, request: Request) -> Response:
+        operator_id = await operator_of(request)
+        if operator_id is None:
+            return HTMLResponse(render.login(), status_code=401)
+        c: Console = app.state.console
+        raw = parse_qs((await request.body()).decode("utf-8", "replace"))
+        edits = pending({name: values[0] for name, values in raw.items() if values})
+        async with c.sessions() as session:
+            if world not in c.worlds or not at_least(
+                await permission_on(session, operator_id, world), "operate"
+            ):
+                return HTMLResponse(render.page("Not found", "<main>Not Found</main>"), status_code=404)
+            who = (
+                await session.execute(select(models.Operator.name).where(models.Operator.id == operator_id))
+            ).scalar_one()
+        try:
+            made = balance.draft(
+                c.settings.ruleset_root,
+                c.rules.version,
+                balance.next_version(c.rules.version),
+                edits,
+                author=who,
+            )
+        except (FileExistsError, KeyError) as exc:
+            return HTMLResponse(
+                render.page("Draft", f"<main class='warn'>Could not draft: {exc}</main>"),
+                status_code=409,
+            )
+        return await _screen(request, world, "balance", drafted=made)
+
     @app.get("/console/{world}/pilots", include_in_schema=False)
     async def screen_pilots(world: str, request: Request, q: str = "") -> Response:
         return await _screen(request, world, "pilots", query=q)
@@ -397,6 +491,8 @@ def create_console(console: Console | None = None) -> FastAPI:
         day: int | None = None,
         query: str = "",
         pilot_id: UUID | None = None,
+        edits: dict[str, float] | None = None,
+        drafted: dict[str, Any] | None = None,
     ) -> Response:
         operator_id = await operator_of(request)
         if operator_id is None:
@@ -410,6 +506,14 @@ def create_console(console: Console | None = None) -> FastAPI:
             summary = await reads.overview(session)
             if here == "overview":
                 body = render.overview(summary).replace("{world}", world)
+            elif here == "balance":
+                body = render.balance(
+                    world,
+                    c.rules.version,
+                    balance.dials(c.rules, balance.notes_for(c.settings.ruleset_root, c.rules.version)),
+                    edits or {},
+                    drafted,
+                )
             elif here == "pilots":
                 listing = await reads.pilots(session, query)
                 chosen = await reads.pilot(session, pilot_id) if pilot_id else None
