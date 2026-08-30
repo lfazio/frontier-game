@@ -308,6 +308,7 @@ async def test_a_full_tick_stays_well_inside_its_budget(sessions, clean):
         "economy",
         "event_promotion",
         "grant_action_points",
+        "harrowing",
         "missions",
         "npc_population",
         "psychohistory",

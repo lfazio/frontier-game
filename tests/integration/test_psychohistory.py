@@ -375,3 +375,180 @@ async def test_the_history_endpoints_need_an_account(clean):
     with TestClient(create_app(build_sql(clean))) as client:
         assert client.get("/v1/history/eras").status_code == 401
         assert client.get("/v1/history/crises").status_code == 401
+
+
+# --- the Harrowing (PSDD §5) ------------------------------------------------------------------
+
+
+async def test_a_crisis_left_alone_brings_an_incursion(sessions, clean):
+    """B15: every crisis that expires unresolved brings one — severity decides how many."""
+    # A zero-length crisis expires the cycle it opens, which is the whole point being tested.
+    await strain(sessions, clean, crisis_window=1, crisis_duration=0)
+
+    async with sessions() as session:
+        crises = (await session.execute(select(models.Crisis))).scalars().all()
+        agents = (
+            (await session.execute(select(models.NpcAgent).where(models.NpcAgent.archetype == "incursion")))
+            .scalars()
+            .all()
+        )
+
+    assert crises and all(c.answered_on is not None for c in crises)
+    assert agents, "a crisis expired and nothing came"
+    expected = sum(
+        load_ruleset(clean.ruleset_root, clean.ruleset_version).npc.hulls_for(c.severity) for c in crises
+    )
+    assert len(agents) == expected
+
+
+async def test_an_incursion_arrives_in_the_empty_space_between_systems(sessions, clean):
+    """D-78: it needs somewhere to be that is not already someone's home system."""
+    await strain(sessions, clean, crisis_window=1, crisis_duration=0)
+
+    async with sessions() as session:
+        berths = (
+            (
+                await session.execute(
+                    text(
+                        "SELECT l.kind FROM core.ships s "
+                        "JOIN core.npc_agents n ON n.ship_id = s.id "
+                        "JOIN core.locations l ON l.id = s.system_id "
+                        "WHERE n.archetype = 'incursion'"
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert berths and set(berths) == {"void"}
+
+
+async def test_a_crisis_is_answered_once(sessions, clean):
+    """`answered_on` is what stops the same expiry raising a fresh wave every cycle, for ever."""
+    await strain(sessions, clean, crisis_window=1, crisis_duration=0)
+    async with sessions() as session:
+        first = (
+            await session.execute(
+                select(func.count())
+                .select_from(models.NpcAgent)
+                .where(models.NpcAgent.archetype == "incursion")
+            )
+        ).scalar_one()
+
+    await crisis_runner(sessions, clean, crisis_window=1, crisis_duration=0).run()
+
+    async with sessions() as session:
+        after = (
+            await session.execute(
+                select(func.count())
+                .select_from(models.NpcAgent)
+                .where(models.NpcAgent.archetype == "incursion")
+            )
+        ).scalar_one()
+    assert after == first
+
+
+async def test_an_incursion_closes_on_a_system_and_fights(sessions, clean):
+    """It spends Action Points like any other crew, and the encounter code is the ordinary one."""
+    await strain(sessions, clean, crisis_window=1, crisis_duration=0)
+    tick = crisis_runner(sessions, clean, crisis_window=1, crisis_duration=0)
+    for _ in range(3):
+        await tick.run()
+
+    async with sessions() as session:
+        arrived = (
+            await session.execute(
+                text(
+                    "SELECT count(*) FROM core.ships s "
+                    "JOIN core.npc_agents n ON n.ship_id = s.id "
+                    "JOIN core.locations l ON l.id = s.system_id "
+                    "WHERE n.archetype = 'incursion' AND l.kind = 'system'"
+                )
+            )
+        ).scalar_one()
+
+    assert arrived > 0, "the incursion never reached a system"
+
+
+async def test_nothing_arrives_while_the_model_is_dark(sessions, clean):
+    """No model, no crises, so nothing can expire unanswered."""
+    dark = TickRunner(
+        sessions=sessions,
+        rules=load_ruleset(clean.ruleset_root, clean.ruleset_version),
+        clock=SystemClock(),
+        rng_for=SeededRng(clean.world_seed).for_,
+        features=Features(psychohistory=False),
+        extra_stages=(),
+    )
+
+    report = await dark.run()
+
+    assert report.stages["harrowing"] == {"disabled": 1}
+
+
+async def test_an_agent_lost_to_an_incursion_comes_back_as_someone_else(sessions, clean):
+    """B12/GDD §9.14: recovery is unreliable in an incursion, and an agent is not recovered."""
+    await strain(sessions, clean, crisis_window=1, crisis_duration=0)
+
+    async with sessions() as session, session.begin():
+        # A cleared pilot, in a hull, where the Harrowing is.
+        raider = (
+            await session.execute(
+                text(
+                    "SELECT s.id, s.system_id, s.position_path FROM core.ships s "
+                    "JOIN core.npc_agents n ON n.ship_id = s.id WHERE n.archetype = 'incursion' LIMIT 1"
+                )
+            )
+        ).first()
+        account_id, player_id, ship_id = uuid4(), uuid4(), uuid4()
+        await session.execute(
+            text(
+                "INSERT INTO core.accounts (id, email, password_hash) VALUES (:a, 'agent@x.io', 'x')"
+            ).bindparams(a=account_id)
+        )
+        await session.execute(
+            text(
+                "INSERT INTO core.players (id, account_id, callsign, credits, ap_balance, "
+                " last_grant_day, clearance, generation) "
+                "VALUES (:p, :a, 'Cmdr Agent', 5000, 10, -1, 1, 1)"
+            ).bindparams(p=player_id, a=account_id)
+        )
+        await session.execute(
+            text(
+                "INSERT INTO core.ships (id, player_id, hull, hull_max, shields, shields_max, "
+                " fuel, fuel_max, cargo_max, sensor_range, system_id, position_path) "
+                "VALUES (:s, :p, 1, 100, 0, 0, 10, 60, 20, 3, :sys, CAST(:pos AS ltree))"
+            ).bindparams(s=ship_id, p=player_id, sys=raider.system_id, pos=str(raider.position_path))
+        )
+        await session.execute(
+            text(
+                "INSERT INTO core.encounter_queue (id, world_day, attacker_id, defender_id, "
+                " at_path, intent) VALUES (:id, :day, :att, :def, CAST(:pos AS ltree), 'attack')"
+            ).bindparams(
+                id=uuid4(),
+                day=(await session.execute(text("SELECT world_day FROM core.world_state"))).scalar_one() + 1,
+                att=raider.id,
+                **{"def": ship_id},
+                pos=str(raider.position_path),
+            )
+        )
+
+    await crisis_runner(sessions, clean, crisis_window=1, crisis_duration=0).run()
+
+    async with sessions() as session:
+        pilots = (
+            await session.execute(
+                text(
+                    "SELECT callsign, generation, clearance FROM core.players "
+                    "WHERE account_id = :a ORDER BY generation"
+                ).bindparams(a=account_id)
+            )
+        ).all()
+
+    assert len(pilots) == 2, "the agent was mended rather than replaced"
+    assert pilots[0].generation == 1 and pilots[0].clearance == 1
+    assert pilots[1].generation == 2 and pilots[1].clearance == 0
+    # No column links them: the account is the only thing they share, and that is not a link
+    # between an agent and a pilot — every account has one.
+    assert pilots[1].callsign != pilots[0].callsign

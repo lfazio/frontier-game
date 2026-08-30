@@ -85,6 +85,7 @@ async def test_every_stage_is_checkpointed(sessions, clean):
         "economy",
         "event_promotion",
         "grant_action_points",
+        "harrowing",
         "missions",
         "npc_population",
         "psychohistory",
