@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.5 |
+| Version | 0.6 |
 | Date | 2026-08-29 |
 | Scope | Delivery phases **P5, P6, P7 and P7+** (*ARCH §17*), and the deferred systems of *GDD §10.2* |
 | Depends on | `game-design.md` v2.9, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20 |
@@ -36,7 +36,7 @@ about what exists is the difference between "finish it" and "write it".
 | **C0–C6** | Built | `client/` — the whole MVP client, *UX §11* |
 | **P5 — History** | **Built** | Stage 7 with crisis detection; `psycho.history_variables`, `forecasts`, `crises`, `eras`, four region views; era naming in stage 10; `GET /v1/forecasts` and `/v1/history/{eras,crises}`; the Institute as a station type with a restricted `knowledge` market; the `psycho_reader` role |
 | **P6 — The Continuity** | **Built and running behind its flag** | `frontier/continuity/stage.py` (`role = "cont_role"`, `order = 8`), loaded by name from `settings.extra_stages`; `cont.agents`, `cont.cells`, `cont.budget`, `cont.interventions`; fifteen anti-leak probes |
-| **P7 — Clearance and recruitment** | **Channel and watch built; recruitment and permanent loss are not** | `core.players.clearance` and `generation`; the `directorate` channel of `send_message`; `GET /v1/survey`; twenty-one anti-leak probes |
+| **P7 — Clearance and recruitment** | **Built, but for permanent loss** | `core.players.clearance` and `generation`; the `directorate` channel; `GET /v1/survey`; addressed recruitment offers; twenty-four anti-leak probes |
 | **P7+ — The Harrowing** | Not built | — |
 
 Two consequences follow, and they shape everything below.
@@ -228,21 +228,23 @@ mission board ──▶ an offer like any other ──▶ accepted ──▶ cle
 
 Rules:
 
-- A declined offer **MUST NOT** write a row, an event, or a digest line. "Nothing remembered" is literal.
+- A declined offer **MUST NOT** write a row, an event, or a digest line. "Nothing remembered" is literal — and it
+  is achieved by there being **no decline command at all**. An offer that is not taken expires with every other
+  unclaimed one, so refusing costs nothing and records nothing.
 - Eligibility is evaluated from the player's own record only (*GDD Q10*): re-recruitment after a loss is possible,
   but never automatic, and it evaluates the new pilot's record on its own terms.
 
-**Not built, and blocked on a grants decision.** An offer has to reach a mission board, and the Continuity's stage
-runs as `cont_role`, which holds no write privilege on `core.missions` — deliberately, since that is the boundary
-keeping it from touching the world directly (§3.2). Two ways out, and they trade against each other:
+**Built as an addressed offer** (Q-F). A mission may carry `offered_to`, and the board shows an addressed offer to
+that pilot and to nobody else. Every ordinary mission has it null, so every other board is the board it always was
+— which is what makes an approach unobservable rather than merely unlabelled.
 
-| Option | Cost |
-| --- | --- |
-| Grant `cont_role` `INSERT` on `core.missions` | Widens the faction's write surface past "its own records", weakening the §3.2 boundary |
-| Have stage 6 read a marker the faction wrote in `cont` | Names `cont` in a stage every engineer reads, weakening *GDD §9.4* |
+The capability granted is `INSERT` on `core.missions` and nothing else: the faction may put work in front of
+someone, and may not edit it, withdraw it, or touch the pilot. That is narrower than either option the question
+posed, which is why neither boundary had to give.
 
-This is **Q-F** below. It is a design decision about which boundary matters more, not something to settle by
-picking whichever is easier to write.
+What makes it a recruitment is a term in `terms`, which the board never serialises — so the offer reads as ordinary
+courier work until it is taken. Eligibility is read from the pilot's own record (knowledge learned, no clearance
+yet), never from any history of approaches, because no such history is kept.
 
 ## 4.2 Permanent loss and the new pilot
 
@@ -318,7 +320,7 @@ encounter code that already exists. What is new is a fourth NPC archetype and th
 
 | Piece | Shape |
 | --- | --- |
-| Spawning | A tick stage watching **crisis expiry** (§2.2), not system activity |
+| Spawning | A tick stage watching **crisis expiry** (§2.2), not system activity. Every expired crisis brings one (Q-B); severity governs how bad it is, never whether it comes |
 | The opponent | A fourth entry in `NPC_SHIP`, with its own hulls and weapons |
 | Where it arrives | The empty space between systems — an address that exists precisely because a region is filled space (`D-68`) |
 | Resolution | `encounter.resolve()` already takes participant *sets*; the MVP restricts cardinality to 1v1 **by rule, not by code**, so fleet battles are a rule change |
@@ -406,6 +408,9 @@ These apply to every phase above, and a change that breaks one is a design decis
 | D-82 | Clearance is a column on `core.players`, not a record in `cont`. | Resolving a clearance audience becomes ordinary SQL over ordinary tables, so the delivery path never names the hidden faction. The alternative — reading `cont` from `event_sink` — would have put the word in a file every engineer reads, for no gain. The column is never serialised, and a probe asserts it over every player-facing response. | Yes |
 | D-83 | The clearance gate lives in `observation_quality`, not in the delivery row. | The WebSocket pump filters by channel rather than by delivery, so a `UNIVERSE`-scope event reaches every open socket. Gating the delivery alone would have leaked every clearance message to every connected client. One gate, in the one function both the socket and the HTTP feed pass through. | No |
 | D-84 | The survey's ration is claimed with one atomic `SET NX EX` on a key belonging to the faction, not the caller. | Two members cannot both win it, and one spending it spends it for everyone — which is the difference between a shared instrument and a per-member perk (U1). | No |
+| D-85 | Knowledge is spent by a `read` command that consumes a unit and raises the pilot's knowledge; selling it is refused with `NOT_SELLABLE`. | Q-D: knowledge is not a commodity to flip. Reading costs no Action Points and needs no station — reading what you already carry is not an act in the world; what it costs is the unit. | Yes |
+| D-86 | The watch ration is rule data, overridable per deployment by `WATCH_INTERVAL_SECONDS`. | Q-C: live pacing is balance, but a six-hour ration makes the feature invisible on a demonstration world. The override is a deployment concern, so it is a setting rather than a second ruleset. | No |
+| D-87 | Recruitment is an offer addressed to one pilot via `missions.offered_to`, posted under an `INSERT`-only grant. | Q-F: narrower than either option the question posed. The faction may put work in front of someone; it may not edit it, withdraw it, or touch the pilot, and no other board changes at all. | Yes |
 | D-72 | Crisis detection lives inside stage 7 rather than in a stage of its own. | The stage already computes the deviation a crisis is defined by. A separate stage would either recompute it or read the first stage's output, and both are worse than one pass. | Yes |
 | D-73 | Eras are written by the chronicle stage, not by the model. | The model measures; naming a stretch of history is a narrative act, and the chronicle already owns promotion and retention. It also keeps the model's output free of prose. | Yes |
 | D-74 | The Continuity ships as an unregistered stage first: the code, schema, role and import contract exist before the faction acts. | It makes enabling the faction a one-line change under a flag, and it means the anti-leak suite can be written and run against real code before anything is at stake. | No |
@@ -417,16 +422,19 @@ These apply to every phase above, and a change that breaks one is a design decis
 
 ---
 
-# 10. Open questions
+# 10. Answered questions
 
-| # | Question | Blocks |
+All six were answered on 2026-08-30. Each is recorded here and in the section it settles; the identifiers stay
+stable so a citation of `Q-B` keeps meaning what it meant.
+
+| # | Question | Answer |
 | --- | --- | --- |
-| **Q-A** | What is the era threshold — which crisis severity closes an era and opens the next? | §2.2 |
-| **Q-B** | Does an unresolved crisis always produce an incursion, or only above a severity? | §5.1 |
-| **Q-C** | How long is the watch interval, and is it the same on a demonstration world as on a live one? | §4.4 |
-| **Q-D** | May knowledge be resold to the Institute at a loss, or is it consumed on reading? | §2.3 |
-| **Q-E** | *GDD* Q8 — team shared assets — is still open, and player-owned stations depend on the answer. | §6 |
-| **Q-F** | Recruitment must place an offer on a mission board, but `cont_role` cannot write `core.missions` and stage 6 must not read `cont`. Which boundary gives? | §4.1 |
+| **Q-A** | What is the era threshold? | **Configurable.** It already is: `era_threshold` in `events.toml`, like every other tunable. An operator-facing view for turning such dials is a separate piece of work and is not in any current phase — see §7. |
+| **Q-B** | Does an unresolved crisis always produce an incursion, or only above a severity? | **Always.** Every crisis that expires unresolved brings an incursion. Severity governs how bad the incursion is, not whether it comes — so the world's promise is simple: leave a crisis alone long enough and something arrives. |
+| **Q-C** | How long is the watch interval, and does a demonstration world differ? | **Shorter on a demonstration world.** The live pacing is rule data; a deployment may shorten it, and the demo does, because a six-hour ration makes the feature invisible to anyone being shown the game. |
+| **Q-D** | May knowledge be resold to the Institute, or is it consumed on reading? | **Consumed when read.** Knowledge is not a commodity to flip: reading it spends it. Selling it back is therefore refused — the only thing to do with knowledge is learn it. |
+| **Q-E** | Who may own a station? | **A faction, never a player or a team** (*GDD §11.1 M20*, answering *GDD* Q8). Teams hold no shared assets at all, so disbanding one raises no question of inheritance. |
+| **Q-F** | Recruitment must place an offer on a mission board, but `cont_role` cannot write `core.missions` and stage 6 must not read `cont`. Which boundary gives? | **Neither.** A third option: a *targeted* offer. The Continuity posts a recruitment offer to one named pilot's board. It is not a general power to write missions — it writes an offer addressed to a pilot, which is a narrower capability than either option on the table. |
 
 ---
 
@@ -434,6 +442,7 @@ These apply to every phase above, and a change that breaks one is a design decis
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.6 | 2026-08-30 | All six open questions answered (§10) and acted on: knowledge is consumed by reading (D-85), the ration may be shortened per deployment (D-86), and recruitment ships as an addressed offer with a narrow `INSERT` grant (D-87). P7 is complete but for permanent loss, which waits on the Harrowing. |
 | 0.5 | 2026-08-29 | P7 part one: the zero-delay clearance channel (D-82, D-83) and the faction-wide rationed survey (D-84). Recruitment and permanent loss remain — §4.1 and §4.2 record why each is blocked. |
 | 0.4 | 2026-08-29 | P6 built: the Continuity acts at stage 8 behind `FEATURES_CONTINUITY`, ARCH's stage numbers became executable as `Stage.order` (D-81), and the anti-leak suite went from nine probes to fifteen. §3.1 corrected — the stage is loaded by name, never registered in `TICK_STAGES`. |
 | 0.3 | 2026-08-29 | P5 complete: the Historical Institute ships as a station type with a restricted `knowledge` market (D-80). Fourteen Institutes in the generated world, and no other station stocks it. |
