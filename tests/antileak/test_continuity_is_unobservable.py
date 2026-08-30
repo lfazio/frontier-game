@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -503,3 +503,92 @@ def test_the_survey_is_no_stronger_than_watch_mode(client, clean):
     assert kinds <= {"system", "void"}, "the survey reached inside a system"
     assert {entry["kind"] for entry in body["galaxy"]["entries"]} <= {"region", "void"}
     spend_the_ration(clean)
+
+
+# --- P7: recruitment (PSDD §4.1, Q-F) ---------------------------------------------------------
+
+
+def offer_to(clean, player_id) -> str:
+    """Post an addressed offer the way the faction posts one."""
+
+    async def post() -> str:
+        engine = make_engine(clean.database_url)
+        mission_id = uuid4()
+        async with make_sessionmaker(engine)() as session, session.begin():
+            system_id = (
+                await session.execute(
+                    text("SELECT id FROM core.locations WHERE kind = 'system' ORDER BY path LIMIT 1")
+                )
+            ).scalar_one()
+            await session.execute(
+                text(
+                    "INSERT INTO core.missions (id, faction_id, kind, system_id, brief, terms, "
+                    " reward_credits, reward_reputation, offered_to, offered_on, expires_on) "
+                    "VALUES (:id, 1, 'courier', :system, 'Carry a sealed package.', "
+                    "        CAST('{\"clearance\": 1}' AS jsonb), 1200, 1, :player, 0, 30)"
+                ).bindparams(id=mission_id, system=system_id, player=UUID(player_id))
+            )
+        await engine.dispose()
+        return str(mission_id)
+
+    return asyncio.run(post())
+
+
+def test_an_addressed_offer_is_on_one_board_and_no_other(client, clean):
+    """B11: an approach nobody else can see is an approach nobody else can infer."""
+    approached = register(client)
+    bystander = register(client)
+    mission_id = offer_to(clean, whoami(client, approached))
+
+    mine = client.get("/v1/missions", headers=approached).json()["offers"]
+    theirs = client.get("/v1/missions", headers=bystander).json()["offers"]
+
+    assert any(m["id"] == mission_id for m in mine)
+    assert not any(m["id"] == mission_id for m in theirs)
+
+
+def test_an_offer_says_nothing_about_what_it_is(client, clean):
+    """The board serialises no term, so an offer reads as ordinary work until it is taken."""
+    approached = register(client)
+    mission_id = offer_to(clean, whoami(client, approached))
+
+    offer = next(
+        m for m in client.get("/v1/missions", headers=approached).json()["offers"] if m["id"] == mission_id
+    )
+
+    body = json.dumps(offer).lower()
+    for secret in SECRETS:
+        assert secret not in body
+    assert "terms" not in offer and "offered_to" not in offer
+
+
+def test_taking_it_is_what_changes_the_pilot(client, clean):
+    """And declining writes nothing: there is no decline, only an offer that expires."""
+    approached = register(client)
+    player_id = whoami(client, approached)
+    mission_id = offer_to(clean, player_id)
+
+    async def clearance_of() -> int:
+        engine = make_engine(clean.database_url)
+        async with make_sessionmaker(engine)() as session:
+            found = (
+                await session.execute(
+                    text("SELECT clearance FROM core.players WHERE id = :p").bindparams(p=UUID(player_id))
+                )
+            ).scalar_one()
+        await engine.dispose()
+        return int(found)
+
+    assert asyncio.run(clearance_of()) == 0, "an unopened offer changed the pilot"
+
+    client.post(
+        "/v1/commands",
+        json={
+            "action": "accept_mission",
+            "mission_id": mission_id,
+            "idempotency_key": str(uuid4()),
+        },
+        headers=approached,
+    )
+
+    assert asyncio.run(clearance_of()) == 1

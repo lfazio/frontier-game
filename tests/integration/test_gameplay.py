@@ -860,6 +860,41 @@ def test_knowledge_is_bought_and_sold_back_at_an_institute(client, clean):
     assert bought["held"] == 2
     assert held["you"]["credits"] == before - line["buy"] * 2
 
-    # Read and sold back: an Institute buys its own knowledge in again.
-    assert send(client, headers, action="sell", commodity="knowledge", qty=2).status_code == 202
-    assert not [c for c in me(client, headers)["cargo"] if c["commodity"] == "knowledge"]
+    # Knowledge is spent by reading it, never sold back (Q-D).
+    refused = send(client, headers, action="sell", commodity="knowledge", qty=2)
+    assert refused.status_code == 409 and refused.json()["code"] == "NOT_SELLABLE"
+
+
+def test_reading_knowledge_spends_it(client, clean):
+    """Q-D: the only thing to do with knowledge is learn it, and then it is gone."""
+    headers = register(client)
+    institute = berth_at_an_institute(client, headers, clean)
+    send(client, headers, action="buy", commodity="knowledge", qty=2)
+    before = me(client, headers)
+
+    read = send(client, headers, action="read", commodity="knowledge")
+
+    after = me(client, headers)
+    assert read.status_code == 202
+    assert after["player"]["knowledge"] == before["player"]["knowledge"] + 1
+    assert next(c["qty"] for c in after["cargo"] if c["commodity"] == "knowledge") == 1
+    assert after["player"]["ap"] == before["player"]["ap"], "reading what you carry is not an act"
+    assert client.get(f"/v1/stations/{institute}/market", headers=headers).status_code == 200
+
+
+def test_reading_what_you_do_not_carry_is_refused(client, clean):
+    headers = register(client)
+    berth_at_an_institute(client, headers, clean)
+
+    assert send(client, headers, action="read", commodity="knowledge").json()["code"] == (
+        "INSUFFICIENT_CARGO"
+    )
+
+
+def test_only_knowledge_is_read(client, clean):
+    """An ordinary commodity is carried and sold, never learned."""
+    headers = register(client)
+    _dock(client, headers)
+    send(client, headers, action="buy", commodity="grain", qty=1)
+
+    assert send(client, headers, action="read", commodity="grain").json()["code"] == ("COMMODITY_UNAVAILABLE")
