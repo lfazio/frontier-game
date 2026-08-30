@@ -1,0 +1,206 @@
+"""The operator console — ADMIN §2 and §6, delivery slice A0.
+
+Two properties carry this suite: the console is a different application from the game, and
+permission comes from another operator rather than from asking.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from uuid import uuid4
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import text
+
+from frontier.adapters.api.app import create_app
+from frontier.adapters.api.security import hash_password
+from frontier.adapters.console.app import bootstrap, build, create_console
+from frontier.adapters.db.engine import make_engine, make_sessionmaker
+from frontier.config.container import build_sql
+
+pytestmark = pytest.mark.integration
+
+ORIGIN = "ancients@frontier.test"
+SECRET = "correct-horse-battery-staple"
+
+
+def for_console(settings):
+    return settings.model_copy(update={"admin_worlds": "kestrel,demo"})
+
+
+@pytest.fixture
+def console(clean):
+    settings = for_console(clean)
+    asyncio.run(_wipe(settings))
+    asyncio.run(bootstrap(settings, ORIGIN, SECRET, "The Great Ancients"))
+    with TestClient(create_console(build(settings))) as client:
+        yield client
+
+
+async def _wipe(settings) -> None:
+    engine = make_engine(settings.database_url)
+    async with make_sessionmaker(engine)() as session, session.begin():
+        await session.execute(text("DELETE FROM admin.grants"))
+        await session.execute(text("DELETE FROM admin.operators"))
+    await engine.dispose()
+
+
+def sign_in(console, email=ORIGIN, password=SECRET) -> dict[str, str]:
+    token = console.post("/admin/auth/login", json={"email": email, "password": password})
+    assert token.status_code == 200, token.text
+    return {"Authorization": f"Bearer {token.json()['access_token']}"}
+
+
+def add_operator(clean, email: str, name: str, password: str = SECRET) -> None:
+    async def write() -> None:
+        engine = make_engine(clean.database_url)
+        async with make_sessionmaker(engine)() as session, session.begin():
+            await session.execute(
+                text(
+                    "INSERT INTO admin.operators (id, email, name, password_hash, created_on) "
+                    "VALUES (:id, :email, :name, :hash, 0)"
+                ).bindparams(id=uuid4(), email=email, name=name, hash=hash_password(password))
+            )
+        await engine.dispose()
+
+    asyncio.run(write())
+
+
+def test_the_console_serves_no_game_route(console):
+    """A0: it is a different application, not a privileged corner of the player API."""
+    assert console.get("/v1/me").status_code == 404
+    assert console.get("/v1/feed").status_code == 404
+    assert console.get("/v1/watch/overview").status_code == 404
+
+
+def test_the_game_serves_no_console_route(clean):
+    with TestClient(create_app(build_sql(clean))) as game:
+        assert game.get("/admin/me").status_code == 404
+        assert game.post("/admin/auth/login", json={}).status_code == 404
+        assert game.get("/admin/operators?world=kestrel").status_code == 404
+
+
+def test_a_player_token_is_not_an_operator_token(clean, console):
+    """Different audiences, so it fails even where a deployment shares the secret."""
+    with TestClient(create_app(build_sql(clean))) as game:
+        registered = game.post(
+            "/v1/auth/register",
+            json={
+                "email": f"{uuid4().hex}@x.io",
+                "password": "correct horse battery",
+                "callsign": uuid4().hex[:12],
+            },
+        )
+        player = {"Authorization": f"Bearer {registered.json()['access_token']}"}
+        operator = sign_in(console)
+
+        assert console.get("/admin/me", headers=player).status_code == 401
+        assert game.get("/v1/me", headers=operator).status_code == 401
+        assert console.get("/admin/me", headers=operator).status_code == 200
+
+
+def test_the_origin_holds_every_world_and_nobody_granted_it(console):
+    body = console.get("/admin/me", headers=sign_in(console)).json()
+
+    assert body["name"] == "The Great Ancients"
+    assert {w["name"] for w in body["worlds"]} == {"kestrel", "demo"}
+    assert {w["permission"] for w in body["worlds"]} == {"origin"}
+
+    roster = console.get("/admin/operators?world=kestrel", headers=sign_in(console)).json()
+    origin = next(o for o in roster["operators"] if o["permission"] == "origin")
+    assert origin["granted_by"] is None
+    assert origin["removable"] is False
+
+
+def test_permission_comes_from_another_operator(clean, console):
+    """QA-1: nobody grants themselves this, and the console records who did."""
+    add_operator(clean, "nadia@example.com", "nadia.okonkwo")
+    origin = sign_in(console)
+
+    # Before the grant, she cannot see the world at all.
+    hers = sign_in(console, "nadia@example.com")
+    assert console.get("/admin/worlds/kestrel", headers=hers).status_code == 404
+
+    granted = console.post(
+        "/admin/operators:grant",
+        headers=origin,
+        json={"email": "nadia@example.com", "world": "kestrel", "permission": "operate"},
+    )
+    assert granted.status_code == 201
+
+    assert console.get("/admin/worlds/kestrel", headers=hers).status_code == 200
+    # ...and only the world she was given.
+    assert console.get("/admin/worlds/demo", headers=hers).status_code == 404
+
+    roster = console.get("/admin/operators?world=kestrel", headers=origin).json()
+    hers_row = next(o for o in roster["operators"] if o["name"] == "nadia.okonkwo")
+    assert hers_row["granted_by"] == "The Great Ancients"
+
+
+def test_nobody_grants_more_than_they_hold(clean, console):
+    add_operator(clean, "watcher@example.com", "support.rota")
+    origin = sign_in(console)
+    console.post(
+        "/admin/operators:grant",
+        headers=origin,
+        json={"email": "watcher@example.com", "world": "kestrel", "permission": "watch"},
+    )
+
+    theirs = sign_in(console, "watcher@example.com")
+    add_operator(clean, "friend@example.com", "a.friend")
+    refused = console.post(
+        "/admin/operators:grant",
+        headers=theirs,
+        json={"email": "friend@example.com", "world": "kestrel", "permission": "operate"},
+    )
+
+    # `watch` cannot even reach the granting endpoint: it needs `operate` to hand anything out.
+    assert refused.status_code == 404
+
+
+def test_the_origin_cannot_be_revoked(console):
+    """A world with no operator is a world nobody can rescue."""
+    origin = sign_in(console)
+
+    refused = console.post(
+        "/admin/operators:revoke",
+        headers=origin,
+        json={"email": ORIGIN, "world": "kestrel", "permission": "origin"},
+    )
+
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "ORIGIN_IS_FIXED"
+    assert console.get("/admin/me", headers=origin).json()["worlds"]
+
+
+def test_a_revoked_operator_loses_the_world(clean, console):
+    add_operator(clean, "temp@example.com", "temp.cover")
+    origin = sign_in(console)
+    console.post(
+        "/admin/operators:grant",
+        headers=origin,
+        json={"email": "temp@example.com", "world": "kestrel", "permission": "operate"},
+    )
+    theirs = sign_in(console, "temp@example.com")
+    assert console.get("/admin/worlds/kestrel", headers=theirs).status_code == 200
+
+    console.post(
+        "/admin/operators:revoke",
+        headers=origin,
+        json={"email": "temp@example.com", "world": "kestrel", "permission": "operate"},
+    )
+
+    assert console.get("/admin/worlds/kestrel", headers=theirs).status_code == 404
+
+
+def test_a_world_nobody_holds_answers_as_no_world_at_all(console):
+    """The same 404 either way, so a deployment's worlds cannot be mapped by asking."""
+    origin = sign_in(console)
+
+    unknown = console.get("/admin/worlds/atlantis", headers=origin)
+    unheld = console.get("/admin/worlds/kestrel")
+
+    assert unknown.status_code == 404
+    assert unheld.status_code == 401  # no token at all is a different question
+    assert unknown.json() == {"detail": "Not Found"}
