@@ -4,8 +4,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Slice A0 built. The screens (A1–A6) are design.** |
-| Version | 0.3 |
+| Status | **Slices A0 and A1 built. The remaining screens (A2–A6) are design.** |
+| Version | 0.4 |
 | Date | 2026-08-30 |
 | Scope | The operator's console: watching a world, diagnosing it, and turning its dials |
 | Depends on | `game-design.md` v3.0, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20, `detailed-design-post-mvp.md` v0.6 |
@@ -16,8 +16,8 @@
 `ui-ux-mvp.md` is normative for what a **player** sees. This document is normative for what an **operator** sees, and
 the two surfaces share nothing but a design language: different audience, different entitlement, different risks.
 
-Cited as `ADMIN §n`. **A0 is built** — the separate application, the fourth role, operator sign-in and the
-grant model of §2. Everything in §3 is still design; §7 tracks it.
+Cited as `ADMIN §n`. **A0 and A1 are built** — the separate application, the fourth role, operator sign-in, the
+grant model of §2, and the two screens of §3.1 and §3.2. The rest of §3 is still design; §7 tracks it.
 
 ---
 
@@ -122,8 +122,18 @@ Read from `hist.tick_runs` and `hist.tick_stages`, which already record exactly 
 - Stages are listed **in their declared order** (`Stage.order`, *PSDD D-81*), with the number shown: the console is
   the place where that numbering becomes visible to a human.
 - A stage over a configurable share of the tick is flagged (`⚠`). It is a hint, not an alarm.
-- A tick that failed shows the stage it failed in and its error, and offers **Resume**, which is the existing
-  resume path and not a new one.
+- A run that did not finish names **the stage it stopped after** — the one recorded last — and offers
+  **Ask for a retry**.
+
+> **The console does not run a tick, and "Resume" was the wrong word for what it can do.** A failed tick already
+> resumes by itself: the next run finds the open row and carries on from the stage that broke. What an operator
+> needs is for that run to happen *sooner*, so the button leaves a request on `hist.tick_runs` — the one table the
+> console may write — and the worker acts on it. A worker that never reads it changes nothing, which is the property
+> that makes the button safe.
+
+- **Stage times are derived, not stored.** `tick_stages` records when each finished, so a stage's time is the gap
+  since the one before it and the first is measured from the run's start. The tick has no business carrying numbers
+  it does not use.
 
 ## 3.3 History — crises, eras, incursions
 
@@ -238,14 +248,22 @@ the same property `B7` asserts for players.
 
 A separate app, a separate prefix, a separate role.
 
-| Screen | Endpoints |
-| --- | --- |
-| Overview | `GET /admin/world` |
-| The tick | `GET /admin/ticks`, `GET /admin/ticks/{day}`, `POST /admin/ticks/{day}:resume` |
-| History | `GET /admin/history` |
-| Balance | `GET /admin/ruleset`, `POST /admin/ruleset:draft` |
-| Pilots | `GET /admin/pilots?q=…`, `GET /admin/pilots/{id}` |
-| Directorate | `GET /admin/directorate` |
+Every world-scoped route carries the world in its path, because one console reaches several (QA-3).
+
+| Screen | Endpoints | Built |
+| --- | --- | --- |
+| Sign in | `POST /admin/auth/login`, `GET /admin/me` | ✅ |
+| Overview | `GET /admin/worlds/{world}` | ✅ |
+| The tick | `GET /admin/worlds/{world}/ticks`, `.../ticks/{day}`, `POST .../ticks/{day}:retry` | ✅ |
+| Operators | `GET /admin/operators`, `POST /admin/operators:grant`, `:revoke` | ✅ *(A0)* |
+| History | `GET /admin/worlds/{world}/history` | |
+| Balance | `GET /admin/worlds/{world}/ruleset`, `POST .../ruleset:draft` | |
+| Pilots | `GET /admin/worlds/{world}/pilots?q=…`, `.../pilots/{id}` | |
+| Directorate | `GET /admin/worlds/{world}/directorate` | |
+
+The screens themselves are **rendered on the server** at `/console/{world}/…`, reading through the same functions
+the JSON routes use. An operator console is an internal tool with a handful of screens: a page that arrives
+finished is one less thing to be broken at 4am, and it spares the project a second front-end toolchain.
 
 Two write endpoints in the whole console, and neither changes the world's state directly: one resumes a tick that
 already exists, one writes a file for a human to review.
@@ -287,7 +305,7 @@ Each slice is independently useful, and the first two are most of the value.
 | Slice | Delivers | Worth it because |
 | --- | --- | --- |
 | **A0** ✅ | The separate app, `admin_role`, operator auth, the grant model | Nothing else can exist until the surface is separate. **Built** |
-| **A1** | Overview and the tick screen | Answers "is the world turning?", which is the only question that matters at 4am |
+| **A1** ✅ | Overview and the tick screen | Answers "is the world turning?", which is the only question that matters at 4am. **Built** |
 | **A2** | History: crises, eras, incursions | The countdown to an incursion is the thing worth watching |
 | **A3** | Pilots: the support view | Turns "something went wrong" into a fact |
 | **A4** | Balance: read-only dials and Draft | Makes tuning a reviewed change rather than a live one |
@@ -310,6 +328,7 @@ Each slice is independently useful, and the first two are most of the value.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.4 | 2026-08-30 | Slice A1 built: the overview and the tick, rendered on the server. Stage times are derived from the gaps between recorded finishes rather than stored. **Resume became "ask for a retry"** — the console cannot run a tick, and a failed one already resumes itself. |
 | 0.3 | 2026-08-30 | Slice A0 built: the console as a separate application on its own port, `admin_role` and its read-mostly grants, operator sign-in on its own audience, and the grant model — including an origin that cannot be revoked. Three anti-leak probes. |
 | 0.2 | 2026-08-30 | QA-1 to QA-3 answered: one console across many worlds, permission granted operator to operator from an original account, and `Draft` opening a branch. Adds the Operators screen (A5). |
 | 0.1 | 2026-08-30 | First design of the operator console: a separate surface, a read-mostly boundary, and a balance screen that proposes a ruleset version rather than editing one. |
