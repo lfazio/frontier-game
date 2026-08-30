@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 from dataclasses import replace
 from uuid import uuid4
 
@@ -555,3 +556,109 @@ def test_the_pilots_screen_renders(clean, console):
 def test_pilots_need_a_world_you_hold(console):
     assert console.get("/admin/worlds/atlantis/pilots", headers=sign_in(console)).status_code == 404
     assert console.get("/admin/worlds/kestrel/pilots").status_code == 401
+
+
+# --- A4: balance ------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def own_rulesets(clean, tmp_path):
+    """A copy of the shipped ruleset, so drafting in a test never touches the repository's."""
+    root = tmp_path / "rulesets"
+    root.mkdir()
+    shutil.copytree(clean.ruleset_root / "2026.1", root / "2026.1")
+    return root
+
+
+@pytest.fixture
+def drafting(clean, own_rulesets):
+    settings = for_console(clean).model_copy(update={"ruleset_root": own_rulesets})
+    asyncio.run(_wipe(settings))
+    asyncio.run(bootstrap(settings, ORIGIN, SECRET, "The Great Ancients"))
+    with TestClient(create_console(build(settings))) as client:
+        yield client
+
+
+def test_the_dials_are_listed_with_what_turning_them_does(console):
+    body = console.get("/admin/worlds/kestrel/ruleset", headers=sign_in(console)).json()
+
+    assert body["version"] == "2026.1"
+    keys = {d["key"] for d in body["dials"]}
+    assert {"world.region_radius", "ap.daily_grant", "events.era_threshold"} <= keys
+    assert all(d["note"] for d in body["dials"]), "a dial shipped without a note"
+
+
+def test_drafting_writes_a_new_version_and_leaves_the_live_one_alone(drafting, own_rulesets):
+    origin = sign_in(drafting)
+
+    made = drafting.post(
+        "/admin/worlds/kestrel/ruleset:draft",
+        headers=origin,
+        json={"edits": {"world.region_radius": 20, "ap.daily_grant": 12}},
+    )
+
+    assert made.status_code == 201, made.text
+    body = made.json()
+    assert body["version"] == "2026.2"
+    assert (own_rulesets / "2026.2").is_dir()
+    assert "region_radius = 16" in (own_rulesets / "2026.1" / "world.toml").read_text()
+    assert "region_radius = 20" in (own_rulesets / "2026.2" / "world.toml").read_text()
+
+
+def test_drafting_needs_operate(clean, drafting):
+    add_operator(clean, "watch3@example.com", "support.rota")
+    drafting.post(
+        "/admin/operators:grant",
+        headers=sign_in(drafting),
+        json={"email": "watch3@example.com", "world": "kestrel", "permission": "watch"},
+    )
+    watcher = sign_in(drafting, "watch3@example.com")
+
+    refused = drafting.post(
+        "/admin/worlds/kestrel/ruleset:draft",
+        headers=watcher,
+        json={"edits": {"world.region_radius": 20}},
+    )
+
+    assert refused.status_code == 404
+    # ...but they may read the dials.
+    assert drafting.get("/admin/worlds/kestrel/ruleset", headers=watcher).status_code == 200
+
+
+def test_a_dial_that_does_not_exist_is_refused(drafting):
+    refused = drafting.post(
+        "/admin/worlds/kestrel/ruleset:draft",
+        headers=sign_in(drafting),
+        json={"edits": {"world.wishful_thinking": 3}},
+    )
+    empty = drafting.post(
+        "/admin/worlds/kestrel/ruleset:draft", headers=sign_in(drafting), json={"edits": {}}
+    )
+
+    assert refused.status_code == 422 and "no such dial" in refused.json()["detail"]
+    assert empty.status_code == 422
+
+
+def test_the_balance_screen_shows_a_diff_before_it_writes_anything(drafting, own_rulesets):
+    drafting.post(
+        "/console/login",
+        content="email=ancients%40frontier.test&password=correct-horse-battery-staple",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        follow_redirects=False,
+    )
+
+    quiet = drafting.get("/console/kestrel/balance")
+    edited = drafting.get("/console/kestrel/balance?edit.world.region_radius=20")
+
+    assert "Turn a dial" in quiet.text
+    assert "1 change(s)" in edited.text
+    assert "+ world.region_radius = 20" in edited.text
+    assert not (own_rulesets / "2026.2").exists(), "looking at a diff wrote something"
+
+    made = drafting.post(
+        "/console/kestrel/balance/draft",
+        content="edit.world.region_radius=20",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert "Drafted 2026.2" in made.text
+    assert (own_rulesets / "2026.2").is_dir()
