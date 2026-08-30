@@ -1,0 +1,188 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; background: #0e1216; color: #d7dde4;
+           font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    a { color: #e8c07d; } a:hover { color: #f0d3a2; }
+    .num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+
+<div style="width: 1120px; height: 720px; display: flex; flex-direction: column; background: #0e1216">
+
+  <div style="display: flex; align-items: center; gap: 16px; padding: 10px 18px; border-bottom: 1px solid #232c35; background: #151b21">
+    <span style="font-weight: 700; letter-spacing: 0.14em">FRONTIER</span>
+    <span style="color: #8b96a3; font-style: italic">console</span>
+    <span style="padding: 4px 10px; border-radius: 4px; background: #251f14; color: #e8c07d; border: 1px solid #e8c07d; font-size: 13px">kestrel</span>
+    <span style="flex: 1"></span>
+    <span class="num" style="font-weight: 700; letter-spacing: 0.08em">DAY 74</span>
+    <span style="color: #7bbf8a">open</span>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid #232c35">
+    <b style="letter-spacing: 0.1em">TICK</b>
+    <div style="display: flex; gap: 6px">
+      <sc-for list="{{runs}}" as="r" hint-placeholder-count="2">
+        <button onClick="{{ r.pick }}" style="background: {{r.bg}}; color: {{r.fg}}; border: 1px solid {{r.edge}}; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit" class="num">day {{r.day}}</button>
+      </sc-for>
+    </div>
+    <span style="flex: 1"></span>
+    <span class="num" style="color: #8b96a3">{{run.elapsed}}</span>
+    <span style="color: {{run.tint}}">{{run.verdict}}</span>
+  </div>
+
+  <div style="flex: 1; display: grid; grid-template-columns: 1fr 320px; min-height: 0">
+
+    <div style="overflow-y: auto; padding: 8px 0">
+      <sc-for list="{{stages}}" as="s" hint-placeholder-count="12">
+        <div onClick="{{ s.pick }}" style="display: flex; align-items: center; gap: 14px; padding: 7px 18px; cursor: pointer; background: {{s.bg}}; border-left: 2px solid {{s.mark}}">
+          <span class="num" style="color: #8b96a3; width: 28px; text-align: right">{{s.order}}</span>
+          <span style="width: 190px">{{s.name}}</span>
+          <span class="num" style="width: 62px; text-align: right; color: {{s.timeTint}}">{{s.elapsed}}</span>
+          <div style="flex: 1; height: 6px; border-radius: 3px; background: #1b222a; overflow: hidden">
+            <div style="width: {{s.share}}; height: 100%; background: {{s.bar}}"></div>
+          </div>
+          <span class="num" style="color: #8b96a3; font-size: 12px; width: 210px">{{s.metrics}}</span>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="border-left: 1px solid #232c35; background: #151b21; padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto">
+      <div style="color: #8b96a3; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase">{{detail.title}}</div>
+
+      <sc-if value="{{detail.failed}}" hint-placeholder-val="{{true}}">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px; color: #c2603f">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c2603f" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6"></path><path d="M12 16.5v.5"></path></svg>
+            <b>{{detail.stage}} raised</b>
+          </div>
+          <pre class="num" style="white-space: pre-wrap; font-size: 12px; color: #d7dde4; background: #0b0f13; border: 1px solid #232c35; border-radius: 4px; padding: 10px; margin: 10px 0">{{detail.error}}</pre>
+          <p style="color: #8b96a3; font-size: 12px; margin: 0 0 12px">The stages before it committed. Resuming re-runs from this one, not from the beginning.</p>
+          <button style="background: #1d242c; color: #e8c07d; border: 1px solid #e8c07d; border-radius: 4px; padding: 6px 14px; cursor: pointer; font: inherit">Resume day {{detail.day}}</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{detail.ok}}" hint-placeholder-val="{{true}}">
+        <div>
+          <div class="num" style="font-size: 22px">{{detail.elapsed}}</div>
+          <div style="color: #8b96a3; font-size: 12px; margin-bottom: 12px">{{detail.share}} of the tick</div>
+          <sc-for list="{{detail.rows}}" as="m" hint-placeholder-count="4">
+            <div style="display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid #1b222a">
+              <span style="color: #8b96a3">{{m.key}}</span>
+              <span class="num">{{m.value}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <p style="color: #8b96a3; font-size: 12px; font-style: italic; margin-top: auto">Numbers are the ARCH §9.2 stage order. The console is where that numbering becomes visible.</p>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+const RUNS = {
+  74: {
+    elapsed: '3.4 s', verdict: 'all stages', tint: '#7bbf8a', failedAt: null,
+    stages: [
+      [10, 'settle_travel', 0.02, 'journeys_settled 0'],
+      [20, 'resolve_encounters', 0.31, 'encounters 0 · destroyed 0'],
+      [30, 'economy', 0.44, 'markets 734 · shifts 5'],
+      [40, 'npc_population', 1.90, 'goods_moved 531 · acted 8'],
+      [50, 'territory', 0.09, 'systems 47 · changes 0'],
+      [60, 'missions', 0.07, 'offered 0 · expired 1'],
+      [70, 'psychohistory', 0.12, 'regions 4 · forecasts 12'],
+      [80, 'continuity', 0.08, 'allowed 3 · used 3'],
+      [85, 'harrowing', 0.05, 'incursions 1 · hulls 10'],
+      [90, 'event_promotion', 0.06, 'promoted 0'],
+      [100, 'chronicle', 0.19, 'chronicled 1 · expired 16'],
+      [110, 'grant_action_points', 0.04, 'players 8 · crews 14'],
+      [120, 'build_digests', 0.03, 'digests 8'],
+    ],
+  },
+  73: {
+    elapsed: '2.1 s', verdict: 'failed at npc_population', tint: '#c2603f', failedAt: 40,
+    stages: [
+      [10, 'settle_travel', 0.02, 'journeys_settled 0'],
+      [20, 'resolve_encounters', 0.28, 'encounters 0 · destroyed 0'],
+      [30, 'economy', 0.41, 'markets 734 · shifts 6'],
+      [40, 'npc_population', 1.39, 'raised'],
+      [50, 'territory', null, 'not reached'],
+      [60, 'missions', null, 'not reached'],
+      [70, 'psychohistory', null, 'not reached'],
+      [80, 'continuity', null, 'not reached'],
+      [85, 'harrowing', null, 'not reached'],
+      [90, 'event_promotion', null, 'not reached'],
+      [100, 'chronicle', null, 'not reached'],
+      [110, 'grant_action_points', null, 'not reached'],
+      [120, 'build_digests', null, 'not reached'],
+    ],
+  },
+};
+
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { day: 74, picked: 40 }; }
+
+  renderVals() {
+    const run = RUNS[this.state.day];
+    const total = run.stages.reduce((sum, s) => sum + (s[2] || 0), 0);
+    const picked = run.stages.find((s) => s[0] === this.state.picked) || run.stages[0];
+    const failed = run.failedAt === picked[0];
+
+    return {
+      runs: [74, 73].map((day) => ({
+        day,
+        pick: () => this.setState({ day, picked: RUNS[day].failedAt || 40 }),
+        bg: day === this.state.day ? '#251f14' : '#1d242c',
+        fg: day === this.state.day ? '#e8c07d' : '#8b96a3',
+        edge: day === this.state.day ? '#e8c07d' : '#232c35',
+      })),
+      run,
+      stages: run.stages.map(([order, name, elapsed, metrics]) => {
+        const share = elapsed ? Math.round((elapsed / total) * 100) : 0;
+        const heavy = share >= 40;
+        const isFail = run.failedAt === order;
+        const reached = elapsed !== null;
+        return {
+          order, name, metrics,
+          elapsed: reached ? elapsed.toFixed(2) + ' s' : '—',
+          share: share + '%',
+          bar: isFail ? '#c2603f' : heavy ? '#e8c07d' : '#3f7fc2',
+          timeTint: heavy || isFail ? '#e8c07d' : '#8b96a3',
+          bg: order === this.state.picked ? '#1b222a' : 'transparent',
+          mark: order === this.state.picked ? '#e8c07d' : 'transparent',
+          pick: () => this.setState({ picked: order }),
+        };
+      }),
+      detail: failed
+        ? {
+            title: 'What broke', failed: true, ok: false, stage: picked[1], day: this.state.day,
+            error: 'IntegrityError: duplicate key value violates\nunique constraint "npc_slot"\nDETAIL: Key (system_id, archetype, slot)\n=(0e08ce04…, incursion, 1) already exists.',
+          }
+        : {
+            title: picked[1], failed: false, ok: true,
+            elapsed: picked[2] === null ? '—' : picked[2].toFixed(2) + ' s',
+            share: picked[2] === null ? 'the run stopped before this stage' : Math.round((picked[2] / total) * 100) + '%',
+            // A stage that never ran has no metrics to split; showing "not / reached" as a
+            // key and a value would be nonsense dressed up as data.
+            rows: picked[2] === null
+              ? []
+              : String(picked[3]).split(' · ').map((part) => {
+                  const bits = part.split(' ');
+                  return { key: bits.slice(0, -1).join(' ') || part, value: bits[bits.length - 1] };
+                }),
+          },
+    };
+  }
+}
+</script>
+</body>
+</html>

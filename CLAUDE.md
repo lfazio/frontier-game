@@ -18,7 +18,7 @@ detail. Cited as `SDD §n`. |
 interaction contracts. Cited as `UX §n`. |
 | `Documentations/detailed-design-post-mvp.md` (v0.7) | **What is built after the MVP.** Phases P5–P7+ and the
 deferred systems. Cited as `PSDD §n`. |
-| `Documentations/ui-ux-admin.md` (v0.1) | **What the operator sees.** The console, its boundary and its dials.
+| `Documentations/ui-ux-admin.md` (v0.2) | **What the operator sees.** The console, its boundary and its dials.
 Design only, nothing built. Cited as `ADMIN §n`. |
 
 Where they disagree, the design document wins on behaviour and the architecture document wins on implementation —

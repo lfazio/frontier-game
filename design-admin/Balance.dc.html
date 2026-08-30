@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; background: #0e1216; color: #d7dde4;
+           font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    a { color: #e8c07d; } a:hover { color: #f0d3a2; }
+    .num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+
+<div style="width: 1120px; height: 720px; display: flex; flex-direction: column; background: #0e1216">
+
+  <div style="display: flex; align-items: center; gap: 16px; padding: 10px 18px; border-bottom: 1px solid #232c35; background: #151b21">
+    <span style="font-weight: 700; letter-spacing: 0.14em">FRONTIER</span>
+    <span style="color: #8b96a3; font-style: italic">console</span>
+    <span style="padding: 4px 10px; border-radius: 4px; background: #251f14; color: #e8c07d; border: 1px solid #e8c07d; font-size: 13px">kestrel</span>
+    <span style="flex: 1"></span>
+    <span class="num" style="color: #8b96a3">ruleset 2026.1 · in use since day 0</span>
+  </div>
+
+  <div style="flex: 1; display: grid; grid-template-columns: 1fr 360px; min-height: 0">
+
+    <div style="display: flex; flex-direction: column; min-height: 0">
+      <div style="padding: 14px 18px 8px; color: #8b96a3; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase">The dials</div>
+      <div style="overflow-y: auto; padding: 0 18px 18px">
+        <sc-for list="{{dials}}" as="d" hint-placeholder-count="6">
+          <div style="display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid #1b222a">
+            <div style="width: 250px">
+              <div class="num" style="font-size: 13px">{{d.key}}</div>
+              <div style="color: #8b96a3; font-size: 12px">{{d.note}}</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px">
+              <button onClick="{{ d.down }}" style="background: #1d242c; color: #d7dde4; border: 1px solid #232c35; border-radius: 4px; width: 26px; height: 26px; cursor: pointer; font: inherit">−</button>
+              <span class="num" style="width: 74px; text-align: center; color: {{d.tint}}; font-size: 16px">{{d.value}}</span>
+              <button onClick="{{ d.up }}" style="background: #1d242c; color: #d7dde4; border: 1px solid #232c35; border-radius: 4px; width: 26px; height: 26px; cursor: pointer; font: inherit">+</button>
+            </div>
+            <span class="num" style="color: #8b96a3; font-size: 12px; width: 92px">{{d.was}}</span>
+            <span style="flex: 1"></span>
+            <span style="color: #c2603f; font-size: 12px; width: 200px; text-align: right">{{d.warning}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="border-left: 1px solid #232c35; background: #151b21; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+      <div style="color: #8b96a3; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase">What Draft would write</div>
+
+      <sc-if value="{{clean}}" hint-placeholder-val="{{true}}">
+        <div style="color: #8b96a3; font-style: italic">Nothing changed yet. Turn a dial to see the branch it would open.</div>
+      </sc-if>
+
+      <sc-if value="{{dirty}}" hint-placeholder-val="{{true}}">
+        <div style="display: flex; flex-direction: column; gap: 10px; min-height: 0">
+          <div class="num" style="font-size: 12px; color: #8b96a3">branch</div>
+          <div class="num" style="background: #0b0f13; border: 1px solid #232c35; border-radius: 4px; padding: 8px 10px; font-size: 12px; color: #e8c07d">{{branch}}</div>
+          <div class="num" style="font-size: 12px; color: #8b96a3">data/rulesets/2026.2/</div>
+          <div style="background: #0b0f13; border: 1px solid #232c35; border-radius: 4px; padding: 10px; overflow-y: auto">
+            <sc-for list="{{diff}}" as="line" hint-placeholder-count="3">
+              <div class="num" style="font-size: 12px; white-space: pre; color: {{line.tint}}">{{line.text}}</div>
+            </sc-for>
+          </div>
+          <button style="background: #1d242c; color: #e8c07d; border: 1px solid #e8c07d; border-radius: 4px; padding: 7px 14px; cursor: pointer; font: inherit">Open branch with {{changed}} change(s)</button>
+        </div>
+      </sc-if>
+
+      <div style="margin-top: auto; border-top: 1px solid #232c35; padding-top: 12px; color: #8b96a3; font-size: 12px">
+        The live ruleset is never edited. Two worlds claiming <span class="num">2026.1</span> must behave the same, or a replayed tick would not reproduce.
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+const DIALS = [
+  { key: 'world.region_radius', value: 16, step: 1, note: 'a bigger region is more empty space' },
+  { key: 'world.jump_range_default_ly', value: 12, step: 1, note: 'how far a hull reaches in one jump', floor: 12, warn: 'below 12, regions fragment' },
+  { key: 'events.crisis_threshold', value: 0.18, step: 0.02, note: 'lower opens more crises' },
+  { key: 'events.crisis_duration', value: 12, step: 1, note: 'cycles before a crisis expires' },
+  { key: 'events.era_threshold', value: 3, step: 1, note: 'severity that closes an age' },
+  { key: 'npc.incursion_ships_per_severity', value: 2, step: 1, note: 'hulls per point of severity' },
+  { key: 'continuity.watch_interval_seconds', value: 21600, step: 3600, note: 'one survey per interval, faction-wide' },
+];
+
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { edits: {} }; }
+
+  nudge(key, direction) {
+    const dial = DIALS.find((d) => d.key === key);
+    const current = this.state.edits[key] ?? dial.value;
+    const next = Math.round((current + direction * dial.step) * 100) / 100;
+    const edits = { ...this.state.edits };
+    if (next === dial.value) { delete edits[key]; } else { edits[key] = Math.max(0, next); }
+    this.setState({ edits });
+  }
+
+  renderVals() {
+    const edits = this.state.edits;
+    const changed = Object.keys(edits);
+    return {
+      dials: DIALS.map((d) => {
+        const value = edits[d.key] ?? d.value;
+        const moved = d.key in edits;
+        return {
+          key: d.key,
+          note: d.note,
+          value: String(value),
+          was: moved ? 'was ' + d.value : '',
+          tint: moved ? '#e8c07d' : '#d7dde4',
+          warning: d.floor !== undefined && value < d.floor ? d.warn : '',
+          up: () => this.nudge(d.key, 1),
+          down: () => this.nudge(d.key, -1),
+        };
+      }),
+      clean: changed.length === 0,
+      dirty: changed.length > 0,
+      changed: changed.length,
+      branch: 'ruleset/2026.2-from-kestrel-day-74',
+      diff: changed.flatMap((key) => {
+        const dial = DIALS.find((d) => d.key === key);
+        const leaf = key.split('.').slice(1).join('.');
+        return [
+          { text: '- ' + leaf + ' = ' + dial.value, tint: '#c2603f' },
+          { text: '+ ' + leaf + ' = ' + edits[key], tint: '#7bbf8a' },
+        ];
+      }),
+    };
+  }
+}
+</script>
+</body>
+</html>

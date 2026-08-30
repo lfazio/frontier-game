@@ -1,0 +1,18 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Overview", "x": 0, "y": 0, "w": 1120, "h": 720 },
+    { "file": "Tick.dc.html", "title": "The tick", "x": 1200, "y": 0, "w": 1120, "h": 720 },
+    { "file": "History.dc.html", "title": "History", "x": 2400, "y": 0, "w": 1120, "h": 720 },
+    { "file": "Balance.dc.html", "title": "Balance", "x": 0, "y": 800, "w": 1120, "h": 720 },
+    { "file": "Pilots.dc.html", "title": "Pilots", "x": 1200, "y": 800, "w": 1120, "h": 720 },
+    { "file": "Operators.dc.html", "title": "Operators", "x": 2400, "y": 800, "w": 1120, "h": 720 },
+    { "file": "Directorate.dc.html", "title": "Directorate", "x": 1200, "y": 1600, "w": 1120, "h": 720 }
+  ],
+  "annotations": [
+    { "id": "try-the-tick", "x": 1200, "y": -150, "w": 340, "text": "Click day 73 — the run that failed.\nPick a stage to see what it raised, and the Resume that re-runs from there rather than from the beginning." },
+    { "id": "try-balance", "x": 0, "y": 650, "w": 320, "text": "Turn a dial. The panel shows the branch it would open — the live ruleset is never edited, so a draft that is never merged changes nothing." },
+    { "id": "try-directorate", "x": 700, "y": 1600, "w": 300, "text": "Switch FEATURES_CONTINUITY off.\nNothing on any other screen changes shape — the same property the anti-leak suite asserts for players." },
+    { "id": "real-numbers", "x": 2400, "y": -150, "w": 340, "text": "Every number here is from a running world: day 74, 7 open crises, and one incursion of 10 hulls raised from a severity-5 stability crisis in Region 3." }
+  ],
+  "launch": { "view": "canvas" }
+}

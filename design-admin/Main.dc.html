@@ -1,0 +1,150 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; background: #0e1216; color: #d7dde4;
+           font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    a { color: #e8c07d; } a:hover { color: #f0d3a2; }
+    .num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+
+<div style="width: 1120px; height: 720px; display: flex; flex-direction: column; background: #0e1216">
+
+  <div style="display: flex; align-items: center; gap: 16px; padding: 10px 18px; border-bottom: 1px solid #232c35; background: #151b21">
+    <span style="font-weight: 700; letter-spacing: 0.14em">FRONTIER</span>
+    <span style="color: #8b96a3; font-style: italic">console</span>
+    <div style="display: flex; align-items: center; gap: 6px; margin-left: 8px">
+      <sc-for list="{{worlds}}" as="w" hint-placeholder-count="3">
+        <button onClick="{{ w.pick }}" style="background: {{w.bg}}; color: {{w.fg}}; border: 1px solid {{w.edge}}; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit">{{w.name}}</button>
+      </sc-for>
+    </div>
+    <span style="flex: 1"></span>
+    <span class="num" style="font-weight: 700; letter-spacing: 0.08em">DAY {{day}}</span>
+    <span style="color: #7bbf8a">{{phase}}</span>
+  </div>
+
+  <div style="display: flex; gap: 4px; padding: 8px 18px; border-bottom: 1px solid #232c35">
+    <sc-for list="{{nav}}" as="n" hint-placeholder-count="7">
+      <div style="padding: 4px 10px; border-radius: 4px; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: {{n.fg}}; background: {{n.bg}}">{{n.label}}</div>
+    </sc-for>
+  </div>
+
+  <div style="flex: 1; padding: 18px; display: flex; flex-direction: column; gap: 16px; min-height: 0">
+
+    <div style="border: 1px solid #232c35; border-radius: 6px; background: #151b21">
+      <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #232c35">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7bbf8a" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+        <b style="letter-spacing: 0.08em">LAST TICK</b>
+        <span class="num" style="color: #8b96a3">day {{lastTick.day}}</span>
+        <span style="flex: 1"></span>
+        <span class="num" style="color: #8b96a3">{{lastTick.finished}}</span>
+        <span class="num">{{lastTick.elapsed}}</span>
+        <span style="color: #7bbf8a">all stages</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b96a3" stroke-width="2" stroke-linecap="round"><path d="M12 3v4"></path><circle cx="12" cy="13" r="8"></circle><path d="M12 13v-3"></path></svg>
+        <b style="letter-spacing: 0.08em; color: #8b96a3">NEXT TICK</b>
+        <span class="num" style="color: #8b96a3">day {{nextTick.day}} · {{nextTick.at}}</span>
+        <span style="flex: 1"></span>
+        <span class="num" style="color: #8b96a3">in {{nextTick.in}}</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+      <sc-for list="{{counts}}" as="c" hint-placeholder-count="4">
+        <div style="border: 1px solid #232c35; border-radius: 6px; background: #151b21; padding: 14px 16px">
+          <div class="num" style="font-size: 26px; line-height: 1.1">{{c.value}}</div>
+          <div style="color: #8b96a3; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 4px">{{c.label}}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; flex: 1; min-height: 0">
+
+      <div style="border: 1px solid #232c35; border-radius: 6px; background: #151b21; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+        <div style="color: #8b96a3; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase">The world's condition</div>
+        <div style="display: flex; align-items: baseline; gap: 10px">
+          <span style="color: #e8c07d; font-size: 18px">{{era.name}}</span>
+          <span class="num" style="color: #8b96a3; font-size: 12px">began day {{era.began}}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8c07d" stroke-width="2" stroke-linecap="round"><path d="M12 4l9 16H3z"></path><path d="M12 10v4"></path><path d="M12 17.5v.5"></path></svg>
+          <span><b class="num">{{crises.open}}</b> crises open</span>
+          <span style="color: #8b96a3; font-size: 12px">soonest expiry in {{crises.soonest}} days</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c2603f" stroke-width="2" stroke-linecap="round"><path d="M3 12h4l2-5 3 10 3-7 2 2h4"></path></svg>
+          <span><b class="num">{{incursion.hulls}}</b> hulls under way</span>
+          <span style="color: #8b96a3; font-size: 12px">{{incursion.where}}</span>
+        </div>
+      </div>
+
+      <div style="border: 1px solid #232c35; border-radius: 6px; background: #151b21; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px">
+        <div style="color: #8b96a3; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase">Wants looking at</div>
+        <sc-for list="{{attention}}" as="a" hint-placeholder-count="3">
+          <div style="display: flex; align-items: baseline; gap: 10px; padding: 6px 0; border-bottom: 1px solid #1b222a">
+            <span style="width: 6px; height: 6px; border-radius: 50%; background: {{a.tint}}; flex: none"></span>
+            <span>{{a.what}}</span>
+            <span style="flex: 1"></span>
+            <span class="num" style="color: #8b96a3; font-size: 12px">{{a.when}}</span>
+          </div>
+        </sc-for>
+        <div style="color: #8b96a3; font-size: 12px; font-style: italic; margin-top: auto">A quiet world says so. It never shows an empty panel.</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { world: 'kestrel' }; }
+  renderVals() {
+    const current = this.state.world;
+    const worlds = ['kestrel', 'demo', 'archive'].map((name) => ({
+      name,
+      pick: () => this.setState({ world: name }),
+      bg: name === current ? '#251f14' : '#1d242c',
+      fg: name === current ? '#e8c07d' : '#8b96a3',
+      edge: name === current ? '#e8c07d' : '#232c35',
+    }));
+    const pages = ['Overview', 'Tick', 'History', 'Balance', 'Pilots', 'Operators', 'Directorate'];
+    return {
+      worlds,
+      day: 74,
+      phase: 'open',
+      nav: pages.map((label) => ({
+        label,
+        fg: label === 'Overview' ? '#0e1216' : '#8b96a3',
+        bg: label === 'Overview' ? '#e8c07d' : 'transparent',
+      })),
+      lastTick: { day: 74, finished: '04:02:11 UTC', elapsed: '3.4 s' },
+      nextTick: { day: 75, at: '04:00 UTC', in: '19h 58m' },
+      counts: [
+        { value: '47', label: 'systems' },
+        { value: '8', label: 'pilots' },
+        { value: '8', label: 'crews' },
+        { value: '3 221', label: 'hexes of empty space' },
+      ],
+      era: { name: 'The First Age', began: 61 },
+      crises: { open: 7, soonest: 11 },
+      incursion: { hulls: 10, where: 'Region 3, closing on R3-S1' },
+      attention: [
+        { what: 'npc_population took 56% of the tick', when: 'day 74', tint: '#e8c07d' },
+        { what: 'An incursion reached a system', when: 'day 74', tint: '#c2603f' },
+        { what: '7 crises opened at once', when: 'day 73', tint: '#e8c07d' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

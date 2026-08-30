@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | **Design. Nothing here is built.** |
-| Version | 0.1 |
+| Version | 0.2 |
 | Date | 2026-08-30 |
 | Scope | The operator's console: watching a world, diagnosing it, and turning its dials |
 | Depends on | `game-design.md` v3.0, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20, `detailed-design-post-mvp.md` v0.6 |
@@ -49,7 +49,17 @@ The console is a **separate deployment surface**, not a privileged corner of the
       operators ──▶ admin_role ──▶  /admin/…         (this console, a different process)
 ```
 
-Three rules, and the first is the one that matters:
+**One console, many worlds** (QA-3). A deployment runs several worlds; the console is one application with a world
+picker in its header, and every screen below is scoped to the selected world. Operator permissions are held per
+world, so being trusted with the demonstration world grants nothing on the live one.
+
+**Permission comes from another operator** (QA-1). There is no self-service admin and no shared secret. A world is
+seeded with one original operator — *the Great Ancients*, the account that generated it — and every other operator
+is granted by someone who already holds the permission. Two consequences worth stating: a grant is an event with a
+name attached, so the console can always answer "who let them in?"; and the original operator cannot be removed,
+because a world with no operator is a world nobody can rescue.
+
+Three further rules, and the first is the one that matters:
 
 - **An operator account is not a player account.** They are different tables and different tokens. A person may
   hold both; holding one grants nothing in the other, and no response on either surface mentions the other.
@@ -156,8 +166,9 @@ This screen is **read-only by design**, and that is the most important decision 
 > lie: two worlds claiming `2026.1` would behave differently, and a replayed tick would not reproduce.
 
 What the console offers instead is **Draft**: it writes the current values plus the operator's edits into a new
-ruleset directory, which is then reviewed and deployed like any other change. The console proposes; the repository
-decides.
+ruleset directory **on a branch** (QA-2), which is then reviewed and merged like any other change. The console
+proposes; the repository decides. A draft that is never merged changes nothing, which is the property that makes
+the button safe to press.
 
 Each dial carries a one-line note on what turning it does — the note is written by whoever adds the dial, and is
 part of adding it. `jump_range_default_ly` says what it says above because that was measured, not guessed.
@@ -270,17 +281,18 @@ Each slice is independently useful, and the first two are most of the value.
 | **A2** | History: crises, eras, incursions | The countdown to an incursion is the thing worth watching |
 | **A3** | Pilots: the support view | Turns "something went wrong" into a fact |
 | **A4** | Balance: read-only dials and Draft | Makes tuning a reviewed change rather than a live one |
-| **A5** | The Directorate screen | Last, and behind its own flag, for the same reason the faction shipped last |
+| **A5** | Operators: who holds permission, and who granted it | Follows A0's model; needed the moment a second person runs a world |
+| **A6** | The Directorate screen | Last, and behind its own flag, for the same reason the faction shipped last |
 
 ---
 
-# 8. Open questions
+# 8. Answered questions
 
-| # | Question | Blocks |
+| # | Question | Answer |
 | --- | --- | --- |
-| **QA-1** | How does an operator authenticate — a shared secret, an account table, or the deployment's own identity provider? | A0 |
-| **QA-2** | Should `Draft` write into the repository as a branch and a pull request, or only to disk for a human to commit? | A4 |
-| **QA-3** | Is a per-world console right, or one console across several worlds? | A0 |
+| **QA-1** | How does an operator authenticate? | **Granted by another operator.** A world is seeded with one original operator — the Great Ancients — and permission spreads only by grant. No shared secret, no self-service. |
+| **QA-2** | Does `Draft` open a branch or write to disk? | **A branch.** The draft is a change to review, so it arrives where changes are reviewed. |
+| **QA-3** | One console per world, or one across many? | **One console, many worlds**, with permissions held per world. |
 
 ---
 
@@ -288,6 +300,7 @@ Each slice is independently useful, and the first two are most of the value.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.2 | 2026-08-30 | QA-1 to QA-3 answered: one console across many worlds, permission granted operator to operator from an original account, and `Draft` opening a branch. Adds the Operators screen (A5). |
 | 0.1 | 2026-08-30 | First design of the operator console: a separate surface, a read-mostly boundary, and a balance screen that proposes a ruleset version rather than editing one. |
 
 ---
