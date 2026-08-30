@@ -129,6 +129,88 @@ async def stages_of(session: AsyncSession, day: int) -> dict[str, Any] | None:
     return detail
 
 
+async def history(session: AsyncSession, day: int | None) -> dict[str, Any]:
+    """Eras, crises and incursions — ADMIN §3.3.
+
+    The countdown is the point. An operator should be able to see that a region is about to be
+    invaded *before* it is, which is when a world is most worth watching.
+    """
+    regions = {
+        row.id: row.name
+        for row in (
+            await session.execute(select(models.Location).where(models.Location.kind == "region"))
+        ).scalars()
+    }
+
+    eras = [
+        {
+            "name": row.name,
+            "began_on": row.began_on,
+            "ended_on": row.ended_on,
+            "summary": row.summary,
+            "current": row.ended_on is None,
+        }
+        for row in (
+            (await session.execute(select(models.Era).order_by(models.Era.began_on.desc()))).scalars().all()
+        )
+    ]
+
+    crises = (
+        (await session.execute(select(models.Crisis).order_by(models.Crisis.opened_on.desc())))
+        .scalars()
+        .all()
+    )
+
+    # Which crisis raised which hulls, and how many are still flying.
+    incursions: dict[str, dict[str, Any]] = {}
+    for row in (
+        await session.execute(
+            text(
+                "SELECT n.route ->> 'crisis' AS crisis, n.materialised_on AS raised_on, "
+                "       count(*) AS hulls, "
+                "       count(*) FILTER (WHERE s.destroyed_on IS NULL) AS flying, "
+                "       max(region.name) AS region "
+                "FROM core.npc_agents n "
+                "JOIN core.ships s ON s.id = n.ship_id "
+                "JOIN core.locations berth ON berth.id = s.system_id "
+                "LEFT JOIN core.locations region ON region.id = "
+                "     coalesce(berth.parent_id, berth.id) "
+                "WHERE n.archetype = 'incursion' "
+                "GROUP BY 1, 2"
+            )
+        )
+    ).all():
+        incursions[str(row.crisis)] = {
+            "region": row.region,
+            "raised_on": row.raised_on,
+            "hulls": int(row.hulls),
+            "still_flying": int(row.flying),
+        }
+
+    def shape(row: models.Crisis) -> dict[str, Any]:
+        return {
+            "id": str(row.id),
+            "region": regions.get(row.region_id, "unknown"),
+            "variable": row.variable,
+            "severity": row.severity,
+            "opened_on": row.opened_on,
+            "expires_on": row.expires_on,
+            "days_left": (row.expires_on - day) if day is not None else None,
+            "resolved_on": row.resolved_on,
+            "answered_on": row.answered_on,
+            "incursion": incursions.get(str(row.id)),
+        }
+
+    return {
+        "era": next((e for e in eras if e["current"]), None),
+        "eras": eras,
+        "era_threshold": None,
+        "open": [shape(c) for c in crises if c.resolved_on is None and c.answered_on is None],
+        "answered": [shape(c) for c in crises if c.answered_on is not None],
+        "resolved": [shape(c) for c in crises if c.resolved_on is not None][:10],
+    }
+
+
 def _run(row: models.TickRun | None) -> dict[str, Any]:
     if row is None:
         return {"world_day": None, "finished": False}

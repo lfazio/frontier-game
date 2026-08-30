@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from frontier.adapters.api.security import read_console_token
 from frontier.adapters.db import models
 from frontier.config.settings import Settings
+from frontier.domain.rules.ruleset import RuleSet
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -33,6 +34,9 @@ class Console:
     settings: Settings
     sessions: async_sessionmaker[AsyncSession]
     worlds: tuple[str, ...]
+    # The console reads the same rule data the world runs on: it explains what a number means
+    # (an age closes at this severity) and, later, what turning a dial would change.
+    rules: RuleSet
 
 
 def console(request: Request) -> Console:

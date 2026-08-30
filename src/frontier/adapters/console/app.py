@@ -38,6 +38,7 @@ from frontier.adapters.console.deps import (
 )
 from frontier.adapters.db import models
 from frontier.adapters.db.engine import make_engine, make_sessionmaker
+from frontier.adapters.rules_loader import load_ruleset
 from frontier.config.settings import Settings
 
 
@@ -69,6 +70,7 @@ def build(settings: Settings | None = None) -> Console:
         settings=settings,
         sessions=make_sessionmaker(engine),
         worlds=worlds_of(settings),
+        rules=load_ruleset(settings.ruleset_root, settings.ruleset_version),
     )
 
 
@@ -167,6 +169,17 @@ def create_console(console: Console | None = None) -> FastAPI:
             run.retry_requested_at = func.now()
             run.retry_requested_by = operator_id
         return {"world": world, "world_day": day, "retry_requested": True}
+
+    @app.get("/admin/worlds/{world}/history", tags=["history"])
+    async def history(world: str, operator_id: CurrentOperator, c: ConsoleDep) -> dict[str, Any]:
+        async with c.sessions() as session:
+            if world not in c.worlds:
+                raise HTTPException(status_code=404, detail="Not Found")
+            await require(session, operator_id, world, "watch")
+            state = (await session.execute(select(models.WorldState))).scalar_one_or_none()
+            body = await reads.history(session, state.world_day if state else None)
+        body["era_threshold"] = c.rules.events.era_threshold
+        return {"world": world, **body}
 
     @app.get("/admin/operators", tags=["operators"])
     async def operators(world: str, operator_id: CurrentOperator, c: ConsoleDep) -> dict[str, Any]:
@@ -317,6 +330,10 @@ def create_console(console: Console | None = None) -> FastAPI:
     async def screen_overview(world: str, request: Request) -> Response:
         return await _screen(request, world, "overview")
 
+    @app.get("/console/{world}/history", include_in_schema=False)
+    async def screen_history(world: str, request: Request) -> Response:
+        return await _screen(request, world, "history")
+
     @app.get("/console/{world}/ticks", include_in_schema=False)
     async def screen_ticks(world: str, request: Request) -> Response:
         return await _screen(request, world, "ticks")
@@ -357,6 +374,10 @@ def create_console(console: Console | None = None) -> FastAPI:
             summary = await reads.overview(session)
             if here == "overview":
                 body = render.overview(summary).replace("{world}", world)
+            elif here == "history":
+                past = await reads.history(session, summary["world_day"])
+                past["era_threshold"] = c.rules.events.era_threshold
+                body = render.history(past)
             elif day is None:
                 body = render.ticks(world, await reads.runs(session))
             else:
