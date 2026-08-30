@@ -108,6 +108,26 @@ class ResolveEncounters:
                     retreat_at_hull_pct=row.retreat_at_hull_pct,
                     auto_reply=row.auto_reply,
                 )
+        sided_now = sided_ever = False
+        if ship.player_id is not None:
+            stance = (
+                await ctx.session.execute(
+                    select(models.Player.allegiance, models.Player.first_sided_on).where(
+                        models.Player.id == ship.player_id
+                    )
+                )
+            ).one_or_none()
+            if stance is not None:
+                sided_now = stance.allegiance == "incursion"
+                sided_ever = stance.first_sided_on is not None
+        harrower = (
+            await ctx.session.execute(
+                select(models.NpcAgent.ship_id).where(
+                    models.NpcAgent.ship_id == ship.id, models.NpcAgent.archetype == "incursion"
+                )
+            )
+        ).scalar_one_or_none() is not None
+
         return Combatant(
             ship_id=ship.id,
             hull=ship.hull,
@@ -115,6 +135,9 @@ class ResolveEncounters:
             shields=ship.shields,
             sensor_range=ship.sensor_range,
             orders=orders,
+            is_harrower=harrower,
+            sided_now=sided_now,
+            sided_ever=sided_ever,
         )
 
     async def _respawn(self, ctx: TickContext, loser: Combatant) -> None:

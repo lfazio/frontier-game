@@ -20,6 +20,8 @@ from frontier.simulation.stages.base import TickContext
 ARCHETYPES = ("hauler", "patrol", "raider")
 # Not in ARCHETYPES: an incursion is raised by the Harrowing, never by system activity.
 INCURSION = "incursion"
+# What a pilot's allegiance reads once they have sided with one (GDD §8.12).
+SIDED = "incursion"
 NPC_SHIP = {
     "hauler": {
         "hull": 80,
@@ -361,13 +363,16 @@ class NpcPopulation:
 
     async def _raid(self, ctx: TickContext, agent: models.NpcAgent, ship: models.Ship, cost: int) -> int:
         """Queue a fight with whatever is here. They do not distinguish between flags."""
+        # Whoever is helping them is not shot at. That is the whole of the bargain (GDD §8.12).
         prey = (
             await ctx.session.execute(
                 select(models.Ship)
+                .outerjoin(models.Player, models.Player.id == models.Ship.player_id)
                 .where(
                     models.Ship.system_id == ship.system_id,
                     models.Ship.destroyed_on.is_(None),
                     models.Ship.id != ship.id,
+                    func.coalesce(models.Player.allegiance, "") != SIDED,
                 )
                 .order_by(models.Ship.id)
                 .limit(1)
