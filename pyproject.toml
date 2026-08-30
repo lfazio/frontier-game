@@ -94,6 +94,12 @@ source_modules = ["frontier.application"]
 forbidden_modules = ["frontier.adapters", "sqlalchemy", "fastapi", "redis"]
 
 [[tool.importlinter.contracts]]
+name = "The game and the console are separate applications"
+type = "forbidden"
+source_modules = ["frontier.adapters.api"]
+forbidden_modules = ["frontier.adapters.console"]
+
+[[tool.importlinter.contracts]]
 name = "Nothing imports the Continuity"
 type = "forbidden"
 source_modules = [

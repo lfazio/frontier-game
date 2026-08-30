@@ -1,4 +1,4 @@
-.PHONY: install check lint types imports test test-int up down world tick demo serve client migrate relay soak antileak
+.PHONY: console ancients install check lint types imports test test-int up down world tick demo serve client migrate relay soak antileak
 
 install:
 	uv sync
@@ -44,6 +44,12 @@ demo:
 
 serve:
 	uv run uvicorn frontier.adapters.api.app:app --port 8000
+
+console:
+	uv run uvicorn frontier.adapters.console.app:create_console --factory --port 8001
+
+ancients:
+	uv run python -m frontier.cli.console
 
 client:
 	cd client && npm install && npm run dev
