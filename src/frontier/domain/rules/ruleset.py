@@ -91,6 +91,11 @@ class EconomyRules:
     commodities: Mapping[str, int]
     station_type: Mapping[str, Mapping[str, str]]
     restricted: Mapping[str, str]
+    consumed_on_read: tuple[str, ...]
+
+    def is_consumed_on_read(self, commodity: str) -> bool:
+        """Reading spends it, so there is nothing to sell back."""
+        return commodity in self.consumed_on_read
 
     def tradable_at(self, commodity: str, station_type: str | None) -> bool:
         """A restricted commodity is stocked only by the station type that issues it."""
@@ -185,12 +190,14 @@ class RuleSet:
         commodities = economy_raw.pop("commodities", {})
         station_type = economy_raw.pop("station_type", {})
         restricted = economy_raw.pop("restricted", {})
+        consumed = tuple(economy_raw.pop("consumed_on_read", ()))
         economy_fields = _take(
             economy_raw,
-            {f for f in EconomyRules.__dataclass_fields__} - {"commodities", "station_type", "restricted"},
+            {f for f in EconomyRules.__dataclass_fields__}
+            - {"commodities", "station_type", "restricted", "consumed_on_read"},
             "economy",
         )
-        unknown = set(restricted) - set(commodities)
+        unknown = (set(restricted) | set(consumed)) - set(commodities)
         if unknown:
             raise RuleSetError(f"restricted names no such commodity: {', '.join(sorted(unknown))}")
         missing_issuer = set(restricted.values()) - set(station_type)
@@ -214,6 +221,7 @@ class RuleSet:
                 commodities=dict(commodities),
                 station_type={k: dict(v) for k, v in station_type.items()},
                 restricted=dict(restricted),
+                consumed_on_read=consumed,
                 **economy_fields,
             ),
             events=EventRules(
