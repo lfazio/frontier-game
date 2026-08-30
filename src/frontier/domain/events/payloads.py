@@ -56,6 +56,7 @@ REQUIRED_KEYS: dict[EventType, frozenset[str]] = {
     EventType.REPUTATION_CHANGED: frozenset({"faction_id", "delta", "score"}),
     EventType.TEAM_DEFECTED: frozenset({"team_id", "from_faction", "to_faction"}),
     EventType.KNOWLEDGE_LEARNED: frozenset({"commodity", "knowledge"}),
+    EventType.SIDED_WITH_INCURSION: frozenset({"callsign", "sided"}),
 }
 
 DEFAULT_SCOPE: dict[EventType, tuple[Scope, Visibility]] = {

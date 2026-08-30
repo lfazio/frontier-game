@@ -8,3 +8,9 @@ weapon_damage_min = 12
 weapon_damage_max = 20
 # Salvage tax levied for recovering the pilot's life capsule. Tunable band: 0.03 to 0.10.
 rescue_tax_fraction = 0.05
+
+# Siding with an incursion (GDD §8.12). The bonus ends with the emergency; the malus does not,
+# which is what keeps collaboration a choice rather than a tactic.
+collaborator_hit_bonus = 0.12
+collaborator_hit_malus = 0.18
+collaboration_standing_penalty = 60

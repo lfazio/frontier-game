@@ -78,6 +78,9 @@ class CombatRules:
     weapon_damage_min: int
     weapon_damage_max: int
     rescue_tax_fraction: float
+    collaborator_hit_bonus: float
+    collaborator_hit_malus: float
+    collaboration_standing_penalty: int
 
 
 @dataclass(frozen=True, slots=True)

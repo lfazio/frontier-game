@@ -33,6 +33,8 @@ class Player(Protocol):
     faction_id: int | None
     clearance: int
     knowledge: int
+    allegiance: str | None
+    first_sided_on: int | None
 
 
 class PlayerRepo(Protocol):

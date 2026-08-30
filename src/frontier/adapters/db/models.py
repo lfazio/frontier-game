@@ -80,6 +80,9 @@ class Player(Base):
     # Never serialised. Who holds it is the one thing GDD §9.4 forbids being inferable.
     clearance: Mapped[int] = mapped_column(SmallInteger, default=0)
     generation: Mapped[int] = mapped_column(SmallInteger, default=1)
+    # What they are doing now, and that they ever did it. Only the first can be undone.
+    allegiance: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    first_sided_on: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_grant_day: Mapped[int] = mapped_column(Integer, default=-1)
 
 
