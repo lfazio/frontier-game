@@ -32,6 +32,7 @@ class Player(Protocol):
     team_id: UUID | None
     faction_id: int | None
     clearance: int
+    knowledge: int
 
 
 class PlayerRepo(Protocol):

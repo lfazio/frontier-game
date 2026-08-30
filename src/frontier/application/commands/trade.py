@@ -92,6 +92,9 @@ class TradeCommand:
         line = state.market.get(self.commodity) if state.market else None
         if line is None:
             return Rejected(RejectionCode.COMMODITY_UNAVAILABLE, {"commodity": self.commodity})
+        if self.selling and rules.economy.is_consumed_on_read(self.commodity):
+            # Reading spends it; there is no resale market for something you have learned.
+            return Rejected(RejectionCode.NOT_SELLABLE, {"commodity": self.commodity})
 
         prices = quote(line.stock, line.target_stock, line.base_price, rules.economy)
         if self.selling:
@@ -142,6 +145,50 @@ class TradeCommand:
                     "qty": self.qty if not self.selling else -self.qty,
                     "unit_price": unit,
                 },
+            )
+        ]
+
+
+@dataclass(slots=True)
+class ReadCommand:
+    """Spend a unit of something to know it — PSDD Q-D.
+
+    Free, and it needs no station: reading what you already carry is not an act in the world.
+    What it costs is the unit, which is gone afterwards.
+    """
+
+    id: UUID
+    idempotency_key: UUID
+    commodity: str
+    action: str = field(default="read", init=False)
+
+    def loads(self) -> StateSpec:
+        return StateSpec(ship=True)
+
+    def check(self, state: State, rules: RuleSet) -> Decision:
+        if state.ship is None:
+            return Rejected(RejectionCode.TARGET_UNKNOWN)
+        if not rules.economy.is_consumed_on_read(self.commodity):
+            return Rejected(RejectionCode.COMMODITY_UNAVAILABLE, {"commodity": self.commodity})
+        if state.cargo.qty(self.commodity) < 1:
+            return Rejected(
+                RejectionCode.INSUFFICIENT_CARGO, {"have": state.cargo.qty(self.commodity), "need": 1}
+            )
+        return Accepted(ap_cost=0)
+
+    def apply(self, state: State, accepted: Accepted, rules: RuleSet, rng: RngPort) -> list[EventDraft]:
+        assert state.ship is not None
+        state.cargo.remove(self.commodity, 1)
+        state.player.knowledge += 1
+        return [
+            EventDraft(
+                type=EventType.KNOWLEDGE_LEARNED,
+                origin=state.ship.position,
+                scope=Scope.LOCAL,
+                visibility=Visibility.PARTICIPANTS,
+                severity=Severity.TRIVIAL,
+                participants=frozenset({state.player.id}),
+                payload={"commodity": self.commodity, "knowledge": state.player.knowledge},
             )
         ]
 

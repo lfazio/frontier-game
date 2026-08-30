@@ -30,6 +30,7 @@ from frontier.application.commands.teams import (
 from frontier.application.commands.trade import (
     DockCommand,
     LaunchCommand,
+    ReadCommand,
     RepairCommand,
     TradeCommand,
 )
@@ -112,6 +113,8 @@ def build(body: CommandBody) -> Command:
                 qty=body.qty,
                 selling=body.action == "sell",
             )
+        case schemas.ReadBody():
+            return ReadCommand(id=new_id, idempotency_key=key, commodity=body.commodity)
         case schemas.RepairBody():
             return RepairCommand(id=new_id, idempotency_key=key)
         case schemas.AttackBody():

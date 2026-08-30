@@ -84,6 +84,12 @@ class TradeBody(BaseModel):
     idempotency_key: UUID
 
 
+class ReadBody(BaseModel):
+    action: Literal["read"]
+    commodity: str = Field(min_length=1, max_length=24)
+    idempotency_key: UUID
+
+
 class RepairBody(BaseModel):
     action: Literal["repair"]
     idempotency_key: UUID
@@ -148,6 +154,7 @@ CommandBody = Annotated[
     | DockBody
     | LaunchBody
     | TradeBody
+    | ReadBody
     | RepairBody
     | AttackBody
     | SendMessageBody
