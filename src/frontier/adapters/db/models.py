@@ -354,6 +354,8 @@ class Mission(Base):
     terms: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     reward_credits: Mapped[int] = mapped_column(Integer)
     reward_reputation: Mapped[int] = mapped_column(Integer, default=1)
+    # Null for every ordinary mission. A named pilot is the only one who sees an addressed one.
+    offered_to: Mapped[UUID | None] = mapped_column(ForeignKey("core.players.id"), nullable=True)
     offered_on: Mapped[int] = mapped_column(Integer)
     expires_on: Mapped[int] = mapped_column(Integer)
 

@@ -86,6 +86,9 @@ class MissionRef:
     reward_reputation: int
     assigned: bool
     mine: bool
+    # What accepting this one grants. Zero for every ordinary mission, which is nearly all of
+    # them; the board never serialises it, so an offer looks like any other until it is taken.
+    grants_clearance: int = 0
 
 
 @dataclass(slots=True)

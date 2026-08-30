@@ -21,6 +21,9 @@ from frontier.simulation.stages.base import TickContext
 
 LEVERS = ("trade_flow", "patrol_strength", "raider_pressure")
 KINDS = ("nudge", "delay", "accelerate", "hide", "reveal")
+# What a pilot must have learned before they are worth speaking to. Eligibility is read from
+# their own record and nothing else (GDD Q10).
+RECRUITMENT_KNOWLEDGE = 3
 
 
 class ContinuityInterventions:
@@ -56,7 +59,65 @@ class ContinuityInterventions:
                 used=used, day=ctx.world_day
             )
         )
-        return {"allowed": allowed, "used": used, "agents_recruited": recruited}
+        approached = await self._approach(ctx)
+        return {
+            "allowed": allowed,
+            "used": used,
+            "agents_recruited": recruited,
+            "approached": approached,
+        }
+
+    async def _approach(self, ctx: TickContext) -> int:
+        """Put an offer on one pilot's board, and on nobody else's — PSDD Q-F.
+
+        The capability is `INSERT` on missions and nothing more: the faction may put work in
+        front of someone, and may not edit it, withdraw it, or touch the pilot. A pilot who
+        never looks, or who looks and passes, leaves no trace behind — the offer simply expires
+        with every other unclaimed one.
+        """
+        candidate = (
+            await ctx.session.execute(
+                text(
+                    "SELECT p.id FROM core.players p "
+                    "WHERE p.clearance = 0 AND p.knowledge >= :threshold "
+                    "  AND NOT EXISTS (SELECT 1 FROM core.missions m WHERE m.offered_to = p.id) "
+                    "ORDER BY p.id LIMIT 1"
+                ).bindparams(threshold=RECRUITMENT_KNOWLEDGE)
+            )
+        ).scalar_one_or_none()
+        if candidate is None:
+            return 0
+
+        # An ordinary-looking courier run, offered by an ordinary-looking faction. What makes it
+        # a recruitment is a term the board never serialises.
+        system_id = (
+            await ctx.session.execute(
+                text("SELECT id FROM core.locations WHERE kind = 'system' ORDER BY path LIMIT 1")
+            )
+        ).scalar_one()
+        rng = ctx.rng_for("continuity-approach", str(candidate), ctx.world_day)
+        await ctx.session.execute(
+            text(
+                "INSERT INTO core.missions "
+                "(id, faction_id, kind, system_id, brief, terms, reward_credits, "
+                " reward_reputation, offered_to, offered_on, expires_on) "
+                "VALUES (:id, :faction, 'courier', :system, :brief, CAST(:terms AS jsonb), "
+                "        :reward, 1, :player, :day, :expires)"
+            ).bindparams(
+                id=uuid4(),
+                faction=ctx.rules.continuity.agent_cover_factions[
+                    rng.randrange(len(ctx.rules.continuity.agent_cover_factions))
+                ],
+                system=system_id,
+                brief="Carry a sealed package. Discretion is the fee.",
+                terms='{"clearance": 1}',
+                reward=1200 + rng.randrange(600),
+                player=candidate,
+                day=ctx.world_day,
+                expires=ctx.world_day + 6,
+            )
+        )
+        return 1
 
     async def _open_budget(self, ctx: TickContext, allowed: int) -> None:
         await ctx.session.execute(

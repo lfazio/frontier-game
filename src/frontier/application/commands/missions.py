@@ -39,6 +39,9 @@ class AcceptMissionCommand:
     def apply(self, state: State, accepted: Accepted, rules: RuleSet, rng: RngPort) -> list[EventDraft]:
         assert state.ship is not None and state.mission is not None
         state.mission_change = ("accept", self.mission_id)
+        # Whatever the work turns out to be, taking it is what changes the pilot. Declining
+        # writes nothing: there is no decline command, and an ignored offer just expires.
+        state.player.clearance = max(state.player.clearance, state.mission.grants_clearance)
         return [
             EventDraft(
                 type=EventType.MISSION_ACCEPTED,

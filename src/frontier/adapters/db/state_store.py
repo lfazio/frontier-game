@@ -408,6 +408,7 @@ class SqlStateStore:
             reward_reputation=row.reward_reputation,
             assigned=bool(assignments),
             mine=any(a.player_id == player_id for a in assignments),
+            grants_clearance=int(row.terms.get("clearance", 0)),
         )
 
     async def _apply_mission_change(self, state: State) -> None:

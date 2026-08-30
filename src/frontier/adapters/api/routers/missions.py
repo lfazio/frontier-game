@@ -76,6 +76,10 @@ async def offers(player_id: CurrentPlayer, c: ContainerDep) -> dict[str, Any]:
         "offers": [
             render(m, p, n)
             for m, p, n in rows
-            if m.id not in taken and player.faction_id in (None, m.faction_id)
+            if m.id not in taken
+            and player.faction_id in (None, m.faction_id)
+            # An addressed offer is on one board and no other. Everyone else's board is the
+            # board it always was, which is what makes an approach unobservable.
+            and m.offered_to in (None, player_id)
         ],
     }
