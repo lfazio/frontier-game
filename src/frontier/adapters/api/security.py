@@ -25,6 +25,12 @@ def verify_password(hashed: str, password: str) -> bool:
         return False
 
 
+# Two surfaces, two audiences. A token minted for one is refused by the other even if a
+# deployment carelessly gives them the same secret — the separation is in the claim, not only
+# in the key (ADMIN §2).
+CONSOLE = "frontier-console"
+
+
 def issue_token(player_id: UUID, secret: str, ttl_seconds: int, clock: SystemClock) -> str:
     now = clock.now()
     payload = {"sub": str(player_id), "iat": now, "exp": now + timedelta(seconds=ttl_seconds)}
@@ -33,4 +39,23 @@ def issue_token(player_id: UUID, secret: str, ttl_seconds: int, clock: SystemClo
 
 def read_token(token: str, secret: str) -> UUID:
     claims = jwt.decode(token, secret, algorithms=["HS256"])
+    if claims.get("aud"):
+        # Something minted for another surface. The game does not accept it, whatever it says.
+        raise jwt.InvalidAudienceError("not a player token")
+    return UUID(claims["sub"])
+
+
+def issue_console_token(operator_id: UUID, secret: str, ttl_seconds: int, clock: SystemClock) -> str:
+    now = clock.now()
+    payload = {
+        "sub": str(operator_id),
+        "aud": CONSOLE,
+        "iat": now,
+        "exp": now + timedelta(seconds=ttl_seconds),
+    }
+    return jwt.encode(payload, secret, algorithm="HS256")
+
+
+def read_console_token(token: str, secret: str) -> UUID:
+    claims = jwt.decode(token, secret, algorithms=["HS256"], audience=CONSOLE)
     return UUID(claims["sub"])
