@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 0.7 |
+| Version | 0.8 |
 | Date | 2026-08-29 |
 | Scope | Delivery phases **P5, P6, P7 and P7+** (*ARCH §17*), and the deferred systems of *GDD §10.2* |
 | Depends on | `game-design.md` v2.9, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20 |
@@ -324,6 +324,7 @@ encounter code that already exists. What is new is a fourth NPC archetype and th
 | The opponent | A fourth entry in `NPC_SHIP`, with its own hulls and weapons |
 | Where it arrives | The empty space between systems — an address that exists precisely because a region is filled space (`D-68`) |
 | Resolution | `encounter.resolve()` already takes participant *sets*; the MVP restricts cardinality to 1v1 **by rule, not by code**, so fleet battles are a rule change |
+| Siding with them | An explicit command, a `players.allegiance` column, and a hit-chance term. Harrowers do not target an ally; the bonus applies against human ships while sided, and the penalty against Harrowers for anyone who **ever** sided (*GDD §8.12*, D-91) |
 
 ## 5.2 Why it comes last
 
@@ -414,6 +415,7 @@ These apply to every phase above, and a change that breaks one is a design decis
 | D-88 | An incursion is raised into the region's empty space and closes on the nearest system over following cycles. | Arriving on top of a system would be an ambush; arriving in the dark and closing in is what gives a region its warning, and it uses the address D-68 created. `answered_on` on the crisis is what stops one expiry raising a fresh wave every cycle for ever. | Yes |
 | D-89 | Permanent loss is decided from two ordinary facts — the pilot held a clearance, and something of the Harrowing was in the same place — and writes a **new** `players` row. | Nothing consults the hidden faction's own records, so the encounter code never mentions it. The old row stays exactly as it was, and no column links the two: re-recruitment reads the new pilot's own record (*ARCH §18*). Sign-in follows the highest generation. | No |
 | D-90 | Stage `order` is the ARCH §9.2 number times ten. | The Harrowing had to run between the Continuity (8) and promotion (9), and integers left no room. Spacing lets a stage slot in without renumbering a normative document. | No |
+| D-91 | Siding with an incursion is held in two columns: `allegiance`, which a pilot may clear, and `first_sided_on`, which nothing clears. The bonus reads the first; the penalty reads the second. | A cost that could be shed by renouncing at the right moment would make collaboration a tactic to pick up and put down. Attaching it to *having sided* is what makes it a choice about which side of a war a pilot is on. | Yes |
 | D-72 | Crisis detection lives inside stage 7 rather than in a stage of its own. | The stage already computes the deviation a crisis is defined by. A separate stage would either recompute it or read the first stage's output, and both are worse than one pass. | Yes |
 | D-73 | Eras are written by the chronicle stage, not by the model. | The model measures; naming a stretch of history is a narrative act, and the chronicle already owns promotion and retention. It also keeps the model's output free of prose. | Yes |
 | D-74 | The Continuity ships as an unregistered stage first: the code, schema, role and import contract exist before the faction acts. | It makes enabling the faction a one-line change under a flag, and it means the anti-leak suite can be written and run against real code before anything is at stake. | No |
@@ -445,6 +447,7 @@ stable so a citation of `Q-B` keeps meaning what it meant.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.8 | 2026-08-30 | A pilot may side with an incursion (*GDD* M21, D-91): explicit, announced at Universe scope, and paid for twice — a bonus that ends with the emergency and a penalty that does not. |
 | 0.7 | 2026-08-30 | P7+ built: the Harrowing. A crisis that expires unanswered raises an incursion in the empty space of its region, which closes on a system and fights (D-88); an agent who dies there returns as a new pilot with no column linking the two (D-89). Stage orders are spaced by ten so a stage can slot between two without renumbering the architecture (D-90). |
 | 0.6 | 2026-08-30 | All six open questions answered (§10) and acted on: knowledge is consumed by reading (D-85), the ration may be shortened per deployment (D-86), and recruitment ships as an addressed offer with a narrow `INSERT` grant (D-87). P7 is complete but for permanent loss, which waits on the Harrowing. |
 | 0.5 | 2026-08-29 | P7 part one: the zero-delay clearance channel (D-82, D-83) and the faction-wide rationed survey (D-84). Recruitment and permanent loss remain — §4.1 and §4.2 record why each is blocked. |

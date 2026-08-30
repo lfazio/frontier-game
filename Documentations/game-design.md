@@ -9,7 +9,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for review |
-| Version | 3.0 |
+| Version | 3.1 |
 | Date | 2026-08-27 |
 | Companion | `Documentations/architecture.md` v0.2 (cited as *ARCH §n*) |
 | Companion | `Documentations/detailed-design-mvp.md` v0.2 — MVP implementation detail |
@@ -1258,6 +1258,31 @@ cannot be reasoned about is not an opponent, it is weather.
 - **Losing MUST be possible.** If an incursion cannot be lost, it is a cutscene. What is lost — stations, systems,
   a faction's grip on a region — is what the next era inherits.
 
+### Siding with them
+
+The response is not prescribed (above), and the sharpest version of that is the one the design should say out
+loud: **a pilot may side with the incursion.** Some will. A world where the only permitted answer to an invasion is
+to fight it is a world with one story in it.
+
+It **MUST** be explicit. There is no drifting into it, no accidental collaboration, no ambiguity about whether it
+happened: it is a deliberate act, it is announced at Universe scope the moment it is taken, and it enters the
+Chronicle. Everyone knows.
+
+| | |
+| --- | --- |
+| **When** | Only while an incursion is under way in the pilot's region. It is a decision about *this* emergency |
+| **The bonus** | Harrowers no longer target them, and they fight human ships **better** `[BALANCE]` — they are being helped |
+| **The malus** | Standing with all three factions collapses; and having once sided, they fight Harrowers **worse**, for ever `[BALANCE]` |
+| **Renouncing** | Permitted, at any time. The standing does not come back, the Chronicle entry stands, and the malus is permanent |
+
+The asymmetry is the point. Siding is cheap in the moment and expensive for ever: the bonus lasts as long as the
+incursion, and the malus outlives it. A pilot who sides and renounces is not restored — they are a pilot who once
+sided, which is a different thing and the record says so.
+
+> This is why the malus attaches to *having sided*, not to *siding*. A cost that could be shed by renouncing at the
+> right moment would make collaboration a tactic. It is meant to be a choice about which side of a war a pilot is
+> on, and those are not free to change.
+
 ### What it does to the Model
 
 An incursion is the largest deviation event the world can produce, and the Model is not exempt from it: confidence
@@ -1935,6 +1960,7 @@ should be reviewed as design decisions. Each can be reverted independently.
 | **M12** | **Authorial voice removed.** | v1.0 contained first- and second-person commentary ("I would make…", "your game") and duplicated conversational fragments, which read as notes rather than specification. |
 | **M19** | **The watch added (§9.6)**: the Continuity may take one galaxy-wide look every `X` hours, rationed across the whole faction rather than per agent. | The faction's stated advantage is information (§9.5), and the instant channel gave it coordination without giving it anything to coordinate *about*. A shared, scarce watch supplies that, and forces agents to agree on when to use it — which is what makes the channel matter. It grants sight and no reach, so §9.13 is untouched. |
 | **M20** | **Stations are owned by factions, never by players or teams** (§6.5). Answers Q8 for asset ownership: a team is a crew and a banner, not a holding company, so disbanding one raises no question of who inherits what. Colonisation and station ownership therefore attach to a faction. | Q8 blocked station ownership on a rule for team assets that the design did not want: shared property invites the one dispute — who keeps it — that an asynchronous game with absent players resolves worst. |
+| **M21** | **A pilot may side with an incursion** (§8.12). Explicit, announced at Universe scope, and recorded. It carries a bonus against human ships while it lasts and a permanent penalty against Harrowers afterwards, whether or not the pilot renounces. | §8.12 already refused to prescribe the response and called refusing to fight a legitimate choice; collaboration is that principle followed to its end. Making the malus attach to *having sided* rather than to *siding* is what stops it being a tactic to pick up and put down. |
 | **M18** | **Q10 answered: an ex-agent may be recruited again** (§9.14), as the new pilot, on that pilot's own record, once it independently meets the §9.3 threshold. Nothing automatic; no record links the identities. | Re-recruitment through the ordinary triggers keeps §9.14's price real — a guaranteed return would make death a revolving door. Requiring the new pilot to earn it from nothing also removes the need to store any link between a lost pilot and a new one, which would itself have been the leak §9.4 forbids. |
 | **M17** | **Q9 answered: the Continuity knows** (§8.12). Its agents go first into an incursion, and an agent killed there is not recovered — the account continues as a new pilot (§9.14). Recovery is made unreliable for everyone during an incursion so that a reset stays evidence rather than proof. | The faction had the best information and the only channel outside physics, and §9.2's answer to "why is that not domination" was a set of balance dials, any of which can be turned the wrong way. A price that is not a dial answers it properly: they know what is coming, so they meet it first, and they are the only players who can be permanently removed. It also gives §9.3's invitation a real cost, which it lacked. The masking rule is required, not optional — without it the mechanic would identify every agent posthumously and break §9.4. |
 | **M16** | **The Continuity's channel is instantaneous and galaxy-wide** (§9.6, §7.3, §7.5), exempt from the range, relay and delay rules that bind every other channel. | The faction's stated advantage is *better information* (§9.5), and until now nothing in the design actually gave it any. A channel outside physics grants coordination without granting force, which is the only kind of power §9.2 permits it — and it hands §9.8 a genuine, observable anomaly for players to notice. |
@@ -2000,6 +2026,7 @@ For notes, issues or commits that cite the old flat numbering.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 3.1 | 2026-08-30 | A pilot may side with an incursion (§8.12): explicit, announced, and paid for twice — a bonus that ends with the emergency and a penalty that does not. See §11.1 M21. |
 | 3.0 | 2026-08-30 | Q8 answered — the last open question: a station is owned by a **faction**, never by a player or a team (§6.5, §10.2). Teams hold no shared assets, so disbanding one settles nothing. See §11.1 M20. |
 | 2.9 | 2026-08-27 | Added the watch (§9.6): one galaxy-wide look every `X` hours, rationed across the whole Continuity rather than per agent, showing populations and public events and never individuals. See §11.1 M19. |
 | 2.8 | 2026-08-27 | Q10 answered: a pilot lost as an agent may be recruited again under their new identity, once that identity independently earns the invitation; no record links the two (§9.14). See §11.1 M18. |

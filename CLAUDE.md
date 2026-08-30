@@ -10,16 +10,16 @@ and say so.
 
 | Document | Authority |
 | --- | --- |
-| `Documentations/game-design.md` (v3.0) | **What the game does.** Normative for behaviour. Cited as `§n.m`. |
+| `Documentations/game-design.md` (v3.1) | **What the game does.** Normative for behaviour. Cited as `§n.m`. |
 | `Documentations/architecture.md` (v0.8) | **How it is built.** Normative for structure. Cited as `ARCH §n`. |
 | `Documentations/detailed-design-mvp.md` (v0.20) | **How the MVP is built.** Module, schema, API and algorithm
 detail. Cited as `SDD §n`. |
 | `Documentations/ui-ux-mvp.md` (v0.10) | **What the player sees and touches.** Screens, states, wording and
 interaction contracts. Cited as `UX §n`. |
-| `Documentations/detailed-design-post-mvp.md` (v0.7) | **What is built after the MVP.** Phases P5–P7+ and the
+| `Documentations/detailed-design-post-mvp.md` (v0.8) | **What is built after the MVP.** Phases P5–P7+ and the
 deferred systems. Cited as `PSDD §n`. |
-| `Documentations/ui-ux-admin.md` (v0.5) | **What the operator sees.** The console, its boundary and its dials.
-Slices A0 to A2 built; the rest is design. Cited as `ADMIN §n`. |
+| `Documentations/ui-ux-admin.md` (v0.6) | **What the operator sees.** The console, its boundary and its dials.
+Slices A0 to A3 built; the rest is design. Cited as `ADMIN §n`. |
 
 Where they disagree, the design document wins on behaviour and the architecture document wins on implementation —
 and one of them needs amending. Neither is aspirational notes: read the relevant sections before implementing.

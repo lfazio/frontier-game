@@ -4,11 +4,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Slices A0 to A2 built. The remaining screens (A3–A6) are design.** |
-| Version | 0.5 |
+| Status | **Slices A0 to A3 built. The remaining screens (A4–A6) are design.** |
+| Version | 0.6 |
 | Date | 2026-08-30 |
 | Scope | The operator's console: watching a world, diagnosing it, and turning its dials |
-| Depends on | `game-design.md` v3.0, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20, `detailed-design-post-mvp.md` v0.6 |
+| Depends on | `game-design.md` v3.1, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20, `detailed-design-post-mvp.md` v0.6 |
 | Audience | Whoever runs a deployment, and whoever builds the console for them |
 
 ### How to read this document
@@ -16,8 +16,8 @@
 `ui-ux-mvp.md` is normative for what a **player** sees. This document is normative for what an **operator** sees, and
 the two surfaces share nothing but a design language: different audience, different entitlement, different risks.
 
-Cited as `ADMIN §n`. **A0 to A2 are built** — the separate application, the fourth role, operator sign-in, the
-grant model of §2, and the screens of §3.1 to §3.3. The rest of §3 is still design; §7 tracks it.
+Cited as `ADMIN §n`. **A0 to A3 are built** — the separate application, the fourth role, operator sign-in, the
+grant model of §2, and the screens of §3.1 to §3.3 and §3.5. The rest of §3 is still design; §7 tracks it.
 
 ---
 
@@ -212,7 +212,12 @@ For "a player says something is wrong".
 - It is **read-only**. There is no "give them their credits back": a correction is a world-level decision, and if
   one is ever needed it arrives as a command with a name, not as a text field on a support screen.
 - **Clearance is not shown, ever** — not on this screen, not in a search filter, not in an export. An operator with
-  a player account could otherwise learn who to follow. This is the one field the console redacts from itself.
+  a player account could otherwise learn who to follow. This is the one field the console redacts from itself, and
+  a test asserts the word does not appear in any pilot response, rendered or JSON.
+- **Allegiance is shown, and should be.** A pilot who has sided with an incursion (*GDD §8.12*) wears it on their
+  record, and one who has *ever* sided wears that too. This is the exact opposite of clearance: siding is announced
+  to the whole galaxy the moment it happens, so a console that hid it would be keeping a secret the world does not
+  keep.
 
 ## 3.6 The hidden faction — a separate screen, behind its own flag
 
@@ -262,7 +267,7 @@ Every world-scoped route carries the world in its path, because one console reac
 | Operators | `GET /admin/operators`, `POST /admin/operators:grant`, `:revoke` | ✅ *(A0)* |
 | History | `GET /admin/worlds/{world}/history` | ✅ |
 | Balance | `GET /admin/worlds/{world}/ruleset`, `POST .../ruleset:draft` | |
-| Pilots | `GET /admin/worlds/{world}/pilots?q=…`, `.../pilots/{id}` | |
+| Pilots | `GET /admin/worlds/{world}/pilots?q=…`, `.../pilots/{id}` | ✅ |
 | Directorate | `GET /admin/worlds/{world}/directorate` | |
 
 The screens themselves are **rendered on the server** at `/console/{world}/…`, reading through the same functions
@@ -311,7 +316,7 @@ Each slice is independently useful, and the first two are most of the value.
 | **A0** ✅ | The separate app, `admin_role`, operator auth, the grant model | Nothing else can exist until the surface is separate. **Built** |
 | **A1** ✅ | Overview and the tick screen | Answers "is the world turning?", which is the only question that matters at 4am. **Built** |
 | **A2** ✅ | History: crises, eras, incursions | The countdown to an incursion is the thing worth watching. **Built** |
-| **A3** | Pilots: the support view | Turns "something went wrong" into a fact |
+| **A3** ✅ | Pilots: the support view | Turns "something went wrong" into a fact. **Built** |
 | **A4** | Balance: read-only dials and Draft | Makes tuning a reviewed change rather than a live one |
 | **A5** | Operators: who holds permission, and who granted it | Follows A0's model; needed the moment a second person runs a world |
 | **A6** | The Directorate screen | Last, and behind its own flag, for the same reason the faction shipped last |
@@ -332,6 +337,7 @@ Each slice is independently useful, and the first two are most of the value.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.6 | 2026-08-30 | Slice A3 built: find a pilot, read what the server did for them, and see whether they sided with an incursion. Clearance is redacted from the console itself, and asserted absent. |
 | 0.5 | 2026-08-30 | Slice A2 built: eras, open crises with their countdown, and the incursion each answered crisis raised. The console now loads the world's ruleset, so a number on screen can say what it means. |
 | 0.4 | 2026-08-30 | Slice A1 built: the overview and the tick, rendered on the server. Stage times are derived from the gaps between recorded finishes rather than stored. **Resume became "ask for a retry"** — the console cannot run a tick, and a failed one already resumes itself. |
 | 0.3 | 2026-08-30 | Slice A0 built: the console as a separate application on its own port, `admin_role` and its read-mostly grants, operator sign-in on its own audience, and the grant model — including an origin that cannot be revoked. Three anti-leak probes. |
