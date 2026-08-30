@@ -21,7 +21,7 @@ STATION_WEIGHT = 2.0
 class TerritoryRecompute:
     name = "territory"
     role: str | None = None
-    order = 5
+    order = 50
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         raw = await self._presence(ctx)

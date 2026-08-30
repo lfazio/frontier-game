@@ -11,13 +11,15 @@ from collections import defaultdict
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from frontier.adapters.db import models
 from frontier.domain.rules.ruleset import ActionKind
 from frontier.simulation.stages.base import TickContext
 
 ARCHETYPES = ("hauler", "patrol", "raider")
+# Not in ARCHETYPES: an incursion is raised by the Harrowing, never by system activity.
+INCURSION = "incursion"
 NPC_SHIP = {
     "hauler": {
         "hull": 80,
@@ -57,7 +59,7 @@ class NpcPopulation:
 
     name = "npc_population"
     role: str | None = None
-    order = 4
+    order = 40
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         flows, advanced = await self._aggregate(ctx)
@@ -239,11 +241,12 @@ class NpcPopulation:
 
         acted = 0
         for agent, ship in agents:
-            spent = (
-                await self._haul(ctx, agent, ship)
-                if agent.archetype == "hauler"
-                else await self._drift(ctx, agent, ship)
-            )
+            if agent.archetype == "hauler":
+                spent = await self._haul(ctx, agent, ship)
+            elif agent.archetype == INCURSION:
+                spent = await self._close_in(ctx, agent, ship)
+            else:
+                spent = await self._drift(ctx, agent, ship)
             if spent:
                 agent.ap_balance -= spent
                 acted += 1
@@ -304,6 +307,98 @@ class NpcPopulation:
             update(models.Ship).where(models.Ship.id == ship.id).values(position_path=landing)
         )
         return cost
+
+    async def _close_in(self, ctx: TickContext, agent: models.NpcAgent, ship: models.Ship) -> int:
+        """An incursion crosses the empty space toward a system, then fights what it finds.
+
+        Arriving out in the dark and closing in is what gives a region its warning: the system
+        sees them coming a cycle before they are there (GDD §8.12).
+        """
+        cost = ctx.rules.ap_cost(ActionKind.MOVE_HEX)
+        if not self._afford(agent, cost):
+            return 0
+
+        here = (
+            await ctx.session.execute(select(models.Location).where(models.Location.id == agent.system_id))
+        ).scalar_one_or_none()
+        if here is None:
+            return 0
+
+        if here.kind == "system":
+            return await self._raid(ctx, agent, ship, cost)
+
+        # Still in the dark: step toward the nearest system of the region it was raised over.
+        region_id = UUID(str(agent.route.get("region"))) if agent.route.get("region") else here.parent_id
+        target = (
+            await ctx.session.execute(
+                select(models.Location)
+                .where(models.Location.parent_id == region_id, models.Location.kind == "system")
+                .order_by(func.abs(models.Location.q - here.q) + func.abs(models.Location.r - here.r))
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if target is None:
+            return 0
+
+        rim = (
+            await ctx.session.execute(
+                select(models.Location)
+                .where(models.Location.parent_id == target.id)
+                .order_by(models.Location.path)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if rim is None:
+            return 0
+
+        await ctx.session.execute(
+            update(models.Ship)
+            .where(models.Ship.id == ship.id)
+            .values(system_id=target.id, position_path=rim.path)
+        )
+        agent.system_id = target.id
+        return cost
+
+    async def _raid(self, ctx: TickContext, agent: models.NpcAgent, ship: models.Ship, cost: int) -> int:
+        """Queue a fight with whatever is here. They do not distinguish between flags."""
+        prey = (
+            await ctx.session.execute(
+                select(models.Ship)
+                .where(
+                    models.Ship.system_id == ship.system_id,
+                    models.Ship.destroyed_on.is_(None),
+                    models.Ship.id != ship.id,
+                )
+                .order_by(models.Ship.id)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if prey is None:
+            return await self._drift(ctx, agent, ship)
+
+        already = (
+            await ctx.session.execute(
+                select(models.EncounterQueue).where(
+                    models.EncounterQueue.attacker_id == ship.id,
+                    models.EncounterQueue.defender_id == prey.id,
+                    models.EncounterQueue.world_day == ctx.world_day,
+                )
+            )
+        ).scalar_one_or_none()
+        if already is not None:
+            return 0
+
+        ctx.session.add(
+            models.EncounterQueue(
+                id=uuid4(),
+                world_day=ctx.world_day,
+                attacker_id=ship.id,
+                defender_id=prey.id,
+                at_path=ship.position_path,
+                intent="attack",
+            )
+        )
+        return ctx.rules.ap_cost(ActionKind.COMBAT_ROUND)
 
     async def _drift(self, ctx: TickContext, agent: models.NpcAgent, ship: models.Ship) -> int:
         """Legible movement: patrols and raiders work a fixed system, not the whole galaxy."""

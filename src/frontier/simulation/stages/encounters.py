@@ -6,7 +6,7 @@ different physics than a present one (GDD §3.5, criterion A6).
 
 from __future__ import annotations
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select, update
 
@@ -21,7 +21,7 @@ from frontier.simulation.stages.base import TickContext
 class ResolveEncounters:
     name = "resolve_encounters"
     role: str | None = None
-    order = 2
+    order = 20
 
     async def run(self, ctx: TickContext) -> dict[str, int]:
         queued = (
@@ -128,6 +128,8 @@ class ResolveEncounters:
         ).scalar_one()
         if ship.player_id is None:
             return
+        if await self._lost_for_good(ctx, ship):
+            return await self._new_pilot(ctx, ship)
         home = (
             await ctx.session.execute(
                 select(models.Location)
@@ -161,6 +163,82 @@ class ResolveEncounters:
                 )
             )
         )
+
+    async def _lost_for_good(self, ctx: TickContext, ship: models.Ship) -> bool:
+        """Recovery is unreliable during an incursion, and an agent is not recovered — GDD §9.14.
+
+        Read as two ordinary facts: the pilot held a clearance, and something of the Harrowing
+        was in the same place. Nothing here consults the hidden faction's own records.
+        """
+        cleared = (
+            await ctx.session.execute(
+                select(models.Player.clearance).where(models.Player.id == ship.player_id)
+            )
+        ).scalar_one_or_none()
+        if not cleared:
+            return False
+        present = (
+            await ctx.session.execute(
+                select(func.count())
+                .select_from(models.NpcAgent)
+                .join(models.Ship, models.Ship.id == models.NpcAgent.ship_id)
+                .where(
+                    models.NpcAgent.archetype == "incursion",
+                    models.Ship.system_id == ship.system_id,
+                    models.Ship.destroyed_on.is_(None),
+                )
+            )
+        ).scalar_one()
+        return bool(present)
+
+    async def _new_pilot(self, ctx: TickContext, ship: models.Ship) -> None:
+        """A new pilot, not a mended one.
+
+        The old row stays exactly as it was — dead, with whatever it held — and a fresh pilot
+        takes the account on. **No column links the two** (ARCH §18): re-recruitment reads the
+        new pilot's own record, so the link is not merely forbidden but unnecessary.
+        """
+        old = (
+            await ctx.session.execute(select(models.Player).where(models.Player.id == ship.player_id))
+        ).scalar_one()
+        home = (
+            await ctx.session.execute(
+                select(models.Location)
+                .where(models.Location.attrs.has_key("spawn"))
+                .order_by(models.Location.path)
+                .limit(1)
+            )
+        ).scalar_one()
+
+        new_id = uuid4()
+        ctx.session.add(
+            models.Player(
+                id=new_id,
+                account_id=old.account_id,
+                callsign=f"{old.callsign}-{old.generation + 1}",
+                credits=old.credits,
+                ap_balance=0,
+                last_grant_day=-1,
+                generation=old.generation + 1,
+                clearance=0,
+            )
+        )
+        await ctx.session.flush()
+        # The hull goes with the account, not with the pilot who died in it.
+        await ctx.session.execute(
+            update(models.Ship)
+            .where(models.Ship.id == ship.id)
+            .values(
+                player_id=new_id,
+                hull=ship.hull_max,
+                shields=ship.shields_max,
+                destroyed_on=None,
+                position_path=home.path,
+                system_id=home.parent_id,
+                docked_at=None,
+            )
+        )
+        ctx.session.add(models.StandingOrders(player_id=new_id))
 
     async def _close(self, ctx: TickContext, encounter_id: UUID) -> None:
         await ctx.session.execute(

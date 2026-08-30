@@ -19,6 +19,7 @@ from frontier.simulation.stages.digests import BuildDigests
 from frontier.simulation.stages.economy import EconomyStep
 from frontier.simulation.stages.encounters import ResolveEncounters
 from frontier.simulation.stages.grant_ap import GrantActionPoints
+from frontier.simulation.stages.harrowing import Harrowing
 from frontier.simulation.stages.missions import MissionLifecycle
 from frontier.simulation.stages.population import NpcPopulation
 from frontier.simulation.stages.promotion import EventPromotion
@@ -38,6 +39,7 @@ TICK_STAGES: tuple[Stage, ...] = (
     TerritoryRecompute(),
     MissionLifecycle(),
     PsychohistoryUpdate(),
+    Harrowing(),
     EventPromotion(),
     ChronicleAndRetention(),
     GrantActionPoints(),
