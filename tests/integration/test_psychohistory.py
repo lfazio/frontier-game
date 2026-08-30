@@ -7,7 +7,7 @@ The important test here is not that forecasts appear. It is that the Model's rea
 from __future__ import annotations
 
 from dataclasses import replace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -552,3 +552,151 @@ async def test_an_agent_lost_to_an_incursion_comes_back_as_someone_else(sessions
     # No column links them: the account is the only thing they share, and that is not a link
     # between an agent and a pilot — every account has one.
     assert pilots[1].callsign != pilots[0].callsign
+
+
+# --- siding with them (GDD §8.12, M21) ---------------------------------------------------------
+
+
+async def a_pilot(sessions, callsign: str, at_the_incursion: bool) -> str:
+    """A pilot, either standing where the Harrowing is or somewhere else entirely."""
+    async with sessions() as session, session.begin():
+        if at_the_incursion:
+            berth = (
+                await session.execute(
+                    text(
+                        "SELECT s.system_id, s.position_path FROM core.npc_agents n "
+                        "JOIN core.ships s ON s.id = n.ship_id WHERE n.archetype = 'incursion' LIMIT 1"
+                    )
+                )
+            ).first()
+        else:
+            berth = (
+                await session.execute(
+                    text(
+                        "SELECT id AS system_id, path AS position_path FROM core.locations "
+                        "WHERE kind = 'planet' ORDER BY path LIMIT 1"
+                    )
+                )
+            ).first()
+
+        account_id, player_id, ship_id = uuid4(), uuid4(), uuid4()
+        await session.execute(
+            text("INSERT INTO core.accounts (id, email, password_hash) VALUES (:a, :e, 'x')").bindparams(
+                a=account_id, e=f"{player_id}@x.io"
+            )
+        )
+        await session.execute(
+            text(
+                "INSERT INTO core.players (id, account_id, callsign, credits, ap_balance, "
+                " last_grant_day) VALUES (:p, :a, :c, 5000, 10, -1)"
+            ).bindparams(p=player_id, a=account_id, c=callsign)
+        )
+        await session.execute(
+            text(
+                "INSERT INTO core.ships (id, player_id, hull, hull_max, shields, shields_max, "
+                " fuel, fuel_max, cargo_max, sensor_range, system_id, position_path) "
+                "VALUES (:s, :p, 100, 100, 0, 0, 60, 60, 20, 3, :sys, CAST(:pos AS ltree))"
+            ).bindparams(s=ship_id, p=player_id, sys=berth.system_id, pos=str(berth.position_path))
+        )
+    return str(player_id)
+
+
+def as_pilot(clean, player_id: str) -> dict[str, str]:
+    from frontier.adapters.api.security import issue_token
+
+    return {"Authorization": "Bearer " + issue_token(UUID(player_id), clean.jwt_secret, 900, SystemClock())}
+
+
+def act(game, headers, action: str):
+    return game.post(
+        "/v1/commands", json={"action": action, "idempotency_key": str(uuid4())}, headers=headers
+    )
+
+
+async def test_siding_needs_an_incursion_to_side_with(sessions, clean):
+    """It is a decision about *this* emergency, not a standing political position."""
+    player_id = await a_pilot(sessions, "Cmdr Faraway", at_the_incursion=False)
+
+    with TestClient(create_app(build_sql(clean))) as game:
+        refused = act(game, as_pilot(clean, player_id), "side_with_incursion")
+
+    assert refused.status_code == 409
+    assert refused.json()["code"] == "NO_INCURSION_HERE"
+
+
+async def test_siding_is_explicit_announced_and_costs_every_standing(sessions, clean):
+    """M21: everyone knows, and all three factions mind."""
+    await strain(sessions, clean, crisis_window=1, crisis_duration=0)
+    player_id = await a_pilot(sessions, "Cmdr Turncoat", at_the_incursion=True)
+
+    with TestClient(create_app(build_sql(clean))) as game:
+        sided = act(game, as_pilot(clean, player_id), "side_with_incursion")
+
+    assert sided.status_code == 202, sided.text
+
+    async with sessions() as session:
+        row = (
+            await session.execute(
+                text("SELECT allegiance, first_sided_on FROM core.players WHERE id = :p").bindparams(
+                    p=UUID(player_id)
+                )
+            )
+        ).one()
+        standing = (
+            await session.execute(
+                text("SELECT faction_id, score FROM core.reputation WHERE player_id = :p").bindparams(
+                    p=UUID(player_id)
+                )
+            )
+        ).all()
+        announced = (
+            await session.execute(
+                text("SELECT scope, visibility, payload FROM evt.events WHERE type = 'SIDED_WITH_INCURSION'")
+            )
+        ).all()
+
+    assert row.allegiance == "incursion" and row.first_sided_on is not None
+    assert {faction for faction, _ in standing} == {1, 2, 3}
+    assert all(score < 0 for _, score in standing)
+    assert announced and announced[0].scope == 4 and announced[0].visibility == "public"
+    assert announced[0].payload["sided"] is True
+
+
+async def test_renouncing_gives_back_the_bonus_but_never_the_record(sessions, clean):
+    """The asymmetry is the design: what can be undone, and what cannot."""
+    await strain(sessions, clean, crisis_window=1, crisis_duration=0)
+    player_id = await a_pilot(sessions, "Cmdr Repentant", at_the_incursion=True)
+    headers = as_pilot(clean, player_id)
+
+    with TestClient(create_app(build_sql(clean))) as game:
+        act(game, headers, "side_with_incursion")
+        renounced = act(game, headers, "renounce_incursion")
+        # And it cannot be renounced twice.
+        again = act(game, headers, "renounce_incursion")
+
+    assert renounced.status_code == 202
+    assert again.json()["code"] == "NOT_SIDED"
+
+    async with sessions() as session:
+        row = (
+            await session.execute(
+                text("SELECT allegiance, first_sided_on FROM core.players WHERE id = :p").bindparams(
+                    p=UUID(player_id)
+                )
+            )
+        ).one()
+        standing = (
+            (
+                await session.execute(
+                    text("SELECT score FROM core.reputation WHERE player_id = :p").bindparams(
+                        p=UUID(player_id)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert row.allegiance is None, "renouncing ends the allegiance"
+    assert row.first_sided_on is not None, "having sided is not a thing that washes off"
+    assert all(score < 0 for score in standing), "standing does not come back"

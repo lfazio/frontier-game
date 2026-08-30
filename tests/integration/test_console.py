@@ -7,6 +7,7 @@ permission comes from another operator rather than from asking.
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import replace
 from uuid import uuid4
 
@@ -449,3 +450,108 @@ def test_the_history_screen_renders_what_the_json_says(clean, console):
 def test_history_needs_a_world_you_hold(console):
     assert console.get("/admin/worlds/atlantis/history", headers=sign_in(console)).status_code == 404
     assert console.get("/admin/worlds/kestrel/history").status_code == 401
+
+
+# --- A3: the pilots support view --------------------------------------------------------------
+
+
+def a_player(clean, callsign: str, **columns) -> str:
+    async def write() -> str:
+        engine = make_engine(clean.database_url)
+        player_id = uuid4()
+        extra = "".join(f", {name}" for name in columns)
+        values = "".join(f", :{name}" for name in columns)
+        async with make_sessionmaker(engine)() as session, session.begin():
+            account_id = uuid4()
+            await session.execute(
+                text("INSERT INTO core.accounts (id, email, password_hash) VALUES (:a, :e, 'x')").bindparams(
+                    a=account_id, e=f"{player_id}@x.io"
+                )
+            )
+            await session.execute(
+                text(
+                    "INSERT INTO core.players (id, account_id, callsign, credits, ap_balance, "
+                    f" last_grant_day{extra}) VALUES (:p, :a, :c, 5000, 10, -1{values})"
+                ).bindparams(p=player_id, a=account_id, c=callsign, **columns)
+            )
+        await engine.dispose()
+        return str(player_id)
+
+    return asyncio.run(write())
+
+
+def test_a_pilot_is_found_by_callsign(clean, console):
+    a_player(clean, "Cmdr Vale")
+    a_player(clean, "Cmdr Okonkwo")
+    origin = sign_in(console)
+
+    everyone = console.get("/admin/worlds/kestrel/pilots", headers=origin).json()["pilots"]
+    just_one = console.get("/admin/worlds/kestrel/pilots?q=vale", headers=origin).json()["pilots"]
+
+    assert {p["callsign"] for p in everyone} >= {"Cmdr Vale", "Cmdr Okonkwo"}
+    assert [p["callsign"] for p in just_one] == ["Cmdr Vale"]
+
+
+def test_a_pilots_record_is_what_the_server_did(clean, console):
+    player_id = a_player(clean, "Cmdr Vale", knowledge=3)
+
+    body = console.get(f"/admin/worlds/kestrel/pilots/{player_id}", headers=sign_in(console)).json()
+
+    assert body["callsign"] == "Cmdr Vale"
+    assert body["knowledge"] == 3
+    assert body["generation"] == 1
+    assert "events" in body and "standing" in body
+
+
+def test_the_console_never_shows_a_pilots_clearance(clean, console):
+    """ADMIN §3.5: the one field the console redacts from itself.
+
+    An operator who also plays would otherwise learn who to follow.
+    """
+    player_id = a_player(clean, "Cmdr Cleared", clearance=1)
+    origin = sign_in(console)
+
+    listing = console.get("/admin/worlds/kestrel/pilots", headers=origin)
+    detail = console.get(f"/admin/worlds/kestrel/pilots/{player_id}", headers=origin)
+
+    for answer in (listing, detail):
+        assert "clearance" not in answer.text.lower()
+    assert "clearance" not in json.dumps(detail.json()).lower()
+
+
+def test_a_pilot_who_sided_wears_it_on_their_record(clean, console):
+    """Siding is announced to the world, so the console shows it — GDD §8.12."""
+    sided = a_player(clean, "Cmdr Turncoat", allegiance="incursion", first_sided_on=12)
+    former = a_player(clean, "Cmdr Repentant", first_sided_on=9)
+    plain = a_player(clean, "Cmdr Loyal")
+    origin = sign_in(console)
+
+    def record(player_id: str) -> dict:
+        return console.get(f"/admin/worlds/kestrel/pilots/{player_id}", headers=origin).json()
+
+    assert record(sided)["allegiance"] == "incursion"
+    assert record(former)["allegiance"] is None and record(former)["first_sided_on"] == 9
+    assert record(plain)["allegiance"] is None and record(plain)["first_sided_on"] is None
+
+
+def test_the_pilots_screen_renders(clean, console):
+    player_id = a_player(clean, "Cmdr Turncoat", allegiance="incursion", first_sided_on=12)
+    console.post(
+        "/console/login",
+        content="email=ancients%40frontier.test&password=correct-horse-battery-staple",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        follow_redirects=False,
+    )
+
+    listing = console.get("/console/kestrel/pilots")
+    detail = console.get(f"/console/kestrel/pilots/{player_id}")
+
+    assert listing.status_code == 200 and "Cmdr Turncoat" in listing.text
+    assert detail.status_code == 200
+    assert "sided with the incursion" in detail.text
+    assert "clearance is not shown" in detail.text
+
+
+def test_pilots_need_a_world_you_hold(console):
+    assert console.get("/admin/worlds/atlantis/pilots", headers=sign_in(console)).status_code == 404
+    assert console.get("/admin/worlds/kestrel/pilots").status_code == 401
