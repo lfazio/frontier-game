@@ -89,6 +89,9 @@ class SqlRegistrar:
                     select(models.Account, models.Player)
                     .join(models.Player, models.Player.account_id == models.Account.id)
                     .where(models.Account.email == email)
+                    # An account may have flown more than one pilot. The living one is the
+                    # latest generation; the others are history and cannot be signed in as.
+                    .order_by(models.Player.generation.desc())
                 )
             ).first()
         if row is None or not verify_password(row[0].password_hash, password):
