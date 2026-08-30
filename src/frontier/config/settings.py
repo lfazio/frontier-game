@@ -29,3 +29,12 @@ class Settings(BaseSettings):
     watch_interval_seconds: int | None = None
     # Optional tick stages, resolved by name so nothing imports them (ARCH ADR-13).
     extra_stages: tuple[str, ...] = ("frontier.continuity.stage:stage",)
+
+    # --- the operator console (ADMIN §2) -------------------------------------------------
+    # Its own role, its own secret and its own audience. A player token is not merely
+    # unprivileged here; it fails verification, and an operator token fails on the game.
+    admin_role: str = "admin_role"
+    admin_jwt_secret: str = Field(default="dev-only-admin-secret-not-for-production", min_length=32)
+    admin_jwt_ttl_seconds: int = 3600
+    # Which worlds this console reaches, as name=dsn. One console, many worlds (QA-3).
+    admin_worlds: str = "kestrel"

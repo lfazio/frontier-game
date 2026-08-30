@@ -430,3 +430,31 @@ class ForecastRow(Base):
     probability: Mapped[Decimal] = mapped_column(Numeric(5, 4))
     confidence: Mapped[Decimal] = mapped_column(Numeric(5, 4))
     deviation: Mapped[Decimal] = mapped_column(Numeric(6, 4))
+
+
+class Operator(Base):
+    """Whoever runs a world. Not a player, and never joined to one — ADMIN §2."""
+
+    __tablename__ = "operators"
+    __table_args__ = ({"schema": "admin"},)
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(254), unique=True)
+    name: Mapped[str] = mapped_column(String(64))
+    password_hash: Mapped[str] = mapped_column(String(255))
+    created_on: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class Grant(Base):
+    """Permission on one world, and the operator who gave it.
+
+    `granted_by` is null only for the origin, who was let in by nobody. It is what lets the
+    console answer "who let them in?" without keeping a separate audit log.
+    """
+
+    __tablename__ = "grants"
+    __table_args__ = ({"schema": "admin"},)
+    operator_id: Mapped[UUID] = mapped_column(ForeignKey("admin.operators.id"), primary_key=True)
+    world: Mapped[str] = mapped_column(String(64), primary_key=True)
+    permission: Mapped[str] = mapped_column(String(16))
+    granted_by: Mapped[UUID | None] = mapped_column(ForeignKey("admin.operators.id"), nullable=True)
+    granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
