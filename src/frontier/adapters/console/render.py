@@ -70,7 +70,7 @@ def page(title: str, body: str) -> str:
 def shell(world: str, worlds: list[str], here: str, body: str, day: int | None, phase: str | None) -> str:
     tabs = "".join(
         f"<a class='{'on' if name == here else ''}' href='/console/{escape(w)}/{name}'>{name}</a>"
-        for name in ("overview", "ticks", "history")
+        for name in ("overview", "ticks", "history", "pilots")
         for w in [world]
     )
     picker = "".join(
@@ -322,6 +322,93 @@ def history(body: dict[str, Any]) -> str:
         + crises
         + f"<div class='dim small' style='{CAPS}'>Incursions</div>"
         + incursions
+    )
+
+
+FACTIONS = {1: "Empire", 2: "Republic", 3: "Pirates"}
+
+
+def _sided(pilot: dict[str, Any]) -> str:
+    """Siding with an incursion is announced to the whole world, so the console may show it."""
+    if pilot["allegiance"] == "incursion":
+        return (
+            f"<span class='warn' style='border:1px solid {WARN};border-radius:4px;"
+            "padding:2px 8px;font-size:12px'>sided with the incursion</span>"
+        )
+    if pilot["first_sided_on"] is not None:
+        return (
+            f"<span class='dim small' style='border:1px solid {LINE};border-radius:4px;"
+            f"padding:2px 8px'>once sided, day {pilot['first_sided_on']}</span>"
+        )
+    return ""
+
+
+def pilots(world: str, listing: list[dict[str, Any]], chosen: dict[str, Any] | None, query: str) -> str:
+    rows = "".join(
+        f"<tr><td><a href='/console/{escape(world)}/pilots/{p['id']}'>{escape(p['callsign'])}</a>"
+        + (" <span class='warn small'>·</span>" if p["allegiance"] else "")
+        + f"</td><td class='num dim small'>generation {p['generation']}</td></tr>"
+        for p in listing
+    )
+    finder = (
+        f"<form method='get' style='display:flex;gap:8px;margin-bottom:12px'>"
+        f"<input name='q' value='{escape(query)}' placeholder='callsign' style='flex:1'>"
+        "<button>Find</button></form>"
+        + (
+            f"<div class='card'><table>{rows}</table></div>"
+            if listing
+            else "<p class='quiet'>No pilot by that name.</p>"
+        )
+    )
+
+    if chosen is None:
+        detail = "<p class='quiet'>Pick a pilot to see what the server did for them.</p>"
+    else:
+        ship = chosen["ship"]
+        stats = "".join(
+            f"<div><div class='num' style='font-size:17px'>{value}</div>"
+            f"<div class='dim' style='font-size:11px;{CAPS}'>{label}</div></div>"
+            for label, value in (
+                ("action points", chosen["action_points"]),
+                ("credits", _count(chosen["credits"])),
+                ("knowledge", chosen["knowledge"]),
+                ("hull", f"{ship['hull']}/{ship['hull_max']}" if ship else "—"),
+                ("position", escape(ship["position"]) if ship else "—"),
+            )
+        )
+        standing = ", ".join(
+            f"{FACTIONS.get(s['faction_id'], s['faction_id'])} {s['score']:+d}" for s in chosen["standing"]
+        )
+        log = "".join(
+            f"<tr><td class='num dim' style='width:64px'>{escape(e['at'][11:16])}</td>"
+            f"<td class='num' style='width:200px'>{escape(e['type'])}</td>"
+            f"<td class='dim small'>{_metrics(e['payload'])}</td></tr>"
+            for e in chosen["events"]
+        )
+        detail = (
+            "<div class='card'><div class='row' style='flex-direction:column;"
+            "align-items:flex-start;gap:10px'>"
+            f"<div style='display:flex;align-items:baseline;gap:10px'>"
+            f"<span style='font-size:20px'>{escape(chosen['callsign'])}</span>"
+            f"<span class='num dim small'>generation {chosen['generation']}</span>"
+            f"{_sided(chosen)}</div>"
+            f"<div style='display:flex;gap:22px;flex-wrap:wrap'>{stats}</div>"
+            f"<div class='dim small'>crew: {escape(chosen['crew'] or 'independent')}"
+            + (f" · standing: {escape(standing)}" if standing else "")
+            + "</div></div></div>"
+            f"<div class='dim small' style='{CAPS}'>Their last day</div>"
+            + (
+                f"<div class='card'><table>{log}</table></div>"
+                if log
+                else "<p class='quiet'>Nothing has happened to them yet.</p>"
+            )
+            + "<p class='dim small'>Read-only. A correction is a command with a name, not a field "
+            "on this screen — and clearance is not shown here or anywhere else.</p>"
+        )
+
+    return (
+        "<div style='display:grid;grid-template-columns:320px 1fr;gap:18px;align-items:start'>"
+        f"<div>{finder}</div><div>{detail}</div></div>"
     )
 
 

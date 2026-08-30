@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -208,6 +209,105 @@ async def history(session: AsyncSession, day: int | None) -> dict[str, Any]:
         "open": [shape(c) for c in crises if c.resolved_on is None and c.answered_on is None],
         "answered": [shape(c) for c in crises if c.answered_on is not None],
         "resolved": [shape(c) for c in crises if c.resolved_on is not None][:10],
+    }
+
+
+async def pilots(session: AsyncSession, query: str = "") -> list[dict[str, Any]]:
+    """Find a pilot by callsign. Clearance is not a column this may select — ADMIN §3.5."""
+    rows = (
+        (
+            await session.execute(
+                select(models.Player)
+                .where(models.Player.callsign.ilike(f"%{query}%"))
+                .order_by(models.Player.callsign)
+                .limit(50)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            "id": str(row.id),
+            "callsign": row.callsign,
+            "generation": row.generation,
+            "allegiance": row.allegiance,
+        }
+        for row in rows
+    ]
+
+
+async def pilot(session: AsyncSession, player_id: UUID) -> dict[str, Any] | None:
+    """One pilot's record: what the server did, and nothing it is meant not to show.
+
+    **Clearance is never read here.** An operator who also plays would otherwise learn who to
+    follow, so the console redacts that one field from itself (ADMIN §3.5).
+    """
+    row = (
+        await session.execute(select(models.Player).where(models.Player.id == player_id))
+    ).scalar_one_or_none()
+    if row is None:
+        return None
+
+    ship = (
+        await session.execute(
+            select(models.Ship).where(models.Ship.player_id == player_id, models.Ship.destroyed_on.is_(None))
+        )
+    ).scalar_one_or_none()
+    team = (
+        await session.execute(select(models.Team.name).where(models.Team.id == row.team_id))
+    ).scalar_one_or_none()
+    standing = (
+        await session.execute(
+            select(models.Reputation.faction_id, models.Reputation.score).where(
+                models.Reputation.player_id == player_id
+            )
+        )
+    ).all()
+
+    events = (
+        await session.execute(
+            text(
+                "SELECT e.type, e.occurred_at, e.world_day, e.payload "
+                "FROM evt.events e JOIN evt.event_deliveries d ON d.event_id = e.id "
+                "WHERE d.recipient_id = :player "
+                "ORDER BY e.occurred_at DESC LIMIT 40"
+            ).bindparams(player=player_id)
+        )
+    ).all()
+
+    return {
+        "id": str(row.id),
+        "callsign": row.callsign,
+        "generation": row.generation,
+        "credits": row.credits,
+        "action_points": row.ap_balance,
+        "knowledge": row.knowledge,
+        "crew": team,
+        "faction_id": row.faction_id,
+        # Public by design: siding with an incursion is announced to the whole world (GDD §8.12).
+        "allegiance": row.allegiance,
+        "first_sided_on": row.first_sided_on,
+        "ship": None
+        if ship is None
+        else {
+            "hull": ship.hull,
+            "hull_max": ship.hull_max,
+            "shields": ship.shields,
+            "fuel": ship.fuel,
+            "position": str(ship.position_path),
+            "docked": ship.docked_at is not None,
+        },
+        "standing": [{"faction_id": f, "score": s} for f, s in sorted(standing)],
+        "events": [
+            {
+                "type": e.type,
+                "at": e.occurred_at.isoformat(),
+                "world_day": e.world_day,
+                "payload": e.payload,
+            }
+            for e in events
+        ],
     }
 
 

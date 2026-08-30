@@ -181,6 +181,27 @@ def create_console(console: Console | None = None) -> FastAPI:
         body["era_threshold"] = c.rules.events.era_threshold
         return {"world": world, **body}
 
+    @app.get("/admin/worlds/{world}/pilots", tags=["pilots"])
+    async def pilots(world: str, operator_id: CurrentOperator, c: ConsoleDep, q: str = "") -> dict[str, Any]:
+        async with c.sessions() as session:
+            if world not in c.worlds:
+                raise HTTPException(status_code=404, detail="Not Found")
+            await require(session, operator_id, world, "watch")
+            return {"world": world, "pilots": await reads.pilots(session, q)}
+
+    @app.get("/admin/worlds/{world}/pilots/{player_id}", tags=["pilots"])
+    async def pilot(
+        world: str, player_id: UUID, operator_id: CurrentOperator, c: ConsoleDep
+    ) -> dict[str, Any]:
+        async with c.sessions() as session:
+            if world not in c.worlds:
+                raise HTTPException(status_code=404, detail="Not Found")
+            await require(session, operator_id, world, "watch")
+            found = await reads.pilot(session, player_id)
+        if found is None:
+            raise HTTPException(status_code=404, detail="Not Found")
+        return {"world": world, **found}
+
     @app.get("/admin/operators", tags=["operators"])
     async def operators(world: str, operator_id: CurrentOperator, c: ConsoleDep) -> dict[str, Any]:
         async with c.sessions() as session:
@@ -330,6 +351,14 @@ def create_console(console: Console | None = None) -> FastAPI:
     async def screen_overview(world: str, request: Request) -> Response:
         return await _screen(request, world, "overview")
 
+    @app.get("/console/{world}/pilots", include_in_schema=False)
+    async def screen_pilots(world: str, request: Request, q: str = "") -> Response:
+        return await _screen(request, world, "pilots", query=q)
+
+    @app.get("/console/{world}/pilots/{player_id}", include_in_schema=False)
+    async def screen_pilot(world: str, player_id: UUID, request: Request) -> Response:
+        return await _screen(request, world, "pilots", pilot_id=player_id)
+
     @app.get("/console/{world}/history", include_in_schema=False)
     async def screen_history(world: str, request: Request) -> Response:
         return await _screen(request, world, "history")
@@ -361,7 +390,14 @@ def create_console(console: Console | None = None) -> FastAPI:
                 run.retry_requested_by = operator_id
         return RedirectResponse(f"/console/{world}/ticks/{day}", status_code=303)
 
-    async def _screen(request: Request, world: str, here: str, day: int | None = None) -> Response:
+    async def _screen(
+        request: Request,
+        world: str,
+        here: str,
+        day: int | None = None,
+        query: str = "",
+        pilot_id: UUID | None = None,
+    ) -> Response:
         operator_id = await operator_of(request)
         if operator_id is None:
             return HTMLResponse(render.login(), status_code=401)
@@ -374,6 +410,10 @@ def create_console(console: Console | None = None) -> FastAPI:
             summary = await reads.overview(session)
             if here == "overview":
                 body = render.overview(summary).replace("{world}", world)
+            elif here == "pilots":
+                listing = await reads.pilots(session, query)
+                chosen = await reads.pilot(session, pilot_id) if pilot_id else None
+                body = render.pilots(world, listing, chosen, query)
             elif here == "history":
                 past = await reads.history(session, summary["world_day"])
                 past["era_threshold"] = c.rules.events.era_threshold
