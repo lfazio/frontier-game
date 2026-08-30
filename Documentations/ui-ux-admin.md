@@ -4,8 +4,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Slices A0 and A1 built. The remaining screens (A2–A6) are design.** |
-| Version | 0.4 |
+| Status | **Slices A0 to A2 built. The remaining screens (A3–A6) are design.** |
+| Version | 0.5 |
 | Date | 2026-08-30 |
 | Scope | The operator's console: watching a world, diagnosing it, and turning its dials |
 | Depends on | `game-design.md` v3.0, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20, `detailed-design-post-mvp.md` v0.6 |
@@ -16,8 +16,8 @@
 `ui-ux-mvp.md` is normative for what a **player** sees. This document is normative for what an **operator** sees, and
 the two surfaces share nothing but a design language: different audience, different entitlement, different risks.
 
-Cited as `ADMIN §n`. **A0 and A1 are built** — the separate application, the fourth role, operator sign-in, the
-grant model of §2, and the two screens of §3.1 and §3.2. The rest of §3 is still design; §7 tracks it.
+Cited as `ADMIN §n`. **A0 to A2 are built** — the separate application, the fourth role, operator sign-in, the
+grant model of §2, and the screens of §3.1 to §3.3. The rest of §3 is still design; §7 tracks it.
 
 ---
 
@@ -151,7 +151,11 @@ Read from `hist.tick_runs` and `hist.tick_stages`, which already record exactly 
 ```
 
 The countdown is the point: an operator should be able to see that a region is about to be invaded **before** it
-is, because that is when a world is most interesting and most likely to need watching.
+is, because that is when a world is most interesting and most likely to need watching. It warms as it runs down —
+grey beyond eleven days, amber inside it, red inside five — because a date means nothing without today's number.
+
+A crisis that has been answered carries **the incursion it raised**, on the same row: what came, and what it came
+from. Severity is drawn as five marks as well as written, so a five reads at a glance across a room.
 
 ## 3.4 Balance — the dials, and what turning one costs
 
@@ -256,7 +260,7 @@ Every world-scoped route carries the world in its path, because one console reac
 | Overview | `GET /admin/worlds/{world}` | ✅ |
 | The tick | `GET /admin/worlds/{world}/ticks`, `.../ticks/{day}`, `POST .../ticks/{day}:retry` | ✅ |
 | Operators | `GET /admin/operators`, `POST /admin/operators:grant`, `:revoke` | ✅ *(A0)* |
-| History | `GET /admin/worlds/{world}/history` | |
+| History | `GET /admin/worlds/{world}/history` | ✅ |
 | Balance | `GET /admin/worlds/{world}/ruleset`, `POST .../ruleset:draft` | |
 | Pilots | `GET /admin/worlds/{world}/pilots?q=…`, `.../pilots/{id}` | |
 | Directorate | `GET /admin/worlds/{world}/directorate` | |
@@ -306,7 +310,7 @@ Each slice is independently useful, and the first two are most of the value.
 | --- | --- | --- |
 | **A0** ✅ | The separate app, `admin_role`, operator auth, the grant model | Nothing else can exist until the surface is separate. **Built** |
 | **A1** ✅ | Overview and the tick screen | Answers "is the world turning?", which is the only question that matters at 4am. **Built** |
-| **A2** | History: crises, eras, incursions | The countdown to an incursion is the thing worth watching |
+| **A2** ✅ | History: crises, eras, incursions | The countdown to an incursion is the thing worth watching. **Built** |
 | **A3** | Pilots: the support view | Turns "something went wrong" into a fact |
 | **A4** | Balance: read-only dials and Draft | Makes tuning a reviewed change rather than a live one |
 | **A5** | Operators: who holds permission, and who granted it | Follows A0's model; needed the moment a second person runs a world |
@@ -328,6 +332,7 @@ Each slice is independently useful, and the first two are most of the value.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.5 | 2026-08-30 | Slice A2 built: eras, open crises with their countdown, and the incursion each answered crisis raised. The console now loads the world's ruleset, so a number on screen can say what it means. |
 | 0.4 | 2026-08-30 | Slice A1 built: the overview and the tick, rendered on the server. Stage times are derived from the gaps between recorded finishes rather than stored. **Resume became "ask for a retry"** — the console cannot run a tick, and a failed one already resumes itself. |
 | 0.3 | 2026-08-30 | Slice A0 built: the console as a separate application on its own port, `admin_role` and its read-mostly grants, operator sign-in on its own audience, and the grant model — including an origin that cannot be revoked. Three anti-leak probes. |
 | 0.2 | 2026-08-30 | QA-1 to QA-3 answered: one console across many worlds, permission granted operator to operator from an original account, and `Draft` opening a branch. Adds the Operators screen (A5). |
