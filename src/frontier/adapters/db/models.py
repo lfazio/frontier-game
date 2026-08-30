@@ -197,6 +197,10 @@ class TickRun(Base):
     world_day: Mapped[int] = mapped_column(Integer, primary_key=True)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # An operator asking the worker to come round sooner. The console writes this and nothing
+    # else in the world (ADMIN §6).
+    retry_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retry_requested_by: Mapped[UUID | None] = mapped_column(nullable=True)
 
 
 class TickStage(Base):
