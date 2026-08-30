@@ -15,9 +15,13 @@ from sqlalchemy import text
 
 from frontier.adapters.api.app import create_app
 from frontier.adapters.api.security import hash_password
+from frontier.adapters.clock import SeededRng, SystemClock
 from frontier.adapters.console.app import bootstrap, build, create_console
 from frontier.adapters.db.engine import make_engine, make_sessionmaker
+from frontier.adapters.rules_loader import load_ruleset
 from frontier.config.container import build_sql
+from frontier.simulation.stages.base import Features
+from frontier.simulation.tick import TickRunner
 
 pytestmark = pytest.mark.integration
 
@@ -204,3 +208,152 @@ def test_a_world_nobody_holds_answers_as_no_world_at_all(console):
     assert unknown.status_code == 404
     assert unheld.status_code == 401  # no token at all is a different question
     assert unknown.json() == {"detail": "Not Found"}
+
+
+# --- A1: the overview and the tick ------------------------------------------------------------
+
+
+def tick_once(clean) -> int:
+    """Run a real cycle, so the screens have something true to show."""
+
+    async def run() -> int:
+        engine = make_engine(clean.database_url)
+        runner = TickRunner(
+            sessions=make_sessionmaker(engine),
+            rules=load_ruleset(clean.ruleset_root, clean.ruleset_version),
+            clock=SystemClock(),
+            rng_for=SeededRng(clean.world_seed).for_,
+            features=Features(),
+        )
+        report = await runner.run()
+        await engine.dispose()
+        return report.world_day
+
+    return asyncio.run(run())
+
+
+def test_the_overview_answers_the_question_it_exists_for(clean, console):
+    """A1: is the world turning, and what is it doing?"""
+    day = tick_once(clean)
+
+    body = console.get("/admin/worlds/kestrel", headers=sign_in(console)).json()
+
+    assert body["world_day"] == day
+    assert body["last_tick"]["world_day"] == day
+    assert body["last_tick"]["finished"] is True
+    assert body["last_tick"]["seconds"] > 0
+    assert body["counts"]["systems"] > 0
+    assert set(body["history"]) == {
+        "era",
+        "era_began_on",
+        "open_crises",
+        "soonest_expiry_in",
+        "incursion_hulls",
+    }
+
+
+def test_a_world_that_never_ticked_says_so(console):
+    """Never a blank screen: a world with no history reports none rather than showing zeroes."""
+    body = console.get("/admin/worlds/kestrel", headers=sign_in(console)).json()
+
+    assert body["last_tick"]["world_day"] is None
+    assert body["last_tick"]["finished"] is False
+
+
+def test_a_stage_time_is_the_gap_since_the_one_before(clean, console):
+    """The tick stores no durations; the console derives them and they add up."""
+    day = tick_once(clean)
+
+    body = console.get(f"/admin/worlds/kestrel/ticks/{day}", headers=sign_in(console)).json()
+
+    assert len(body["stages"]) >= 12
+    assert all(s["seconds"] >= 0 for s in body["stages"])
+    assert body["stopped_after"] is None
+    # Shares are a share of something: they sum to about the whole run.
+    assert 0.9 <= sum(s["share"] for s in body["stages"]) <= 1.01
+    assert {"stage", "seconds", "metrics", "share"} == set(body["stages"][0])
+
+
+def test_a_run_that_never_finished_names_where_it_stopped(clean, console):
+    day = tick_once(clean)
+
+    async def unfinish() -> None:
+        engine = make_engine(clean.database_url)
+        async with make_sessionmaker(engine)() as session, session.begin():
+            await session.execute(
+                text("UPDATE hist.tick_runs SET finished_at = NULL WHERE world_day = :d").bindparams(d=day)
+            )
+            await session.execute(
+                text(
+                    "DELETE FROM hist.tick_stages WHERE world_day = :d AND stage = 'build_digests'"
+                ).bindparams(d=day)
+            )
+        await engine.dispose()
+
+    asyncio.run(unfinish())
+
+    body = console.get(f"/admin/worlds/kestrel/ticks/{day}", headers=sign_in(console)).json()
+    assert body["finished"] is False
+    assert body["stopped_after"] == "grant_action_points"
+
+
+def test_asking_for_a_retry_needs_operate_and_leaves_a_name(clean, console):
+    """The console does not run the tick; it asks the worker to come round sooner."""
+    day = tick_once(clean)
+    origin = sign_in(console)
+
+    # A finished run has nothing to resume.
+    assert console.post(f"/admin/worlds/kestrel/ticks/{day}:retry", headers=origin).status_code == 409
+
+    async def unfinish() -> None:
+        engine = make_engine(clean.database_url)
+        async with make_sessionmaker(engine)() as session, session.begin():
+            await session.execute(
+                text("UPDATE hist.tick_runs SET finished_at = NULL WHERE world_day = :d").bindparams(d=day)
+            )
+        await engine.dispose()
+
+    asyncio.run(unfinish())
+
+    add_operator(clean, "watcher2@example.com", "support.rota")
+    console.post(
+        "/admin/operators:grant",
+        headers=origin,
+        json={"email": "watcher2@example.com", "world": "kestrel", "permission": "watch"},
+    )
+    watcher = sign_in(console, "watcher2@example.com")
+
+    # Watching is not operating.
+    assert console.post(f"/admin/worlds/kestrel/ticks/{day}:retry", headers=watcher).status_code == 404
+    assert console.post(f"/admin/worlds/kestrel/ticks/{day}:retry", headers=origin).status_code == 200
+
+    body = console.get(f"/admin/worlds/kestrel/ticks/{day}", headers=origin).json()
+    assert body["retry_requested"] is True
+
+
+def test_the_screens_render_for_a_signed_in_operator(clean, console):
+    tick_once(clean)
+    login = console.post(
+        "/console/login",
+        content="email=ancients%40frontier.test&password=correct-horse-battery-staple",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        follow_redirects=False,
+    )
+    assert login.status_code == 303
+    assert "frontier_console" in login.cookies
+
+    overview = console.get("/console/kestrel/overview")
+    ticks = console.get("/console/kestrel/ticks")
+
+    assert overview.status_code == 200
+    assert "LAST TICK" in overview.text and "systems" in overview.text
+    assert ticks.status_code == 200 and "day" in ticks.text
+    # A world this operator does not hold is not there.
+    assert console.get("/console/atlantis/overview").status_code == 404
+
+
+def test_the_screens_are_shut_to_anyone_not_signed_in(console):
+    for path in ("/console/kestrel/overview", "/console/kestrel/ticks", "/console/kestrel/ticks/1"):
+        answer = console.get(path)
+        assert answer.status_code == 401
+        assert "Sign in" in answer.text
