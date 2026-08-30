@@ -7,6 +7,7 @@ permission comes from another operator rather than from asking.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from uuid import uuid4
 
 import pytest
@@ -357,3 +358,94 @@ def test_the_screens_are_shut_to_anyone_not_signed_in(console):
         answer = console.get(path)
         assert answer.status_code == 401
         assert "Sign in" in answer.text
+
+
+# --- A2: history ------------------------------------------------------------------------------
+
+
+def strained(clean, **events) -> int:
+    """A world that has surprised the model, so it has crises worth showing."""
+
+    async def run() -> int:
+        engine = make_engine(clean.database_url)
+        sessions = make_sessionmaker(engine)
+        rules = load_ruleset(clean.ruleset_root, clean.ruleset_version)
+        tuned = replace(rules, events=replace(rules.events, **events)) if events else rules
+        runner = TickRunner(
+            sessions=sessions,
+            rules=tuned,
+            clock=SystemClock(),
+            rng_for=SeededRng(clean.world_seed).for_,
+            features=Features(psychohistory=True),
+        )
+        await runner.run()
+        async with sessions() as session, session.begin():
+            await session.execute(text("UPDATE psycho.history_variables SET expected = 0"))
+        report = await runner.run()
+        await engine.dispose()
+        return report.world_day
+
+    return asyncio.run(run())
+
+
+def test_history_is_empty_and_says_so_before_anything_happens(clean, console):
+    tick_once(clean)
+
+    body = console.get("/admin/worlds/kestrel/history", headers=sign_in(console)).json()
+
+    assert body["era"] is None
+    assert body["open"] == [] and body["answered"] == []
+    assert body["era_threshold"] == 3
+
+
+def test_an_open_crisis_carries_its_countdown(clean, console):
+    """A2: the point of the screen is seeing an invasion coming before it arrives."""
+    day = strained(clean, crisis_window=1)
+
+    body = console.get("/admin/worlds/kestrel/history", headers=sign_in(console)).json()
+
+    assert body["era"]["name"] == "The First Age"
+    assert body["open"], "a strained world showed no crisis"
+    for crisis in body["open"]:
+        assert crisis["region"].startswith("Region")
+        assert 1 <= crisis["severity"] <= 5
+        assert crisis["days_left"] == crisis["expires_on"] - day
+        assert crisis["incursion"] is None
+
+
+def test_an_answered_crisis_carries_the_incursion_it_raised(clean, console):
+    """The crisis and its hulls are one row: what came, and what it came from."""
+    strained(clean, crisis_window=1, crisis_duration=0)
+
+    body = console.get("/admin/worlds/kestrel/history", headers=sign_in(console)).json()
+
+    answered = [c for c in body["answered"] if c["incursion"]]
+    assert answered, "a crisis expired and the console showed no incursion"
+    raid = answered[0]["incursion"]
+    assert raid["hulls"] >= 1
+    assert raid["still_flying"] <= raid["hulls"]
+    assert raid["region"] and raid["raised_on"] is not None
+
+
+def test_the_history_screen_renders_what_the_json_says(clean, console):
+    strained(clean, crisis_window=1, crisis_duration=0)
+    console.post(
+        "/console/login",
+        content="email=ancients%40frontier.test&password=correct-horse-battery-staple",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        follow_redirects=False,
+    )
+
+    screen = console.get("/console/kestrel/history")
+    body = console.get("/admin/worlds/kestrel/history", headers=sign_in(console)).json()
+
+    assert screen.status_code == 200
+    assert "The First Age" in screen.text
+    assert "hulls still flying" in screen.text
+    # One severity strip per open crisis, five marks each.
+    assert screen.text.count("width:7px;height:13px") == len(body["open"]) * 5
+
+
+def test_history_needs_a_world_you_hold(console):
+    assert console.get("/admin/worlds/atlantis/history", headers=sign_in(console)).status_code == 404
+    assert console.get("/admin/worlds/kestrel/history").status_code == 401
