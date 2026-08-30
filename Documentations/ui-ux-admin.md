@@ -4,8 +4,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Design. Nothing here is built.** |
-| Version | 0.2 |
+| Status | **Slice A0 built. The screens (A1–A6) are design.** |
+| Version | 0.3 |
 | Date | 2026-08-30 |
 | Scope | The operator's console: watching a world, diagnosing it, and turning its dials |
 | Depends on | `game-design.md` v3.0, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20, `detailed-design-post-mvp.md` v0.6 |
@@ -16,7 +16,8 @@
 `ui-ux-mvp.md` is normative for what a **player** sees. This document is normative for what an **operator** sees, and
 the two surfaces share nothing but a design language: different audience, different entitlement, different risks.
 
-Cited as `ADMIN §n`. Nothing in it is built; §7 is the delivery order if it is wanted.
+Cited as `ADMIN §n`. **A0 is built** — the separate application, the fourth role, operator sign-in and the
+grant model of §2. Everything in §3 is still design; §7 tracks it.
 
 ---
 
@@ -265,8 +266,17 @@ what the code remembers (*ARCH ADR-13*).
 A console that cannot write cannot be the cause of a dispute about what happened. The one write it needs — marking
 a tick resumable — is the narrowest grant that makes §3.2's Resume button work.
 
-The anti-leak suite gains one probe: **`B17` — `api_role` and `admin_role` are distinct, and no `/v1` route is
-served by the console's app.**
+Three probes were added with A0, all reading the catalogue rather than the code:
+
+- **`B17`** — `admin_role` can read every world schema, and its only write into the world is `hist.tick_runs`.
+- `api_role` holds nothing at all on `admin`, asserted by a denied `SELECT` as well as by the grant table.
+- `admin_role` is refused an `UPDATE` on `core.players`: the console diagnoses, it does not correct.
+
+**Authentication** (QA-1's remaining half): an operator signs in with their own credentials, and the token carries
+an audience of `frontier-console`. A player token has no audience and is refused here; an operator token has one and
+is refused by the game — so the two surfaces stay separate **even if a deployment gives them the same secret**. A
+login treats the address as a lookup key and does not validate it, so "that address could not exist" is never a
+different answer from "no such operator".
 
 ---
 
@@ -276,7 +286,7 @@ Each slice is independently useful, and the first two are most of the value.
 
 | Slice | Delivers | Worth it because |
 | --- | --- | --- |
-| **A0** | The separate app, `admin_role`, operator auth | Nothing else can exist until the surface is separate |
+| **A0** ✅ | The separate app, `admin_role`, operator auth, the grant model | Nothing else can exist until the surface is separate. **Built** |
 | **A1** | Overview and the tick screen | Answers "is the world turning?", which is the only question that matters at 4am |
 | **A2** | History: crises, eras, incursions | The countdown to an incursion is the thing worth watching |
 | **A3** | Pilots: the support view | Turns "something went wrong" into a fact |
@@ -300,6 +310,7 @@ Each slice is independently useful, and the first two are most of the value.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.3 | 2026-08-30 | Slice A0 built: the console as a separate application on its own port, `admin_role` and its read-mostly grants, operator sign-in on its own audience, and the grant model — including an origin that cannot be revoked. Three anti-leak probes. |
 | 0.2 | 2026-08-30 | QA-1 to QA-3 answered: one console across many worlds, permission granted operator to operator from an original account, and `Draft` opening a branch. Adds the Operators screen (A5). |
 | 0.1 | 2026-08-30 | First design of the operator console: a separate surface, a read-mostly boundary, and a balance screen that proposes a ruleset version rather than editing one. |
 

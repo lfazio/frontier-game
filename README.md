@@ -61,6 +61,21 @@ make serve     # API on :8000
 make client    # browser client on :5173
 ```
 
+## Operating a world
+
+The console is a **separate application on its own port**, not a privileged corner of the game.
+An operator account is not a player account: different tables, different tokens, and a token
+minted for one is refused by the other even if both are given the same secret.
+
+```sh
+make ancients     # the world's first operator — nobody grants this one
+make console      # the console on :8001
+```
+
+Permission spreads only by grant, from that first account outward, and the console can always
+say who let someone in. The original operator cannot be revoked: a world with no operator is a
+world nobody can rescue.
+
 ## Running it
 
 ```sh
