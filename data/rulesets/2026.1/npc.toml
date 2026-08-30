@@ -6,6 +6,14 @@ k_trade = 1.2
 k_raider = 0.9
 haul_capacity = 20
 
+# The Harrowing (GDD §8.12). Every crisis that expires unresolved brings one; severity
+# governs how many hulls arrive, never whether they do (PSDD Q-B).
+incursion_ships_per_severity = 2
+incursion_hull = 260
+incursion_shields = 90
+incursion_sensor_range = 4
+incursion_ap = 6
+
 [per_flow_unit]
 hauler = 6
 patrol = 4

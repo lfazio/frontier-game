@@ -404,6 +404,8 @@ class Crisis(Base):
     resolved_on: Mapped[int | None] = mapped_column(Integer, nullable=True)
     severity: Mapped[int] = mapped_column(SmallInteger)
     magnitude: Mapped[Decimal] = mapped_column(Numeric(6, 4))
+    # The day this crisis's incursion arrived. Null while it is still only a crisis.
+    answered_on: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class Era(Base):

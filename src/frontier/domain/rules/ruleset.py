@@ -112,7 +112,16 @@ class NpcRules:
     k_trade: float
     k_raider: float
     haul_capacity: int
+    incursion_ships_per_severity: int
+    incursion_hull: int
+    incursion_shields: int
+    incursion_sensor_range: int
+    incursion_ap: int
     per_flow_unit: Mapping[str, int]
+
+    def hulls_for(self, severity: int) -> int:
+        """How many arrive. Severity scales the answer; it never makes the answer zero."""
+        return max(1, self.incursion_ships_per_severity * max(1, severity))
 
 
 @dataclass(frozen=True, slots=True)
