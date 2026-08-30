@@ -4,8 +4,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Slices A0 to A3 built. The remaining screens (A4–A6) are design.** |
-| Version | 0.6 |
+| Status | **Slices A0 to A4 built. Operators (A5) and the Directorate (A6) remain.** |
+| Version | 0.7 |
 | Date | 2026-08-30 |
 | Scope | The operator's console: watching a world, diagnosing it, and turning its dials |
 | Depends on | `game-design.md` v3.1, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20, `detailed-design-post-mvp.md` v0.6 |
@@ -16,8 +16,8 @@
 `ui-ux-mvp.md` is normative for what a **player** sees. This document is normative for what an **operator** sees, and
 the two surfaces share nothing but a design language: different audience, different entitlement, different risks.
 
-Cited as `ADMIN §n`. **A0 to A3 are built** — the separate application, the fourth role, operator sign-in, the
-grant model of §2, and the screens of §3.1 to §3.3 and §3.5. The rest of §3 is still design; §7 tracks it.
+Cited as `ADMIN §n`. **A0 to A4 are built** — the separate application, the fourth role, operator sign-in, the
+grant model of §2, and the screens of §3.1 to §3.5. Only §3.6 is still design; §7 tracks it.
 
 ---
 
@@ -188,6 +188,18 @@ the button safe to press.
 Each dial carries a one-line note on what turning it does — the note is written by whoever adds the dial, and is
 part of adding it. `jump_range_default_ly` says what it says above because that was measured, not guessed.
 
+The notes live in **`notes.toml`, beside the ruleset version they describe**. The rules loader knows that one
+filename and ignores it, so no line of it can change how a world behaves — and it still refuses every *other*
+unknown file, so the exemption is one name, not a hole.
+
+**The dial list is not written down anywhere.** The console walks the loaded ruleset and reports every scalar it
+finds, so a dial added tomorrow appears without the console being told. A test asserts every shipped dial has a
+note, which is what turns "the note is part of adding it" into something enforced rather than hoped for.
+
+Drafting rewrites the source files **line by line** rather than re-serialising the parsed document: a regenerated
+TOML would lose the comments the ruleset is full of, and those comments are half of what makes it readable. A test
+counts them across the copy.
+
 ## 3.5 Pilots — the support view
 
 For "a player says something is wrong".
@@ -266,7 +278,7 @@ Every world-scoped route carries the world in its path, because one console reac
 | The tick | `GET /admin/worlds/{world}/ticks`, `.../ticks/{day}`, `POST .../ticks/{day}:retry` | ✅ |
 | Operators | `GET /admin/operators`, `POST /admin/operators:grant`, `:revoke` | ✅ *(A0)* |
 | History | `GET /admin/worlds/{world}/history` | ✅ |
-| Balance | `GET /admin/worlds/{world}/ruleset`, `POST .../ruleset:draft` | |
+| Balance | `GET /admin/worlds/{world}/ruleset`, `POST .../ruleset:draft` | ✅ |
 | Pilots | `GET /admin/worlds/{world}/pilots?q=…`, `.../pilots/{id}` | ✅ |
 | Directorate | `GET /admin/worlds/{world}/directorate` | |
 
@@ -317,7 +329,7 @@ Each slice is independently useful, and the first two are most of the value.
 | **A1** ✅ | Overview and the tick screen | Answers "is the world turning?", which is the only question that matters at 4am. **Built** |
 | **A2** ✅ | History: crises, eras, incursions | The countdown to an incursion is the thing worth watching. **Built** |
 | **A3** ✅ | Pilots: the support view | Turns "something went wrong" into a fact. **Built** |
-| **A4** | Balance: read-only dials and Draft | Makes tuning a reviewed change rather than a live one |
+| **A4** ✅ | Balance: read-only dials and Draft | Makes tuning a reviewed change rather than a live one. **Built** |
 | **A5** | Operators: who holds permission, and who granted it | Follows A0's model; needed the moment a second person runs a world |
 | **A6** | The Directorate screen | Last, and behind its own flag, for the same reason the faction shipped last |
 
@@ -337,6 +349,7 @@ Each slice is independently useful, and the first two are most of the value.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.7 | 2026-08-30 | Slice A4 built: 61 dials found by walking the ruleset, each with its note, and a Draft that writes the next version on a branch. The live ruleset is never edited, and a test asserts it. |
 | 0.6 | 2026-08-30 | Slice A3 built: find a pilot, read what the server did for them, and see whether they sided with an incursion. Clearance is redacted from the console itself, and asserted absent. |
 | 0.5 | 2026-08-30 | Slice A2 built: eras, open crises with their countdown, and the incursion each answered crisis raised. The console now loads the world's ruleset, so a number on screen can say what it means. |
 | 0.4 | 2026-08-30 | Slice A1 built: the overview and the tick, rendered on the server. Stage times are derived from the gaps between recorded finishes rather than stored. **Resume became "ask for a retry"** — the console cannot run a tick, and a failed one already resumes itself. |
