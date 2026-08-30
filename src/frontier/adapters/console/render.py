@@ -70,7 +70,7 @@ def page(title: str, body: str) -> str:
 def shell(world: str, worlds: list[str], here: str, body: str, day: int | None, phase: str | None) -> str:
     tabs = "".join(
         f"<a class='{'on' if name == here else ''}' href='/console/{escape(w)}/{name}'>{name}</a>"
-        for name in ("overview", "ticks")
+        for name in ("overview", "ticks", "history")
         for w in [world]
     )
     picker = "".join(
@@ -236,6 +236,93 @@ def tick(world: str, body: dict[str, Any], may_retry: bool) -> str:
         "beginning.</p>"
     )
     return head + table + note
+
+
+def _pips(severity: int) -> str:
+    """Severity as marks, not only as a number: five of five reads at a glance."""
+    return "".join(
+        f"<i style='display:inline-block;width:7px;height:13px;border-radius:2px;margin-right:3px;"
+        f"background:{ACCENT if n <= severity else LINE}'></i>"
+        for n in range(1, 6)
+    )
+
+
+def _countdown(days: int | None) -> str:
+    if days is None:
+        return "<span class='dim'>—</span>"
+    # Nearer the expiry, warmer the colour: it is a countdown to an invasion, not a date.
+    colour = WARN if days <= 5 else (ACCENT if days <= 11 else DIM)
+    word = "expires today" if days == 0 else (f"{days} days left" if days > 0 else "overdue")
+    return f"<span class='num' style='color:{colour}'>{word}</span>"
+
+
+def history(body: dict[str, Any]) -> str:
+    era = body["era"]
+    head = (
+        "<div class='card'><div class='row'>"
+        f"<span class='dim small' style='{CAPS}'>Era</span>"
+        + (
+            f"<span style='color:{ACCENT};font-size:20px'>{escape(era['name'])}</span>"
+            f"<span class='num dim small'>began day {era['began_on']}</span>"
+            if era
+            else "<span class='quiet'>No age has been named yet.</span>"
+        )
+        + "<span class='spacer'></span>"
+        f"<span class='dim small'>an age closes when a crisis of severity "
+        f"{body['era_threshold']} or worse is resolved</span>"
+        "</div></div>"
+    )
+
+    if not body["open"]:
+        crises = (
+            "<div class='card'><div class='row'><span class='quiet'>"
+            "Nothing is straining. The model expects what it is seeing.</span></div></div>"
+        )
+    else:
+        rows = "".join(
+            "<tr>"
+            f"<td class='num dim'>{escape(c['region'])}</td>"
+            f"<td>{escape(c['variable'].replace('_', ' '))}</td>"
+            f"<td>{_pips(c['severity'])}</td>"
+            f"<td class='num dim small'>opened {c['opened_on']}</td>"
+            f"<td style='text-align:right'>{_countdown(c['days_left'])}</td>"
+            "</tr>"
+            for c in body["open"]
+        )
+        crises = (
+            f"<div class='card'><table><tr><th>region</th><th>variable</th><th>severity</th>"
+            f"<th>opened</th><th style='text-align:right'>expiry</th></tr>{rows}</table></div>"
+            "<p class='dim small'>Every crisis that expires unresolved brings an incursion. "
+            "Severity decides how many hulls, never whether they come.</p>"
+        )
+
+    raised = [c for c in body["answered"] if c["incursion"]]
+    if not raised:
+        incursions = (
+            "<div class='card'><div class='row'><span class='quiet'>"
+            "No incursion has been raised in this world.</span></div></div>"
+        )
+    else:
+        cards = "".join(
+            "<div class='card' style='margin-bottom:10px'><div class='row'>"
+            f"<b class='warn'>{escape(c['incursion']['region'] or c['region'])}</b>"
+            f"<span class='num warn'>{c['incursion']['still_flying']} of "
+            f"{c['incursion']['hulls']} hulls still flying</span>"
+            "<span class='spacer'></span>"
+            f"<span class='dim small'>raised day {c['incursion']['raised_on']} from a "
+            f"{escape(c['variable'].replace('_', ' '))} crisis of severity {c['severity']}</span>"
+            "</div></div>"
+            for c in raised
+        )
+        incursions = cards
+
+    return (
+        head
+        + f"<div class='dim small' style='{CAPS}'>Open crises</div>"
+        + crises
+        + f"<div class='dim small' style='{CAPS}'>Incursions</div>"
+        + incursions
+    )
 
 
 def login(message: str = "") -> str:
