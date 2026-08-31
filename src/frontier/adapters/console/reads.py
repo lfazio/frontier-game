@@ -311,6 +311,64 @@ async def pilot(session: AsyncSession, player_id: UUID) -> dict[str, Any] | None
     }
 
 
+async def directorate(session: AsyncSession, day: int | None) -> dict[str, Any]:
+    """What the hidden faction has been doing — ADMIN §3.6.
+
+    An operator tuning it cannot tune what they cannot see, and whoever runs a world can read
+    `cont` anyway. What this must not do is change the shape of any *other* screen, which is why
+    it is a screen of its own behind its own permission.
+    """
+    counts = (
+        await session.execute(
+            text(
+                "SELECT (SELECT count(*) FROM cont.cells) AS cells, "
+                "       (SELECT count(*) FROM cont.agents) AS agents, "
+                "       (SELECT count(*) FROM cont.interventions) AS interventions, "
+                "       (SELECT count(*) FROM core.missions WHERE offered_to IS NOT NULL "
+                "         AND expires_on >= coalesce(:day, 0)) AS offers"
+            ).bindparams(day=day)
+        )
+    ).one()
+
+    budget = (
+        await session.execute(
+            text("SELECT world_day, allowed, used FROM cont.budget ORDER BY world_day DESC LIMIT 1")
+        )
+    ).first()
+
+    leans = (
+        await session.execute(
+            text(
+                "SELECT i.world_day, i.kind, i.magnitude, i.rationale ->> 'lever' AS lever, "
+                "       region.name AS region "
+                "FROM cont.interventions i "
+                "LEFT JOIN core.locations region ON region.id = i.region_id "
+                "ORDER BY i.world_day DESC, i.id LIMIT 12"
+            )
+        )
+    ).all()
+
+    return {
+        "cells": int(counts.cells),
+        "agents": int(counts.agents),
+        "interventions": int(counts.interventions),
+        "offers_out": int(counts.offers),
+        "budget": None
+        if budget is None
+        else {"world_day": budget.world_day, "allowed": budget.allowed, "used": budget.used},
+        "recent": [
+            {
+                "world_day": row.world_day,
+                "kind": row.kind,
+                "lever": row.lever,
+                "magnitude": float(row.magnitude),
+                "region": row.region,
+            }
+            for row in leans
+        ],
+    }
+
+
 def _run(row: models.TickRun | None) -> dict[str, Any]:
     if row is None:
         return {"world_day": None, "finished": False}
