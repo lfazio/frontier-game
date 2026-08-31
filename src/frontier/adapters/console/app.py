@@ -250,6 +250,19 @@ def create_console(console: Console | None = None) -> FastAPI:
         except FileExistsError as exc:
             raise HTTPException(status_code=409, detail="VERSION_EXISTS") from exc
 
+    @app.get("/admin/worlds/{world}/directorate", tags=["directorate"])
+    async def directorate(world: str, operator_id: CurrentOperator, c: ConsoleDep) -> dict[str, Any]:
+        async with c.sessions() as session:
+            if world not in c.worlds:
+                raise HTTPException(status_code=404, detail="Not Found")
+            # Its own permission, above operating the world itself.
+            await require(session, operator_id, world, "directorate")
+            if not c.settings.features_continuity:
+                return {"world": world, "enabled": False}
+            state = (await session.execute(select(models.WorldState))).scalar_one_or_none()
+            body = await reads.directorate(session, state.world_day if state else None)
+        return {"world": world, "enabled": True, **body}
+
     @app.get("/admin/operators", tags=["operators"])
     async def operators(world: str, operator_id: CurrentOperator, c: ConsoleDep) -> dict[str, Any]:
         async with c.sessions() as session:
@@ -273,6 +286,8 @@ def create_console(console: Console | None = None) -> FastAPI:
                     "name": who.name,
                     "permission": grant.permission,
                     "granted_by": names.get(grant.granted_by) if grant.granted_by else None,
+                    "granted_at": grant.granted_at.isoformat() if grant.granted_at else None,
+                    "email": who.email,
                     "removable": grant.permission != "origin",
                 }
                 for grant, who in rows
@@ -410,6 +425,63 @@ def create_console(console: Console | None = None) -> FastAPI:
                     continue
         return out
 
+    @app.get("/console/{world}/operators", include_in_schema=False)
+    async def screen_operators(world: str, request: Request) -> Response:
+        return await _screen(request, world, "operators")
+
+    @app.post("/console/{world}/operators/grant", include_in_schema=False)
+    async def screen_grant(world: str, request: Request) -> Response:
+        return await _people(request, world, grant=True)
+
+    @app.post("/console/{world}/operators/revoke", include_in_schema=False)
+    async def screen_revoke(world: str, request: Request) -> Response:
+        return await _people(request, world, grant=False)
+
+    async def _people(request: Request, world: str, grant: bool) -> Response:
+        operator_id = await operator_of(request)
+        if operator_id is None:
+            return HTMLResponse(render.login(), status_code=401)
+        c: Console = app.state.console
+        form = parse_qs((await request.body()).decode("utf-8", "replace"))
+        email = (form.get("email") or [""])[0]
+        permission = (form.get("permission") or ["watch"])[0]
+
+        async with c.sessions() as session, session.begin():
+            held = await permission_on(session, operator_id, world)
+            if world not in c.worlds or not at_least(held, "operate"):
+                return HTMLResponse(render.page("Not found", "<main>Not Found</main>"), status_code=404)
+            target = (
+                await session.execute(select(models.Operator).where(models.Operator.email == email))
+            ).scalar_one_or_none()
+            if target is None:
+                return await _screen(request, world, "operators", message="No operator by that name.")
+            theirs = await permission_on(session, target.id, world)
+            if theirs == "origin":
+                return await _screen(
+                    request, world, "operators", message="The original operator cannot be changed."
+                )
+            if grant and not at_least(held, permission):
+                return await _screen(
+                    request, world, "operators", message="You cannot give more than you hold."
+                )
+            await session.execute(
+                delete(models.Grant).where(models.Grant.operator_id == target.id, models.Grant.world == world)
+            )
+            if grant:
+                session.add(
+                    models.Grant(
+                        operator_id=target.id,
+                        world=world,
+                        permission=permission,
+                        granted_by=operator_id,
+                    )
+                )
+        return RedirectResponse(f"/console/{world}/operators", status_code=303)
+
+    @app.get("/console/{world}/directorate", include_in_schema=False)
+    async def screen_directorate(world: str, request: Request) -> Response:
+        return await _screen(request, world, "directorate")
+
     @app.get("/console/{world}/balance", include_in_schema=False)
     async def screen_balance(world: str, request: Request) -> Response:
         return await _screen(request, world, "balance", edits=pending(request.query_params))
@@ -493,6 +565,7 @@ def create_console(console: Console | None = None) -> FastAPI:
         pilot_id: UUID | None = None,
         edits: dict[str, float] | None = None,
         drafted: dict[str, Any] | None = None,
+        message: str = "",
     ) -> Response:
         operator_id = await operator_of(request)
         if operator_id is None:
@@ -506,6 +579,45 @@ def create_console(console: Console | None = None) -> FastAPI:
             summary = await reads.overview(session)
             if here == "overview":
                 body = render.overview(summary).replace("{world}", world)
+            elif here == "operators":
+                roster = (
+                    await session.execute(
+                        select(models.Grant, models.Operator)
+                        .join(models.Operator, models.Operator.id == models.Grant.operator_id)
+                        .where(models.Grant.world == world)
+                        .order_by(models.Grant.granted_at)
+                    )
+                ).all()
+                names = {
+                    row.id: row.name for row in (await session.execute(select(models.Operator))).scalars()
+                }
+                body = render.operators(
+                    world,
+                    [
+                        {
+                            "name": who.name,
+                            "email": who.email,
+                            "permission": g.permission,
+                            "granted_by": names.get(g.granted_by) if g.granted_by else None,
+                            "granted_at": g.granted_at.isoformat() if g.granted_at else None,
+                            "removable": g.permission != "origin",
+                        }
+                        for g, who in roster
+                    ],
+                    may_grant=at_least(held, "operate"),
+                    message=message,
+                )
+            elif here == "directorate":
+                # Its own permission on top of the world's own flag: an operator who runs a world
+                # is not thereby shown the faction inside it (ADMIN §3.6).
+                if not at_least(held, "directorate"):
+                    return HTMLResponse(render.page("Not found", "<main>Not Found</main>"), status_code=404)
+                lit = c.settings.features_continuity
+                body = render.directorate(
+                    await reads.directorate(session, summary["world_day"]) if lit else None,
+                    lit=lit,
+                    cap=c.rules.continuity.max_magnitude,
+                )
             elif here == "balance":
                 body = render.balance(
                     world,
@@ -529,7 +641,10 @@ def create_console(console: Console | None = None) -> FastAPI:
                 if found is None:
                     return HTMLResponse(render.page("Not found", "<main>Not Found</main>"), status_code=404)
                 body = render.tick(world, found, may_retry=at_least(held, "operate"))
-        return HTMLResponse(render.shell(world, mine, here, body, summary["world_day"], summary["phase"]))
+        extra = ("directorate",) if at_least(held, "directorate") else ()
+        return HTMLResponse(
+            render.shell(world, mine, here, body, summary["world_day"], summary["phase"], extra)
+        )
 
     return app
 

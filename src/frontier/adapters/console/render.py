@@ -67,11 +67,23 @@ def page(title: str, body: str) -> str:
     )
 
 
-def shell(world: str, worlds: list[str], here: str, body: str, day: int | None, phase: str | None) -> str:
+SCREENS = ("overview", "ticks", "history", "pilots", "balance", "operators")
+
+
+def shell(
+    world: str,
+    worlds: list[str],
+    here: str,
+    body: str,
+    day: int | None,
+    phase: str | None,
+    extra: tuple[str, ...] = (),
+) -> str:
+    # A tab an operator cannot open would be an answer in itself, so one they may not hold is
+    # not drawn greyed — it is not drawn (ADMIN §3.6).
     tabs = "".join(
-        f"<a class='{'on' if name == here else ''}' href='/console/{escape(w)}/{name}'>{name}</a>"
-        for name in ("overview", "ticks", "history", "pilots", "balance")
-        for w in [world]
+        f"<a class='{'on' if name == here else ''}' href='/console/{escape(world)}/{name}'>{name}</a>"
+        for name in SCREENS + extra
     )
     picker = "".join(
         f"<a class='pill world' href='/console/{escape(name)}/{here}'>{escape(name)}</a>"
@@ -505,6 +517,116 @@ def balance(
         "<span class='spacer'></span>"
         "<span class='dim small'>read-only — editing balance means publishing a new version</span>"
         "</div>" + panel + tables
+    )
+
+
+def operators(world: str, roster: list[dict[str, Any]], may_grant: bool, message: str = "") -> str:
+    rows = "".join(
+        "<tr>"
+        f"<td>{escape(row['name'])}"
+        + (
+            " <span class='dim small'>&middot; the account this world descends from</span>"
+            if row["permission"] == "origin"
+            else ""
+        )
+        + "</td>"
+        f"<td class='num small dim'>{escape(row['permission'])}</td>"
+        f"<td class='dim small'>{escape(row['granted_by'] or 'made the world')}</td>"
+        f"<td class='num dim small'>{escape((row['granted_at'] or '')[:10])}</td>"
+        "<td style='text-align:right'>"
+        + (
+            f"<form method='post' action='/console/{escape(world)}/operators/revoke' "
+            "style='display:inline'>"
+            f"<input type='hidden' name='email' value='{escape(row['email'])}'>"
+            "<button class='small'>Revoke</button></form>"
+            if row["removable"] and may_grant
+            else "<span class='dim small'>cannot be removed</span>"
+            if not row["removable"]
+            else ""
+        )
+        + "</td></tr>"
+        for row in roster
+    )
+
+    form = (
+        f"<form method='post' action='/console/{escape(world)}/operators/grant' "
+        "style='display:flex;gap:8px;align-items:center;flex-wrap:wrap'>"
+        "<input name='email' placeholder=\"the operator's account\" style='flex:1;min-width:240px'>"
+        "<select name='permission'>"
+        "<option value='watch'>watch</option>"
+        "<option value='operate'>operate</option>"
+        "<option value='directorate'>directorate</option>"
+        "</select>"
+        f"<button class='go'>Grant on {escape(world)}</button>"
+        "<span class='dim small'>a grant is an event, with your name on it</span>"
+        "</form>"
+        if may_grant
+        else "<p class='dim small'>Granting needs `operate` on this world.</p>"
+    )
+
+    warn = f"<p class='warn small'>{escape(message)}</p>" if message else ""
+    return (
+        f"<div class='dim small' style='{CAPS}'>Who may run {escape(world)}</div>"
+        "<p class='dim small'>Nobody grants themselves this. Everyone here was let in by someone "
+        "else, and the chain ends at the account that made the world.</p>"
+        f"{warn}"
+        "<div class='card'><table>"
+        "<tr><th>operator</th><th>permission</th><th>granted by</th><th>since</th><th></th></tr>"
+        f"{rows}</table></div>"
+        f"<div class='card' style='margin-top:14px'><div class='row'>{form}</div></div>"
+    )
+
+
+def directorate(body: dict[str, Any] | None, lit: bool, cap: float) -> str:
+    if not lit:
+        return (
+            "<div class='card'><div class='row' style='flex-direction:column;gap:10px'>"
+            "<b>The faction is switched off on this world.</b>"
+            "<span class='dim small'>No stage runs, and every table it owns is empty. Turning it "
+            "on changes nothing a player can see &mdash; and nothing on any other screen here "
+            "changes shape either, which is the same property the anti-leak suite asserts for "
+            "players.</span></div></div>"
+        )
+    assert body is not None
+    budget = body["budget"]
+    tiles = "".join(
+        f"<div class='tile'><div class='big num'>{value}</div><div class='label'>{label}</div></div>"
+        for label, value in (
+            ("cells", body["cells"]),
+            ("agents", body["agents"]),
+            ("interventions to date", body["interventions"]),
+            ("approaches out", body["offers_out"]),
+        )
+    )
+    leans = "".join(
+        f"<tr><td class='num dim' style='width:96px'>day {row['world_day']}</td>"
+        f"<td class='num dim' style='width:96px'>{escape(row['region'] or '—')}</td>"
+        f"<td style='width:110px;color:{ACCENT}'>{escape(row['kind'])}</td>"
+        f"<td class='num small dim'>{escape(row['lever'] or '')}</td>"
+        f"<td class='num' style='text-align:right;width:90px'>{row['magnitude']:.3f}</td></tr>"
+        for row in body["recent"]
+    )
+    spent = (
+        f"<span class='num'>{budget['used']} of {budget['allowed']}</span> "
+        f"<span class='dim small'>on day {budget['world_day']}</span>"
+        if budget
+        else "<span class='quiet'>It has not acted yet.</span>"
+    )
+    return (
+        f"<div class='tiles'>{tiles}</div>"
+        f"<div class='card' style='margin-top:14px'><div class='row'>"
+        f"<b style='letter-spacing:.08em'>BUDGET</b>{spent}<span class='spacer'></span>"
+        "<span class='dim small'>bounded by the size of the world, never by the number of "
+        "players</span></div></div>"
+        f"<div class='dim small' style='{CAPS};margin-top:14px'>Last interventions</div>"
+        + (
+            f"<div class='card'><table>{leans}</table></div>"
+            if leans
+            else "<div class='card'><div class='row'><span class='quiet'>Nothing yet.</span></div></div>"
+        )
+        + f"<p class='dim small'>The cap is {cap:g} per intervention. Push, nudge, delay, "
+        "accelerate, hide, reveal &mdash; never force. Nothing on this screen exists on any "
+        "other, and no pilot's clearance is shown here either.</p>"
     )
 
 
