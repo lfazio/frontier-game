@@ -662,3 +662,129 @@ def test_the_balance_screen_shows_a_diff_before_it_writes_anything(drafting, own
     )
     assert "Drafted 2026.2" in made.text
     assert (own_rulesets / "2026.2").is_dir()
+
+
+# --- A5: operators, and A6: the Directorate ----------------------------------------------------
+
+
+@pytest.fixture
+def lit(clean, tmp_path):
+    """A console on a world where the hidden faction is switched on."""
+    settings = for_console(clean).model_copy(update={"features_continuity": True})
+    asyncio.run(_wipe(settings))
+    asyncio.run(bootstrap(settings, ORIGIN, SECRET, "The Great Ancients"))
+    with TestClient(create_console(build(settings))) as client:
+        yield client
+
+
+def as_browser(client, email=ORIGIN):
+    client.post(
+        "/console/login",
+        content=f"email={email.replace('@', '%40')}&password=correct-horse-battery-staple",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        follow_redirects=False,
+    )
+    return client
+
+
+def test_the_operators_screen_shows_the_chain(clean, console):
+    add_operator(clean, "nadia@example.com", "nadia.okonkwo")
+    console.post(
+        "/admin/operators:grant",
+        headers=sign_in(console),
+        json={"email": "nadia@example.com", "world": "kestrel", "permission": "operate"},
+    )
+
+    screen = as_browser(console).get("/console/kestrel/operators")
+
+    assert screen.status_code == 200
+    assert "The Great Ancients" in screen.text
+    assert "cannot be removed" in screen.text
+    assert "nadia.okonkwo" in screen.text
+    assert "Revoke" in screen.text
+
+
+def test_granting_and_revoking_from_the_screen(clean, console):
+    add_operator(clean, "temp2@example.com", "temp.cover")
+    browser = as_browser(console)
+
+    browser.post(
+        "/console/kestrel/operators/grant",
+        content="email=temp2%40example.com&permission=watch",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        follow_redirects=True,
+    )
+    granted = browser.get("/console/kestrel/operators").text
+
+    browser.post(
+        "/console/kestrel/operators/revoke",
+        content="email=temp2%40example.com",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        follow_redirects=True,
+    )
+    revoked = browser.get("/console/kestrel/operators").text
+
+    assert "temp.cover" in granted
+    assert "temp.cover" not in revoked
+
+
+def test_the_screen_refuses_to_touch_the_origin(console):
+    browser = as_browser(console)
+
+    browser.post(
+        "/console/kestrel/operators/revoke",
+        content=f"email={ORIGIN.replace('@', '%40')}",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    still = browser.get("/console/kestrel/operators")
+    assert "The Great Ancients" in still.text
+    assert console.get("/admin/me", headers=sign_in(console)).json()["worlds"]
+
+
+def test_the_directorate_needs_its_own_permission(clean, lit):
+    """A6: running a world does not show you the faction inside it."""
+    add_operator(clean, "runner@example.com", "a.runner")
+    lit.post(
+        "/admin/operators:grant",
+        headers=sign_in(lit),
+        json={"email": "runner@example.com", "world": "kestrel", "permission": "operate"},
+    )
+    runner = sign_in(lit, "runner@example.com")
+
+    assert lit.get("/admin/worlds/kestrel/directorate", headers=runner).status_code == 404
+    assert lit.get("/admin/worlds/kestrel/directorate", headers=sign_in(lit)).status_code == 200
+
+
+def test_a_tab_an_operator_cannot_open_is_not_drawn(clean, lit):
+    """A greyed tab would be an answer in itself."""
+    add_operator(clean, "runner2@example.com", "another.runner")
+    lit.post(
+        "/admin/operators:grant",
+        headers=sign_in(lit),
+        json={"email": "runner2@example.com", "world": "kestrel", "permission": "operate"},
+    )
+
+    theirs = as_browser(lit, "runner2@example.com").get("/console/kestrel/overview")
+    assert "directorate" not in theirs.text
+    assert lit.get("/console/kestrel/directorate").status_code == 404
+
+    origin = as_browser(lit).get("/console/kestrel/overview")
+    assert "directorate" in origin.text
+
+
+def test_the_directorate_says_so_when_the_faction_is_dark(console):
+    """The console is honest about a switched-off faction rather than showing zeroes."""
+    body = console.get("/admin/worlds/kestrel/directorate", headers=sign_in(console)).json()
+    screen = as_browser(console).get("/console/kestrel/directorate")
+
+    assert body["enabled"] is False
+    assert "switched off" in screen.text
+
+
+def test_the_directorate_reports_what_the_faction_did(lit):
+    body = lit.get("/admin/worlds/kestrel/directorate", headers=sign_in(lit)).json()
+
+    assert body["enabled"] is True
+    assert set(body) >= {"cells", "agents", "interventions", "offers_out", "budget", "recent"}
+    assert all(isinstance(body[k], int) for k in ("cells", "agents", "interventions", "offers_out"))
