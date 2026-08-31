@@ -18,8 +18,8 @@ detail. Cited as `SDD §n`. |
 interaction contracts. Cited as `UX §n`. |
 | `Documentations/detailed-design-post-mvp.md` (v0.8) | **What is built after the MVP.** Phases P5–P7+ and the
 deferred systems. Cited as `PSDD §n`. |
-| `Documentations/ui-ux-admin.md` (v0.7) | **What the operator sees.** The console, its boundary and its dials.
-Slices A0 to A4 built; the rest is design. Cited as `ADMIN §n`. |
+| `Documentations/ui-ux-admin.md` (v0.8) | **What the operator sees.** The console, its boundary and its dials.
+Built, every slice. Cited as `ADMIN §n`. |
 
 Where they disagree, the design document wins on behaviour and the architecture document wins on implementation —
 and one of them needs amending. Neither is aspirational notes: read the relevant sections before implementing.

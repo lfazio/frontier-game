@@ -72,6 +72,12 @@ make ancients     # the world's first operator — nobody grants this one
 make console      # the console on :8001
 ```
 
+Seven screens: whether the world is turning and what last night's tick did, the crises counting
+down toward an incursion, any pilot's record, the balance dials, who may run the world, and —
+behind its own permission — the hidden faction. Nothing on it can change the world: the balance
+screen drafts a new ruleset version on a branch rather than editing the live one, and the
+console's only write into a world is asking for a failed tick to be retried.
+
 Permission spreads only by grant, from that first account outward, and the console can always
 say who let someone in. The original operator cannot be revoked: a world with no operator is a
 world nobody can rescue.

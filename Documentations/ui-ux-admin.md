@@ -4,8 +4,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | **Slices A0 to A4 built. Operators (A5) and the Directorate (A6) remain.** |
-| Version | 0.7 |
+| Status | **Built: every slice, A0 to A6.** |
+| Version | 0.8 |
 | Date | 2026-08-30 |
 | Scope | The operator's console: watching a world, diagnosing it, and turning its dials |
 | Depends on | `game-design.md` v3.1, `architecture.md` v0.8, `detailed-design-mvp.md` v0.20, `detailed-design-post-mvp.md` v0.6 |
@@ -16,8 +16,8 @@
 `ui-ux-mvp.md` is normative for what a **player** sees. This document is normative for what an **operator** sees, and
 the two surfaces share nothing but a design language: different audience, different entitlement, different risks.
 
-Cited as `ADMIN §n`. **A0 to A4 are built** — the separate application, the fourth role, operator sign-in, the
-grant model of §2, and the screens of §3.1 to §3.5. Only §3.6 is still design; §7 tracks it.
+Cited as `ADMIN §n`. **The console is built** — the separate application, the fourth role, operator sign-in, the
+grant model of §2, and every screen in §3. §7 records the order it arrived in.
 
 ---
 
@@ -251,6 +251,16 @@ It exists because an operator tuning the faction cannot tune what they cannot se
 **the ordinary screens stay ordinary**: nothing on §3.1–§3.5 changes shape when the faction is switched on, which is
 the same property `B7` asserts for players.
 
+Two things about the gate, both asserted:
+
+- **Running a world does not show you the faction inside it.** `directorate` is a permission above `operate`, so an
+  operator trusted to run the world is not thereby shown what is moving in it.
+- **A tab an operator cannot open is not drawn at all** — not drawn greyed, not drawn disabled. A control that
+  refuses is an answer to the question of whether there is something there.
+
+With the flag off the screen says so in words rather than showing a page of zeroes, which would be the same
+tell in a different shape.
+
 ---
 
 # 4. What the console must never do
@@ -280,7 +290,7 @@ Every world-scoped route carries the world in its path, because one console reac
 | History | `GET /admin/worlds/{world}/history` | ✅ |
 | Balance | `GET /admin/worlds/{world}/ruleset`, `POST .../ruleset:draft` | ✅ |
 | Pilots | `GET /admin/worlds/{world}/pilots?q=…`, `.../pilots/{id}` | ✅ |
-| Directorate | `GET /admin/worlds/{world}/directorate` | |
+| Directorate | `GET /admin/worlds/{world}/directorate` | ✅ |
 
 The screens themselves are **rendered on the server** at `/console/{world}/…`, reading through the same functions
 the JSON routes use. An operator console is an internal tool with a handful of screens: a page that arrives
@@ -330,8 +340,8 @@ Each slice is independently useful, and the first two are most of the value.
 | **A2** ✅ | History: crises, eras, incursions | The countdown to an incursion is the thing worth watching. **Built** |
 | **A3** ✅ | Pilots: the support view | Turns "something went wrong" into a fact. **Built** |
 | **A4** ✅ | Balance: read-only dials and Draft | Makes tuning a reviewed change rather than a live one. **Built** |
-| **A5** | Operators: who holds permission, and who granted it | Follows A0's model; needed the moment a second person runs a world |
-| **A6** | The Directorate screen | Last, and behind its own flag, for the same reason the faction shipped last |
+| **A5** ✅ | Operators: who holds permission, and who granted it | Follows A0's model; needed the moment a second person runs a world. **Built** |
+| **A6** ✅ | The Directorate screen | Last, and behind its own flag, for the same reason the faction shipped last. **Built** |
 
 ---
 
@@ -349,6 +359,7 @@ Each slice is independently useful, and the first two are most of the value.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.8 | 2026-08-31 | Slices A5 and A6 built, completing the console: the grant chain as a screen, and the Directorate behind both its flag and its own permission — with the tab undrawn for anyone who may not open it. |
 | 0.7 | 2026-08-30 | Slice A4 built: 61 dials found by walking the ruleset, each with its note, and a Draft that writes the next version on a branch. The live ruleset is never edited, and a test asserts it. |
 | 0.6 | 2026-08-30 | Slice A3 built: find a pilot, read what the server did for them, and see whether they sided with an incursion. Clearance is redacted from the console itself, and asserted absent. |
 | 0.5 | 2026-08-30 | Slice A2 built: eras, open crises with their countdown, and the incursion each answered crisis raised. The console now loads the world's ruleset, so a number on screen can say what it means. |
